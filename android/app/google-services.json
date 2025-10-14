@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "287016865087",
+    "project_id": "liaron-soundimplosion",
+    "storage_bucket": "liaron-soundimplosion.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:287016865087:android:9a638ce3bf4cc2ce34178a",
+        "android_client_info": {
+          "package_name": "it.sinnodel.soundimplosion"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDMiYmcHhnSNdspTVmYHB6-UZ_foo8bKbs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -2,8 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:soundimplosion/app/features/app_scaffold_mobile.dart';
 import 'package:soundimplosion/platform_layout.dart';
 import 'package:soundimplosion/web/web_scaffold_web.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   runApp(const MyApp());
 }
 
