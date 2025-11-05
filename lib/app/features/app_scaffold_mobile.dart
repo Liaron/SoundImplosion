@@ -5,6 +5,7 @@ import 'package:soundimplosion/app/features/jam/jam_session_page_mobile.dart';
 import 'package:soundimplosion/app/features/profile/profile_details_page_mobile.dart';
 import 'package:soundimplosion/app/features/contact_us/contact_us_page_mobile.dart';
 import 'package:soundimplosion/common/variables.dart';
+import 'package:soundimplosion/services/firebase_auth.dart';
 
 
 // Widget segnaposto per le pagine non ancora create.
@@ -23,11 +24,19 @@ class PlaceholderPage extends StatelessWidget {
 class AppScaffoldMobile extends StatefulWidget {
   const AppScaffoldMobile({super.key});
 
+
   @override
   State<AppScaffoldMobile> createState() => _AppScaffoldMobileState();
 }
 
 class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
+
+  final AuthService _authService = AuthService();
+
+  Future<void> _signOut() async {
+    await _authService.signOut();
+  }
+
   int _selectedIndex = 0;
   String _currentPageTitle = 'Home';
 
@@ -37,7 +46,7 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
     const JamSessionPageMobile(), // 2
     const ProfileDetailsPageMobile(), // 3
     const ContactUsPageMobile(), // 4
-    const PlaceholderPage(title: 'Impostazioni'), // 5
+    const PlaceholderPage(title: 'Impostazioni'),
   ];
 
   static const List<String> _pageTitles = <String>[
@@ -46,7 +55,8 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
     'Jam Session',
     'Profilo',
     'Contattaci',
-    'Impostazioni'
+    'Impostazioni',
+    'LogOut'
   ];
 
   void _navigateToPage(int index) {
@@ -106,6 +116,12 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
               leading: const Icon(Icons.settings),
               title: const Text('Impostazioni'),
               onTap: () => _navigateToPage(5),
+            ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.logout),
+              title: const Text('Logout'),
+              onTap: () => _signOut(),
             ),
             Padding(
               padding: const EdgeInsets.all(16.0),

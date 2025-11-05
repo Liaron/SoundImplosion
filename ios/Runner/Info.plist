@@ -45,5 +45,15 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- URL types necessari per Google Sign-In (REVERSED_CLIENT_ID da GoogleService-Info.plist) -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.287016865087-jc6oi0lvn3s8537r4pfrnscfsm91tgme</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>
