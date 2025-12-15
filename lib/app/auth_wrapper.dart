@@ -1,8 +1,3 @@
-import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:soundimplosion/app/features/app_scaffold_mobile.dart';
-import 'package:soundimplosion/app/features/home/auth_page_mobile.dart';
-import 'package:soundimplosion/services/firebase_auth.dart';
 
 // class AuthWrapper extends StatelessWidget {
 //   const AuthWrapper({super.key});

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:soundimplosion/app/features/book/bookings_page_mobile.dart';
+import 'package:soundimplosion/app/features/book/bookings_scaffold_mobile.dart';
 import 'package:soundimplosion/app/features/home/home_page_mobile.dart';
 import 'package:soundimplosion/app/features/jam/jam_session_page_mobile.dart';
 import 'package:soundimplosion/app/features/profile/profile_details_page_mobile.dart';
@@ -22,8 +22,9 @@ class PlaceholderPage extends StatelessWidget {
 }
 
 class AppScaffoldMobile extends StatefulWidget {
-  const AppScaffoldMobile({super.key});
+  const AppScaffoldMobile({super.key, this.initialIndex = 0});
 
+  final int initialIndex;
 
   @override
   State<AppScaffoldMobile> createState() => _AppScaffoldMobileState();
@@ -42,7 +43,7 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
 
   static final List<Widget> _widgetOptions = <Widget>[
     const HomePageMobile(), // 0
-    const BookingsPageMobile(), // 1
+    const BookingsScaffoldMobile(), // 1
     const JamSessionPageMobile(), // 2
     const ProfileDetailsPageMobile(), // 3
     const ContactUsPageMobile(), // 4
@@ -65,6 +66,17 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
       _selectedIndex = index;
       _currentPageTitle = _pageTitles[index];
     });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    final maxIndex = _widgetOptions.length - 1;
+    final incoming = widget.initialIndex;
+    _selectedIndex = incoming < 0
+        ? 0
+        : (incoming > maxIndex ? maxIndex : incoming);
+    _currentPageTitle = _pageTitles[_selectedIndex];
   }
 
   @override

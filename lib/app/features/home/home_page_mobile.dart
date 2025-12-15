@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:soundimplosion/services/firebase_auth.dart';
 
 class HomePageMobile extends StatefulWidget {
   const HomePageMobile({super.key});
@@ -9,11 +8,6 @@ class HomePageMobile extends StatefulWidget {
 }
 
 class _HomePageMobileState extends State<HomePageMobile> {
-  final AuthService _authService = AuthService();
-
-  Future<void> _signOut() async {
-    await _authService.signOut();
-  }
 
   @override
   Widget build(BuildContext context) {
