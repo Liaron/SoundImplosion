@@ -1,5 +1,6 @@
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
+import 'package:soundimplosion/models/models.dart';
 import 'package:soundimplosion/services/database_service.dart';
 
 class MyBookingsPageMobile extends StatefulWidget {
@@ -102,12 +103,12 @@ class _MyBookingsPageMobileState extends State<MyBookingsPageMobile> {
               final date = booking['data'] ?? 'N/A';
               final startTime = booking['ora_inizio'] ?? 'N/A';
               final endTime = booking['ora_fine'] ?? 'N/A';
-              final status = booking['stato'] ?? 'Sconosciuto';
+              final status = (booking['stato'] == 'inElaborazione') ? 'In elaborazione' : booking['stato'];
               final people = booking['numero_utenti'] ?? 0;
               final groupId = booking['group_id'];
               final groupText = (groupId != null && groupId.toString().isNotEmpty) 
                   ? 'Gruppo: $groupId' 
-                  : 'Personale';
+                  : 'Nessun gruppo';
 
               return Card(
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

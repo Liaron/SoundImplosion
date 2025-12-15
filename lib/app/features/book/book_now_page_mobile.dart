@@ -20,9 +20,10 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
   // Stato UI
   bool _isLoading = false;
   bool _isLoadingSlots = false;
+  bool _isLoadingDates = true; // Nuovo stato per il caricamento date
 
   // Dati
-  List<DateTime> _next30Days = [];
+  List<DateTime> _availableDates = []; // Sostituisce _next30Days
   List<Map<String, String>> _userGroups = [];
   List<String> _availableSlots = []; // Lista di orari "HH:mm" disponibili
   
@@ -40,13 +41,54 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
   @override
   void initState() {
     super.initState();
-    _generateNext30Days();
+    _loadAvailableDates(); // Carica le date dal DB filtrando quelle disponibili
     _loadUserGroups();
   }
 
-  void _generateNext30Days() {
+  Future<void> _loadAvailableDates() async {
     final now = DateTime.now();
-    _next30Days = List.generate(30, (index) => now.add(Duration(days: index)));
+    // Generiamo i candidati (prossimi 30 giorni)
+    final candidateDates = List.generate(30, (index) => now.add(Duration(days: index)));
+    
+    final List<DateTime> validDates = [];
+
+    // Controlliamo in parallelo la disponibilità per ogni data
+    // Nota: Questo assicura anche la generazione Lazy degli slot sul DB se mancano
+    final results = await Future.wait(candidateDates.map((date) async {
+      final dateStr = DateFormat('yyyy-MM-dd').format(date);
+      
+      try {
+        // Recupera slot liberi dal DB
+        final freeSlots = await _databaseService.getFreeSlotsForDate(dateStr);
+        
+        // Verifica se almeno uno slot rispetta la regola delle 24 ore
+        bool hasBookableSlot = false;
+        for (final slot in freeSlots) {
+          if (_isSlotAtLeast24HoursAway(slot, date)) {
+            hasBookableSlot = true;
+            break; 
+          }
+        }
+        
+        return hasBookableSlot ? date : null;
+      } catch (e) {
+        debugPrint("Errore controllo data $dateStr: $e");
+        return null;
+      }
+    }));
+
+    if (mounted) {
+      setState(() {
+        _availableDates = results.whereType<DateTime>().toList();
+        _isLoadingDates = false;
+        
+        // Se la data precedentemente selezionata non è più valida, resetta
+        if (_selectedDate != null && !_availableDates.contains(_selectedDate)) {
+          _selectedDate = null;
+          _availableSlots.clear();
+        }
+      });
+    }
   }
 
   Future<void> _loadUserGroups() async {
@@ -72,11 +114,10 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
     try {
       final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate!);
       
-      // NUOVA LOGICA: Chiediamo al DB quali slot sono liberi per questa data.
-      // Se non esistono, il DB li genererà al volo.
+      // Recupera slot liberi dal DB
       final freeSlotsFromDb = await _databaseService.getFreeSlotsForDate(dateStr);
       
-      // Filtro aggiuntivo: rimuoviamo slot passati (se oggi) o troppo vicini (regola 24h opzionale)
+      // Filtro aggiuntivo: rimuoviamo slot passati o troppo vicini (regola 24h)
       final validSlots = <String>[];
       for (final slot in freeSlotsFromDb) {
         if (_isSlotAtLeast24HoursAway(slot, _selectedDate!)) {
@@ -117,7 +158,7 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
       int.parse(parts[0]),
       int.parse(parts[1]),
     );
-    // Controllo 24 ore (o logica personalizzata)
+    // Controllo 24 ore
     final minAllowedStart = DateTime.now().add(const Duration(hours: 24));
     return slotDateTime.isAfter(minAllowedStart);
   }
@@ -280,29 +321,48 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              // 1. Selezione Giorno (Menu a tendina 30gg)
-              DropdownButtonFormField<DateTime>(
-                decoration: const InputDecoration(
-                  labelText: 'Seleziona Giorno',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.calendar_today),
-                ),
-                value: _selectedDate,
-                items: _next30Days.map((date) {
-                  return DropdownMenuItem(
-                    value: date,
-                    child: Text(DateFormat('EEEE d MMMM yyyy').format(date)),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  if (value != null && value != _selectedDate) {
-                    setState(() {
-                      _selectedDate = value;
-                    });
-                    _loadAvailableSlots();
-                  }
-                },
-              ),
+              // 1. Selezione Giorno (Caricamento o Menu a tendina)
+              _isLoadingDates
+                  ? const SizedBox(
+                      height: 60,
+                      child: Center(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            CircularProgressIndicator(),
+                            SizedBox(width: 16),
+                            Text("Verifica disponibilità date..."),
+                          ],
+                        ),
+                      ),
+                    )
+                  : DropdownButtonFormField<DateTime>(
+                      decoration: const InputDecoration(
+                        labelText: 'Seleziona Giorno',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.calendar_today),
+                      ),
+                      value: _selectedDate,
+                      items: _availableDates.isEmpty 
+                        ? [] 
+                        : _availableDates.map((date) {
+                          return DropdownMenuItem(
+                            value: date,
+                            child: Text(DateFormat('EEEE d MMMM yyyy').format(date)),
+                          );
+                        }).toList(),
+                      onChanged: (value) {
+                        if (value != null && value != _selectedDate) {
+                          setState(() {
+                            _selectedDate = value;
+                          });
+                          _loadAvailableSlots();
+                        }
+                      },
+                      hint: _availableDates.isEmpty 
+                          ? const Text("Nessuna data disponibile") 
+                          : null,
+                    ),
               const SizedBox(height: 24),
 
               // Mostra il resto solo se data selezionata
