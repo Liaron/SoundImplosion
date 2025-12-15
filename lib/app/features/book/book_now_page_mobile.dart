@@ -20,18 +20,18 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
   // Stato UI
   bool _isLoading = false;
   bool _isLoadingSlots = false;
-  bool _isLoadingDates = true; // Nuovo stato per il caricamento date
+  bool _isLoadingDates = true;
 
   // Dati
-  List<DateTime> _availableDates = []; // Sostituisce _next30Days
+  List<DateTime> _availableDates = [];
   List<Map<String, String>> _userGroups = [];
-  List<String> _availableSlots = []; // Lista di orari "HH:mm" disponibili
+  List<String> _availableSlots = []; 
   
   static const _slotDurationMinutes = 75;
 
   // Selezioni Utente
   DateTime? _selectedDate;
-  final List<String> _selectedSlots = []; // Slot selezionati dall'utente
+  final List<String> _selectedSlots = []; 
   String? _selectedGroupId;
 
   // Controller
@@ -41,27 +41,20 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
   @override
   void initState() {
     super.initState();
-    _loadAvailableDates(); // Carica le date dal DB filtrando quelle disponibili
+    _loadAvailableDates(); 
     _loadUserGroups();
   }
 
   Future<void> _loadAvailableDates() async {
     final now = DateTime.now();
-    // Generiamo i candidati (prossimi 30 giorni)
     final candidateDates = List.generate(30, (index) => now.add(Duration(days: index)));
     
     final List<DateTime> validDates = [];
 
-    // Controlliamo in parallelo la disponibilità per ogni data
-    // Nota: Questo assicura anche la generazione Lazy degli slot sul DB se mancano
     final results = await Future.wait(candidateDates.map((date) async {
       final dateStr = DateFormat('yyyy-MM-dd').format(date);
-      
       try {
-        // Recupera slot liberi dal DB
         final freeSlots = await _databaseService.getFreeSlotsForDate(dateStr);
-        
-        // Verifica se almeno uno slot rispetta la regola delle 24 ore
         bool hasBookableSlot = false;
         for (final slot in freeSlots) {
           if (_isSlotAtLeast24HoursAway(slot, date)) {
@@ -69,7 +62,6 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
             break; 
           }
         }
-        
         return hasBookableSlot ? date : null;
       } catch (e) {
         debugPrint("Errore controllo data $dateStr: $e");
@@ -82,8 +74,7 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
         _availableDates = results.whereType<DateTime>().toList();
         _isLoadingDates = false;
         
-        // Se la data precedentemente selezionata non è più valida, resetta
-        if (_selectedDate != null && !_availableDates.contains(_selectedDate)) {
+        if (_selectedDate != null && !_availableDates.any((d) => _isSameDay(d, _selectedDate!))) {
           _selectedDate = null;
           _availableSlots.clear();
         }
@@ -100,8 +91,6 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
     }
   }
 
-  // --- Calcolo Slot Disponibili ---
-
   Future<void> _loadAvailableSlots() async {
     if (_selectedDate == null) return;
 
@@ -113,11 +102,8 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
 
     try {
       final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate!);
-      
-      // Recupera slot liberi dal DB
       final freeSlotsFromDb = await _databaseService.getFreeSlotsForDate(dateStr);
       
-      // Filtro aggiuntivo: rimuoviamo slot passati o troppo vicini (regola 24h)
       final validSlots = <String>[];
       for (final slot in freeSlotsFromDb) {
         if (_isSlotAtLeast24HoursAway(slot, _selectedDate!)) {
@@ -158,12 +144,38 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
       int.parse(parts[0]),
       int.parse(parts[1]),
     );
-    // Controllo 24 ore
     final minAllowedStart = DateTime.now().add(const Duration(hours: 24));
     return slotDateTime.isAfter(minAllowedStart);
   }
 
-  // --- Gestione Selezione Slot ---
+  // --- Gestione Calendario ---
+
+  Future<void> _selectDateFromCalendar(BuildContext context) async {
+    final now = DateTime.now();
+    final lastDate = now.add(const Duration(days: 30));
+
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate ?? _availableDates.firstOrNull ?? now,
+      firstDate: now,
+      lastDate: lastDate,
+      // Questa funzione abilita solo i giorni presenti in _availableDates
+      selectableDayPredicate: (DateTime day) {
+        return _availableDates.any((available) => _isSameDay(available, day));
+      },
+    );
+
+    if (picked != null && picked != _selectedDate) {
+      setState(() {
+        _selectedDate = picked;
+      });
+      _loadAvailableSlots();
+    }
+  }
+
+  bool _isSameDay(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
 
   void _toggleSlot(String slot) {
     setState(() {
@@ -171,12 +183,10 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
         _selectedSlots.remove(slot);
       } else {
         _selectedSlots.add(slot);
-        _selectedSlots.sort(); // Mantiene ordine temporale
+        _selectedSlots.sort(); 
       }
     });
   }
-
-  // --- Invio Prenotazione ---
 
   Future<void> _submitBooking() async {
     if (!_formKey.currentState!.validate()) return;
@@ -191,7 +201,6 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
       return;
     }
 
-    // Verifica continuità degli slot
     if (!_areSlotsContiguous(_selectedSlots)) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gli orari selezionati devono essere consecutivi.')));
       return;
@@ -216,11 +225,9 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
       final user = _auth.currentUser;
       if (user == null) throw Exception("Utente non loggato");
 
-      // Calcola inizio e fine totali
       final startSlot = _selectedSlots.first;
       final endSlotLast = _selectedSlots.last;
       
-      // L'ora di fine è la fine dell'ultimo slot (+75 min)
       final endMin = _timeToMinutes(endSlotLast) + _slotDurationMinutes;
       final endHour = (endMin ~/ 60).toString().padLeft(2, '0');
       final endMinute = (endMin % 60).toString().padLeft(2, '0');
@@ -239,7 +246,6 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
         stato: BookingStatus.inElaborazione,
       );
 
-      // Passiamo anche la lista degli slot selezionati per aggiornarne lo stato nel DB
       await _databaseService.createBooking(booking, _selectedSlots);
 
       if (mounted) {
@@ -278,7 +284,7 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
           Navigator.of(context, rootNavigator: true).pop();
           loadingDialogShown = false;
         }
-        _loadAvailableSlots(); // Ricarica per mostrare stato aggiornato
+        _loadAvailableSlots(); 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Errore: ${e.toString().replaceAll("Exception: ", "")}')),
         );
@@ -298,7 +304,6 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
     for (int i = 0; i < slots.length - 1; i++) {
       final current = _timeToMinutes(slots[i]);
       final next = _timeToMinutes(slots[i+1]);
-      // Devono distare esattamente 75 minuti
       if (next - current != _slotDurationMinutes) return false;
     }
     return true;
@@ -321,7 +326,7 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              // 1. Selezione Giorno (Caricamento o Menu a tendina)
+              // 1. Selezione Giorno (Calendario)
               _isLoadingDates
                   ? const SizedBox(
                       height: 60,
@@ -336,32 +341,27 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
                         ),
                       ),
                     )
-                  : DropdownButtonFormField<DateTime>(
-                      decoration: const InputDecoration(
-                        labelText: 'Seleziona Giorno',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.calendar_today),
+                  : InkWell(
+                      onTap: _availableDates.isEmpty 
+                        ? null 
+                        : () => _selectDateFromCalendar(context),
+                      child: InputDecorator(
+                        decoration: const InputDecoration(
+                          labelText: 'Seleziona Giorno',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.calendar_today),
+                        ),
+                        child: Text(
+                          _selectedDate == null
+                              ? (_availableDates.isEmpty 
+                                  ? 'Nessuna data disponibile' 
+                                  : 'Tocca per scegliere una data')
+                              : DateFormat('EEEE d MMMM yyyy').format(_selectedDate!),
+                          style: _selectedDate == null 
+                            ? TextStyle(color: Colors.grey[600]) 
+                            : const TextStyle(color: Colors.black),
+                        ),
                       ),
-                      value: _selectedDate,
-                      items: _availableDates.isEmpty 
-                        ? [] 
-                        : _availableDates.map((date) {
-                          return DropdownMenuItem(
-                            value: date,
-                            child: Text(DateFormat('EEEE d MMMM yyyy').format(date)),
-                          );
-                        }).toList(),
-                      onChanged: (value) {
-                        if (value != null && value != _selectedDate) {
-                          setState(() {
-                            _selectedDate = value;
-                          });
-                          _loadAvailableSlots();
-                        }
-                      },
-                      hint: _availableDates.isEmpty 
-                          ? const Text("Nessuna data disponibile") 
-                          : null,
                     ),
               const SizedBox(height: 24),
 
@@ -460,7 +460,7 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
                   ),
                   child: _isLoading 
                     ? const CircularProgressIndicator(color: Colors.white) 
-                    : const Text('INVIA PRENOTAZIONE', style: TextStyle(fontSize: 16)),
+                    : const Text('INVIA PRENOTAZIONE', style: TextStyle(fontSize: 16, color: Colors.white)),
                 ),
               ],
             ],
