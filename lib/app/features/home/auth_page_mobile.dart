@@ -50,7 +50,7 @@ class _AuthPageMobileState extends State<AuthPageMobile> {
           );
           
           // 2. Se successo, crea il profilo utente sul DB con il nickname
-          if (userCredential != null && userCredential.user != null) {
+          if (userCredential.user != null) {
             final uid = userCredential.user!.uid;
             final nickname = _nicknameController.text.trim();
             

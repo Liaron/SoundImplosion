@@ -48,8 +48,6 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
   Future<void> _loadAvailableDates() async {
     final now = DateTime.now();
     final candidateDates = List.generate(30, (index) => now.add(Duration(days: index)));
-    
-    final List<DateTime> validDates = [];
 
     final results = await Future.wait(candidateDates.map((date) async {
       final dateStr = DateFormat('yyyy-MM-dd').format(date);
