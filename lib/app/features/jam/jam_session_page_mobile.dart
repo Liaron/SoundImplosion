@@ -3,7 +3,9 @@ import 'package:soundimplosion/app/features/jam/organize_jam_page_mobile.dart';
 import 'package:soundimplosion/app/features/jam/find_jam_page_mobile.dart';
 
 class JamSessionPageMobile extends StatelessWidget {
-  const JamSessionPageMobile({super.key});
+  final Map<String, dynamic>? initialJamToOpen;
+
+  const JamSessionPageMobile({super.key, this.initialJamToOpen});
 
   @override
   Widget build(BuildContext context) {
@@ -17,7 +19,7 @@ class JamSessionPageMobile extends StatelessWidget {
             color: colorScheme.primary,
             child: TabBar(
               labelColor: colorScheme.onPrimary,
-              unselectedLabelColor: colorScheme.onPrimary.withValues(alpha: 0.5),
+              unselectedLabelColor: colorScheme.onPrimary.withAlpha(128), // Metodo corretto per opacità
               indicatorColor: colorScheme.secondary,
               tabs: const <Widget>[
                 Tab(
@@ -31,11 +33,12 @@ class JamSessionPageMobile extends StatelessWidget {
               ],
             ),
           ),
-          const Expanded(
+          Expanded(
             child: TabBarView(
               children: <Widget>[
-                FindJamPageMobile(),
-                OrganizeJamPageMobile(),
+                // Passiamo il parametro alla pagina Cerca Jam
+                FindJamPageMobile(initialJamToOpen: initialJamToOpen),
+                const OrganizeJamPageMobile(),
               ],
             ),
           ),

@@ -1,20 +1,22 @@
-
 // Definisce lo stato di una prenotazione
 enum BookingStatus { inElaborazione, confermata, annullata, sospesa, superata }
 
 class AppUser {
   final String uid;
   final String nickname;
+  final String strumento; // Legacy: Strumento principale
+  final String livelloAbilita; // Legacy: Livello principale
   final List<String> gruppi; // ID dei gruppi
   final List<String> amici; // UID degli amici
   final Map<String, dynamic> preferenze;
-  // Nuova lista strumenti: ogni elemento è { 'nome': String, 'livello': int }
   final List<Map<String, dynamic>> strumentiList; 
   final String? profileImageUrl;
 
   AppUser({
     required this.uid,
     required this.nickname,
+    this.strumento = '', // CORREZIONE: Reso opzionale
+    this.livelloAbilita = '', // CORREZIONE: Reso opzionale
     this.gruppi = const [],
     this.amici = const [],
     this.preferenze = const {},
@@ -25,8 +27,10 @@ class AppUser {
   Map<String, dynamic> toMap() {
     return {
       'nickname': nickname,
-      'gruppi': gruppi.asMap(),
-      'amici': amici.asMap(),
+      'strumento': strumento,
+      'livello': livelloAbilita,
+      'gruppi': gruppi,
+      'amici': amici,
       'preferenze': preferenze,
       'strumenti_list': strumentiList,
       'profile_image_url': profileImageUrl,
@@ -36,22 +40,24 @@ class AppUser {
   factory AppUser.fromMap(String uid, Map<dynamic, dynamic> map) {
     return AppUser(
       uid: uid,
-      nickname: map['nickname'] ?? '',
+      nickname: map['nickname'] ?? uid,
+      strumento: map['strumento'] ?? '',
+      livelloAbilita: map['livello'] ?? '',
       gruppi: map['gruppi'] != null 
-          ? (map['gruppi'] as List<dynamic>).map((e) => e.toString()).toList() 
-          : [],
+          ? List<String>.from((map['gruppi'] as List<dynamic>).map((e) => e.toString()))
+          : const [],
       amici: map['amici'] != null
-          ? (map['amici'] as List<dynamic>).map((e) => e.toString()).toList()
-          : [],
-      preferenze: map['preferenze'] != null 
-          ? Map<String, dynamic>.from(map['preferenze']) 
-          : {},
+          ? List<String>.from((map['amici'] as List<dynamic>).map((e) => e.toString()))
+          : const [],
+      preferenze: map['preferenze'] != null
+          ? Map<String, dynamic>.from(map['preferenze'] as Map)
+          : const {},
       strumentiList: map['strumenti_list'] != null
-          ? (map['strumenti_list'] as List<dynamic>)
-              .map((e) => Map<String, dynamic>.from(e as Map))
-              .toList()
-          : [],
-      profileImageUrl: map['profile_image_url'],
+          ? List<Map<String, dynamic>>.from(
+              (map['strumenti_list'] as List).map((e) => Map<String, dynamic>.from(e as Map)),
+            )
+          : const [],
+      profileImageUrl: map['profile_image_url'] as String?,
     );
   }
 }

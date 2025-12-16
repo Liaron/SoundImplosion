@@ -426,7 +426,7 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.group),
                   ),
-                  value: _selectedGroupId,
+                  initialValue: _selectedGroupId,
                   items: _userGroups.map((group) {
                     return DropdownMenuItem(
                       value: group['id'],

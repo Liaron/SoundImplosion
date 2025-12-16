@@ -441,7 +441,7 @@ class _OrganizeJamPageMobileState extends State<OrganizeJamPageMobile> {
                           border: OutlineInputBorder(),
                           prefixIcon: Icon(Icons.group),
                         ),
-                        value: _selectedGroupId,
+                        initialValue: _selectedGroupId,
                         items: _userGroups.map((group) {
                           return DropdownMenuItem(
                             value: group['id'],
@@ -459,7 +459,7 @@ class _OrganizeJamPageMobileState extends State<OrganizeJamPageMobile> {
                           border: OutlineInputBorder(),
                           prefixIcon: Icon(Icons.payment),
                         ),
-                        value: _selectedPayment,
+                        initialValue: _selectedPayment,
                         items: _paymentOptions.map((opt) {
                           return DropdownMenuItem(value: opt, child: Text(opt));
                         }).toList(),
