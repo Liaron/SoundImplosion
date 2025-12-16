@@ -1,6 +1,5 @@
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
-import 'package:soundimplosion/models/models.dart';
 import 'package:soundimplosion/services/database_service.dart';
 
 class MyBookingsPageMobile extends StatefulWidget {

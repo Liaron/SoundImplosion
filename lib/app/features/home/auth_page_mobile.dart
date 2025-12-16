@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:soundimplosion/models/models.dart';
+import 'package:soundimplosion/services/database_service.dart';
 import 'package:soundimplosion/services/firebase_auth.dart';
 
 class AuthPageMobile extends StatefulWidget {
@@ -12,14 +14,19 @@ class _AuthPageMobileState extends State<AuthPageMobile> {
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
   final AuthService _authService = AuthService();
+  final DatabaseService _dbService = DatabaseService();
+  
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _nicknameController = TextEditingController(); // Controller per il nickname
+  
   bool _isLogin = true;
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _nicknameController.dispose();
     super.dispose();
   }
 
@@ -31,14 +38,29 @@ class _AuthPageMobileState extends State<AuthPageMobile> {
       try {
         if (_isLogin) {
           await _authService.signInWithEmailAndPassword(
-            email: _emailController.text,
-            password: _passwordController.text,
+            email: _emailController.text.trim(),
+            password: _passwordController.text.trim(),
           );
         } else {
-          await _authService.createUserWithEmailAndPassword(
-            email: _emailController.text,
-            password: _passwordController.text,
+          // REGISTRAZIONE
+          // 1. Crea utente su Firebase Auth
+          final userCredential = await _authService.createUserWithEmailAndPassword(
+            email: _emailController.text.trim(),
+            password: _passwordController.text.trim(),
           );
+          
+          // 2. Se successo, crea il profilo utente sul DB con il nickname
+          if (userCredential != null && userCredential.user != null) {
+            final uid = userCredential.user!.uid;
+            final nickname = _nicknameController.text.trim();
+            
+            final newUser = AppUser(
+              uid: uid,
+              nickname: nickname,
+            );
+            
+            await _dbService.saveUser(newUser);
+          }
         }
       } catch (e) {
         if (!mounted) return;
@@ -89,11 +111,32 @@ class _AuthPageMobileState extends State<AuthPageMobile> {
                   style: theme.textTheme.titleMedium,
                 ),
                 const SizedBox(height: 48),
+                
+                // CAMPO NICKNAME (Visibile solo in registrazione)
+                if (!_isLogin) ...[
+                  TextFormField(
+                    controller: _nicknameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Nickname',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.person),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Inserisci un nickname';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                ],
+
                 TextFormField(
                   controller: _emailController,
                   decoration: const InputDecoration(
                     labelText: 'Email',
                     border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.email),
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
@@ -108,11 +151,15 @@ class _AuthPageMobileState extends State<AuthPageMobile> {
                   decoration: const InputDecoration(
                     labelText: 'Password',
                     border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.lock),
                   ),
                   obscureText: true,
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Inserisci la tua password';
+                    }
+                    if (!_isLogin && value.length < 6) {
+                      return 'La password deve essere di almeno 6 caratteri';
                     }
                     return null;
                   },
@@ -134,6 +181,10 @@ class _AuthPageMobileState extends State<AuthPageMobile> {
                   onPressed: () {
                     setState(() {
                       _isLogin = !_isLogin;
+                      // Pulisci i campi quando cambi modalità per evitare confusione
+                      if (_isLogin) {
+                        _nicknameController.clear();
+                      }
                     });
                   },
                   child: Text(
