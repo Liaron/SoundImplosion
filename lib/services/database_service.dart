@@ -46,7 +46,14 @@ class DatabaseService {
       
       if (snapshot.exists && snapshot.value != null) {
         final groupsList = <Map<String, String>>[];
-        final groupsIds = (snapshot.value as List).map((e) => e.toString()).toList();
+        List<String> groupsIds = [];
+
+        if (snapshot.value is Map) {
+          groupsIds = (snapshot.value as Map).keys.map((e) => e.toString()).toList();
+        } else if (snapshot.value is List) {
+           // Fallback in case it was stored as list somehow
+           groupsIds = (snapshot.value as List).where((e) => e != null).map((e) => e.toString()).toList();
+        }
 
         for (var groupId in groupsIds) {
            final groupSnapshot = await _dbRef.child('groups_info').child(groupId).get();
@@ -308,7 +315,22 @@ class DatabaseService {
       try {
         final slotsSnapshot = await _dbRef.child('slots').child(dateStr).orderByChild('booking_id').equalTo(jamId).get();
         if (slotsSnapshot.exists && slotsSnapshot.value != null) {
-          slotsToFree = Map<String, dynamic>.from(slotsSnapshot.value as Map);
+          if (slotsSnapshot.value is Map) {
+             slotsToFree = Map<String, dynamic>.from(slotsSnapshot.value as Map);
+          } else if (slotsSnapshot.value is List) {
+             // Handle potential list return (though unlikely with string keys)
+             final list = slotsSnapshot.value as List;
+             for (int i=0; i < list.length; i++) {
+               if (list[i] != null) {
+                 // Try to recover original key if possible, but here we likely only have value
+                 // Ideally we shouldn't get here for slots with "HH_mm" keys.
+                 // But if we do, we can't reliably reconstruct the key unless it's inside the value.
+                 // The code below iterates over slotsToFree keys.
+                 // If we can't get the key, we can't update.
+                 // So we assume Map.
+               }
+             }
+          }
         }
       } catch (e) {
         final allSlotsSnapshot = await _dbRef.child('slots').child(dateStr).get();
