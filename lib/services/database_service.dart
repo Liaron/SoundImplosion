@@ -264,6 +264,45 @@ class DatabaseService {
     return _dbRef.child('jams').onValue;
   }
 
+  Future<List<Map<String, dynamic>>> getPublishedJamsOnce() async {
+    try {
+      final snapshot = await _dbRef.child('jams').get();
+      if (!snapshot.exists || snapshot.value == null) {
+        return [];
+      }
+
+      final dynamic rawData = snapshot.value;
+      List<Map<String, dynamic>> jams = [];
+
+      if (rawData is Map) {
+        jams = rawData.entries.map((entry) {
+          final jamData = Map<String, dynamic>.from(entry.value as Map);
+          jamData['key'] = entry.key;
+          return jamData;
+        }).toList();
+      } else if (rawData is List) {
+        for (int i = 0; i < rawData.length; i++) {
+          if (rawData[i] != null) {
+            final jamData = Map<String, dynamic>.from(rawData[i] as Map);
+            jamData['key'] = i.toString();
+            jams.add(jamData);
+          }
+        }
+      }
+
+      return jams.where((jam) {
+         final dynamic rawState = jam['stato'] ?? jam['status'];
+         if (rawState == null) return true;
+         final state = rawState.toString().toLowerCase();
+         return state == 'pubblicata' || state == 'published';
+      }).toList();
+
+    } catch (e) {
+      debugPrint("Errore getPublishedJamsOnce: $e");
+      return [];
+    }
+  }
+
   // ELIMINA JAM
   Future<void> deleteJam(String jamId) async {
     final user = _auth.currentUser;
