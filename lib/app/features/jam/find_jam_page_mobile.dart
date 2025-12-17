@@ -3,6 +3,7 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:soundimplosion/services/database_service.dart';
+import 'package:soundimplosion/app/features/jam/view/mobile/custom_multi_month_picker.dart';
 
 class FindJamPageMobile extends StatefulWidget {
   // Parametro per aprire una jam specifica al caricamento
@@ -19,7 +20,7 @@ class _FindJamPageMobileState extends State<FindJamPageMobile> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   // State per i filtri
-  DateTime? _selectedDate;
+  List<DateTime> _selectedDates = [];
   bool _showMyJams = false;
   bool _showParticipatingJams = false;
   List<Map<String, dynamic>> _allJams = [];
@@ -140,27 +141,12 @@ class _FindJamPageMobileState extends State<FindJamPageMobile> {
     return state == 'pubblicata' || state == 'published';
   }
 
-  List<DateTime> _getAvailableJamDays() {
-    final Set<DateTime> availableDays = {};
-
-    for (final jam in _allJams) {
-      if (!_isJamPublished(jam)) {
-        continue;
-      }
-      final parsed = _parseDate(jam['data'] ?? '');
-      if (parsed != null) {
-        availableDays.add(DateTime(parsed.year, parsed.month, parsed.day));
-      }
-    }
-    final sortedDays = availableDays.toList()..sort();
-    return sortedDays;
-  }
-
   bool _isSameDay(DateTime a, DateTime b) {
     return a.year == b.year && a.month == b.month && a.day == b.day;
   }
 
-  Future<void> _selectDate(BuildContext context) async {
+  Future<void> _selectDates(BuildContext context, Function(List<DateTime>) onDatesSelected) async {
+    // 1. Show loading
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -169,115 +155,145 @@ class _FindJamPageMobileState extends State<FindJamPageMobile> {
       },
     );
 
-    // We use a short delay to ensure the loading indicator is displayed while we gather the available dates.
-    final availableDays = await Future.delayed(const Duration(milliseconds: 300), _getAvailableJamDays);
+    try {
+      // 2. Fetch data (Jams)
+      // Note: We fetch ALL jams to determine which days have active jams
+      // This might be redundant if we already have the stream, but the request asks for a request on click.
+      final jams = await _databaseService.getPublishedJamsOnce();
 
-    if (!mounted) return;
-    Navigator.pop(context); // Dismiss loading dialog
+      final Set<DateTime> availableDays = {};
+      for (final jam in jams) {
+        if (!_isJamPublished(jam)) continue;
+        final parsed = _parseDate(jam['data'] ?? '');
+        if (parsed != null) {
+          availableDays.add(DateTime(parsed.year, parsed.month, parsed.day));
+        }
+      }
 
-    if (availableDays.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nessuna data disponibile per le jam attuali.')),
+      if (!mounted) return;
+      Navigator.pop(context); // Dismiss loading
+
+      // 3. Show Custom Picker
+      final result = await showDialog<List<DateTime>>(
+        context: context,
+        builder: (ctx) => CustomMultiMonthPicker(
+          jamDates: availableDays.toList(),
+          selectedDates: _selectedDates,
+        ),
       );
-      return;
-    }
 
-    final DateTime firstDate = availableDays.first;
-    final DateTime lastDate = availableDays.last;
-    
-    DateTime initialDate;
-    final today = DateTime.now();
-
-    // Set the initial date for the picker
-    if (_selectedDate != null && availableDays.any((d) => _isSameDay(d, _selectedDate!))) {
-      initialDate = _selectedDate!;
-    } else if (today.isAfter(firstDate) && today.isBefore(lastDate)) {
-      initialDate = today;
-    } else {
-      initialDate = firstDate;
-    }
-    
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: initialDate,
-      firstDate: firstDate,
-      lastDate: lastDate,
-      selectableDayPredicate: (DateTime day) {
-        return availableDays.any((availableDay) => _isSameDay(availableDay, day));
-      },
-    );
-
-    if (picked != null && (_selectedDate == null || !_isSameDay(picked, _selectedDate!))) {
-      setState(() {
-        _selectedDate = picked;
-      });
+      if (result != null) {
+        onDatesSelected(result);
+      }
+    } catch (e) {
+       if (mounted) Navigator.pop(context); // Dismiss loading on error
+       debugPrint("Error selecting dates: $e");
     }
   }
 
-  Widget _buildFilterSection() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8.0),
-      child: ExpansionTile(
-        title: const Text('Filtri di ricerca'),
-        tilePadding: const EdgeInsets.symmetric(horizontal: 8),
-        childrenPadding: const EdgeInsets.symmetric(horizontal: 8),
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.calendar_today, size: 20),
-                  const SizedBox(width: 16),
-                  Text(
-                    _selectedDate == null
-                        ? 'Tutte le date'
-                        : 'Data: ${DateFormat('dd/MM/yyyy').format(_selectedDate!)}',
-                  ),
-                ],
-              ),
-              Row(
-                children: [
-                  TextButton(
-                    onPressed: () => _selectDate(context),
-                    child: const Text('Seleziona'),
-                  ),
-                  if (_selectedDate != null)
-                    IconButton(
-                      icon: const Icon(Icons.close, size: 20),
-                      onPressed: () => setState(() => _selectedDate = null),
-                      visualDensity: VisualDensity.compact,
+  void _showFilterDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: true, // User can close it, but it won't auto-close on selection
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              title: const Text('Filtri di ricerca'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text("Date selezionate:", style: TextStyle(fontWeight: FontWeight.bold)),
+                              Text(
+                                _selectedDates.isEmpty
+                                    ? 'Tutte'
+                                    : '${_selectedDates.length} date',
+                                style: const TextStyle(fontSize: 14),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Row(
+                          children: [
+                            TextButton(
+                              onPressed: () {
+                                _selectDates(context, (dates) {
+                                  // Update state inside dialog
+                                  setStateDialog(() {
+                                    _selectedDates = dates;
+                                  });
+                                  // Update main state
+                                  setState(() {
+                                    _selectedDates = dates;
+                                  });
+                                });
+                              },
+                              child: const Text('Seleziona'),
+                            ),
+                            if (_selectedDates.isNotEmpty)
+                              IconButton(
+                                icon: const Icon(Icons.close, size: 20),
+                                onPressed: () {
+                                  setStateDialog(() => _selectedDates = []);
+                                  setState(() => _selectedDates = []);
+                                },
+                                visualDensity: VisualDensity.compact,
+                              ),
+                          ],
+                        ),
+                      ],
                     ),
-                ],
+                    const Divider(),
+                    SwitchListTile(
+                      title: const Text('Solo le mie Jam'),
+                      value: _showMyJams,
+                      onChanged: (bool value) {
+                        setStateDialog(() {
+                          _showMyJams = value;
+                        });
+                        setState(() {
+                          _showMyJams = value;
+                        });
+                      },
+                    ),
+                    SwitchListTile(
+                      title: const Text('Jam a cui partecipo'),
+                      value: _showParticipatingJams,
+                      onChanged: (bool value) {
+                         setStateDialog(() {
+                            _showParticipatingJams = value;
+                         });
+                         setState(() {
+                            _showParticipatingJams = value;
+                         });
+                         if (value) {
+                             ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Filtro "Partecipo" non ancora disponibile.')),
+                             );
+                         }
+                      },
+                    ),
+                  ],
+                ),
               ),
-            ],
-          ),
-          SwitchListTile(
-            title: const Text('Solo le mie Jam'),
-            value: _showMyJams,
-            onChanged: (bool value) {
-              setState(() {
-                _showMyJams = value;
-              });
-            },
-          ),
-          SwitchListTile(
-            title: const Text('Jam a cui partecipo'),
-            value: _showParticipatingJams,
-            onChanged: (bool value) {
-              setState(() {
-                _showParticipatingJams = value;
-                if (value) {
-                  //TODO: Implementare la logica del filtro quando il modello dati lo supporterà
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Filtro "Partecipo" non ancora disponibile.')),
-                  );
-                }
-              });
-            },
-          ),
-        ],
-      ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("Chiudi"),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
@@ -286,6 +302,15 @@ class _FindJamPageMobileState extends State<FindJamPageMobile> {
     final currentUser = _auth.currentUser;
 
     return Scaffold(
+      appBar: AppBar(
+        title: const Text("Cerca Jam"),
+        actions: [
+           IconButton(
+             icon: const Icon(Icons.filter_list),
+             onPressed: _showFilterDialog,
+           )
+        ],
+      ),
       body: StreamBuilder<DatabaseEvent>(
         stream: _databaseService.getJamsStream(),
         builder: (context, snapshot) {
@@ -299,15 +324,7 @@ class _FindJamPageMobileState extends State<FindJamPageMobile> {
 
           if (!snapshot.hasData || snapshot.data?.snapshot.value == null) {
             _allJams = [];
-            return Column(
-              children: [
-                _buildFilterSection(),
-                const Divider(height: 1),
-                const Expanded(
-                  child: Center(child: Text('Non ci sono Jam session attive.')),
-                ),
-              ],
-            );
+            return const Center(child: Text('Non ci sono Jam session attive.'));
           }
 
           final dynamic rawData = snapshot.data!.snapshot.value;
@@ -348,10 +365,13 @@ class _FindJamPageMobileState extends State<FindJamPageMobile> {
             // La logica di questo filtro non è applicata
           }
 
-          if (_selectedDate != null) {
-            final formattedSelectedDate = DateFormat('dd/MM/yyyy').format(_selectedDate!);
+          if (_selectedDates.isNotEmpty) {
             filteredJams = filteredJams.where((jam) {
-              return jam['data'] == formattedSelectedDate;
+              final jamDateStr = jam['data'] ?? '';
+              final jamDate = _parseDate(jamDateStr);
+              if (jamDate == null) return false;
+
+              return _selectedDates.any((selected) => _isSameDay(selected, jamDate));
             }).toList();
           }
 
@@ -364,8 +384,33 @@ class _FindJamPageMobileState extends State<FindJamPageMobile> {
           
           return Column(
             children: [
-              _buildFilterSection(),
-              const Divider(height: 1),
+              // Show active filters summary
+              if (_selectedDates.isNotEmpty || _showMyJams)
+                 Padding(
+                   padding: const EdgeInsets.all(8.0),
+                   child: Row(
+                     children: [
+                       const Text("Filtri attivi: ", style: TextStyle(fontWeight: FontWeight.bold)),
+                       if (_showMyJams) const Chip(label: Text("Mie Jam"), visualDensity: VisualDensity.compact),
+                       if (_selectedDates.isNotEmpty)
+                         Padding(
+                           padding: const EdgeInsets.only(left: 4.0),
+                           child: Chip(label: Text("${_selectedDates.length} date"), visualDensity: VisualDensity.compact),
+                         ),
+                       const Spacer(),
+                       TextButton(
+                         onPressed: () {
+                           setState(() {
+                             _selectedDates = [];
+                             _showMyJams = false;
+                           });
+                         },
+                         child: const Text("Reset")
+                       )
+                     ],
+                   ),
+                 ),
+
               Expanded(
                 child: filteredJams.isEmpty
                     ? const Center(child: Text('Nessuna jam corrisponde ai filtri selezionati.'))
