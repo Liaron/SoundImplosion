@@ -1,22 +1,20 @@
+import 'package:flutter/foundation.dart';
+
 // Definisce lo stato di una prenotazione
 enum BookingStatus { inElaborazione, confermata, annullata, sospesa, superata }
 
 class AppUser {
   final String uid;
   final String nickname;
-  final String strumento; // Legacy: Strumento principale
-  final String livelloAbilita; // Legacy: Livello principale
   final List<String> gruppi; // ID dei gruppi
   final List<String> amici; // UID degli amici
   final Map<String, dynamic> preferenze;
-  final List<Map<String, dynamic>> strumentiList; 
+  final List<Map<String, dynamic>> strumentiList;
   final String? profileImageUrl;
 
   AppUser({
     required this.uid,
     required this.nickname,
-    this.strumento = '', // CORREZIONE: Reso opzionale
-    this.livelloAbilita = '', // CORREZIONE: Reso opzionale
     this.gruppi = const [],
     this.amici = const [],
     this.preferenze = const {},
@@ -27,10 +25,9 @@ class AppUser {
   Map<String, dynamic> toMap() {
     return {
       'nickname': nickname,
-      'strumento': strumento,
-      'livello': livelloAbilita,
-      'gruppi': gruppi,
-      'amici': amici,
+      // Salva la lista di gruppi come una mappa, più robusto per Firebase
+      'gruppi': { for (var id in gruppi) id : true },
+      'amici': { for (var id in amici) id : true },
       'preferenze': preferenze,
       'strumenti_list': strumentiList,
       'profile_image_url': profileImageUrl,
@@ -38,25 +35,38 @@ class AppUser {
   }
 
   factory AppUser.fromMap(String uid, Map<dynamic, dynamic> map) {
+    // Helper robusto per parsare liste da Firebase
+    List<T> _parseList<T>(dynamic value) {
+      if (value == null) return [];
+      if (value is List) return List<T>.from(value.where((e) => e != null));
+      if (value is Map) return List<T>.from(value.keys.where((e) => e != null));
+      return [];
+    }
+
+    List<Map<String, dynamic>> _parseStrumenti(dynamic value) {
+        if (value == null) return [];
+        final list = <Map<String, dynamic>>[];
+        if (value is List) {
+          for (final item in value) {
+            if (item is Map) list.add(Map<String, dynamic>.from(item));
+          }
+        } else if (value is Map) {
+          for (final item in value.values) {
+            if (item is Map) list.add(Map<String, dynamic>.from(item));
+          }
+        }
+        return list;
+    }
+
     return AppUser(
       uid: uid,
       nickname: map['nickname'] ?? uid,
-      strumento: map['strumento'] ?? '',
-      livelloAbilita: map['livello'] ?? '',
-      gruppi: map['gruppi'] != null 
-          ? List<String>.from((map['gruppi'] as List<dynamic>).map((e) => e.toString()))
-          : const [],
-      amici: map['amici'] != null
-          ? List<String>.from((map['amici'] as List<dynamic>).map((e) => e.toString()))
-          : const [],
+      gruppi: _parseList<String>(map['gruppi']),
+      amici: _parseList<String>(map['amici']),
       preferenze: map['preferenze'] != null
           ? Map<String, dynamic>.from(map['preferenze'] as Map)
           : const {},
-      strumentiList: map['strumenti_list'] != null
-          ? List<Map<String, dynamic>>.from(
-              (map['strumenti_list'] as List).map((e) => Map<String, dynamic>.from(e as Map)),
-            )
-          : const [],
+      strumentiList: _parseStrumenti(map['strumenti_list']),
       profileImageUrl: map['profile_image_url'] as String?,
     );
   }
@@ -112,6 +122,7 @@ class Jam {
   final String descrizione;
   final String pagamento; 
   final String attrezzatura;
+  final String? creatorNickname; // Aggiunto per coerenza
 
   Jam({
     this.id,
@@ -125,11 +136,13 @@ class Jam {
     required this.descrizione,
     required this.pagamento,
     required this.attrezzatura,
+    this.creatorNickname,
   });
 
   Map<String, dynamic> toMap() {
     return {
       'creator_id': creatorId,
+      'creator_nickname': creatorNickname,
       'group_id': groupId,
       'data': data,
       'ora_inizio': oraInizio,
@@ -140,5 +153,22 @@ class Jam {
       'pagamento': pagamento,
       'attrezzatura': attrezzatura,
     };
+  }
+
+  factory Jam.fromMap(String id, Map<String, dynamic> map) {
+    return Jam(
+      id: id,
+      creatorId: map['creator_id'] as String,
+      groupId: map['group_id'] as String?,
+      data: map['data'] as String,
+      oraInizio: map['ora_inizio'] as String,
+      oraFine: map['ora_fine'] as String,
+      personePresenti: map['persone_presenti'] as int,
+      personeRichieste: map['persone_richieste'] as int,
+      descrizione: map['descrizione'] as String,
+      pagamento: map['pagamento'] as String,
+      attrezzatura: map['attrezzatura'] as String,
+      creatorNickname: map['creator_nickname'] as String?,
+    );
   }
 }
