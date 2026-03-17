@@ -4,10 +4,14 @@ import 'package:soundimplosion/app/features/app_scaffold_mobile.dart';
 import 'firebase_options.dart';
 import 'package:soundimplosion/app/features/home/auth_page_mobile.dart';
 import 'package:soundimplosion/services/firebase_auth.dart';
+import 'package:soundimplosion/services/local_notification_service.dart';
+import 'package:soundimplosion/services/push_notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await LocalNotificationService.instance.initialize();
+  await PushNotificationService.instance.initialize();
   runApp(MyApp());
 }
 

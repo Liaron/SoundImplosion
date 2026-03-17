@@ -98,6 +98,7 @@ class DatabaseService {
   String _normalizeNickname(String nickname) => nickname.trim().toLowerCase();
   String _normalizeEmail(String email) => email.trim().toLowerCase();
   String _emailKey(String email) => _normalizeEmail(email).replaceAll('.', ',');
+  String _tokenKey(String token) => token.replaceAll('.', '_');
 
   @visibleForTesting
   static String sanitizeUsernameSeed(String value) {
@@ -452,6 +453,120 @@ class DatabaseService {
 
   Stream<DatabaseEvent> getAllGroupsStream() {
     return _dbRef.child('groups_info').onValue;
+  }
+
+  Stream<DatabaseEvent> getUserNotificationsStream() {
+    final user = _auth.currentUser;
+    if (user == null) {
+      return Stream.error('Utente non loggato');
+    }
+
+    return _dbRef.child('user_notifications').child(user.uid).onValue;
+  }
+
+  Future<void> markUserNotificationRead(String notificationId) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception('Utente non loggato');
+    }
+
+    await _dbRef
+        .child('user_notifications')
+        .child(user.uid)
+        .child(notificationId)
+        .child('read')
+        .set(true);
+  }
+
+  Future<void> markAllUserNotificationsRead() async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception('Utente non loggato');
+    }
+
+    final snapshot = await _dbRef
+        .child('user_notifications')
+        .child(user.uid)
+        .get();
+    if (!snapshot.exists || snapshot.value == null || snapshot.value is! Map) {
+      return;
+    }
+
+    final updates = <String, dynamic>{};
+    final notifications = Map<String, dynamic>.from(snapshot.value as Map);
+    for (final notificationId in notifications.keys) {
+      updates['/user_notifications/${user.uid}/$notificationId/read'] = true;
+    }
+    if (updates.isNotEmpty) {
+      await _dbRef.update(updates);
+    }
+  }
+
+  Future<Map<String, dynamic>> getNotificationPreferences() async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception('Utente non loggato');
+    }
+
+    final snapshot = await _dbRef
+        .child('users')
+        .child(user.uid)
+        .child('preferenze')
+        .child('notifications')
+        .get();
+    if (!snapshot.exists || snapshot.value == null || snapshot.value is! Map) {
+      return const <String, dynamic>{};
+    }
+
+    return Map<String, dynamic>.from(snapshot.value as Map);
+  }
+
+  Future<void> saveNotificationPreferences(
+    Map<String, dynamic> preferences,
+  ) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception('Utente non loggato');
+    }
+
+    await _dbRef
+        .child('users')
+        .child(user.uid)
+        .child('preferenze')
+        .child('notifications')
+        .update(preferences);
+  }
+
+  Future<void> saveDeviceToken(
+    String token, {
+    String platform = 'unknown',
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null || token.isEmpty) {
+      return;
+    }
+
+    await _dbRef
+        .child('user_devices')
+        .child(user.uid)
+        .child(_tokenKey(token))
+        .set({
+          'token': token,
+          'platform': platform,
+          'updated_at': ServerValue.timestamp,
+        });
+  }
+
+  Future<void> removeDeviceToken(String uid, String token) async {
+    if (uid.isEmpty || token.isEmpty) {
+      return;
+    }
+
+    await _dbRef
+        .child('user_devices')
+        .child(uid)
+        .child(_tokenKey(token))
+        .remove();
   }
 
   Future<bool> isCurrentUserAdmin() {
@@ -946,6 +1061,7 @@ class DatabaseService {
         'ora_inizio': booking.oraInizio,
         'ora_fine': booking.oraFine,
         'timestamp': ServerValue.timestamp,
+        'read': false,
       };
 
       final updates = <String, dynamic>{
@@ -1055,6 +1171,15 @@ class DatabaseService {
     final updates = <String, dynamic>{
       '/bookings/$bookingId/stato': BookingStatus.confermata.name,
       '/user_bookings/$ownerId/$bookingId/stato': BookingStatus.confermata.name,
+      '/user_notifications/$ownerId/$bookingId': {
+        'type': 'booking_confirmed',
+        'booking_id': bookingId,
+        'data': bookingData['data'],
+        'ora_inizio': bookingData['ora_inizio'],
+        'ora_fine': bookingData['ora_fine'],
+        'timestamp': ServerValue.timestamp,
+        'read': false,
+      },
     };
 
     if (groupId != null && groupId.isNotEmpty) {
@@ -1080,6 +1205,15 @@ class DatabaseService {
     final updates = <String, dynamic>{
       '/bookings/$bookingId/stato': BookingStatus.annullata.name,
       '/user_bookings/$ownerId/$bookingId/stato': BookingStatus.annullata.name,
+      '/user_notifications/$ownerId/$bookingId': {
+        'type': 'booking_cancelled',
+        'booking_id': bookingId,
+        'data': bookingData['data'],
+        'ora_inizio': bookingData['ora_inizio'],
+        'ora_fine': bookingData['ora_fine'],
+        'timestamp': ServerValue.timestamp,
+        'read': false,
+      },
     };
 
     if (groupId != null && groupId.isNotEmpty) {
@@ -1174,9 +1308,21 @@ class DatabaseService {
     }
 
     final jamData = Map<String, dynamic>.from(snapshot.value as Map);
+    final creatorId = jamData['creator_id']?.toString() ?? '';
     final updates = <String, dynamic>{
       '/jams/$jamId/stato': JamStatus.pubblicata.name,
     };
+    if (creatorId.isNotEmpty) {
+      updates['/user_notifications/$creatorId/$jamId'] = {
+        'type': 'jam_approved',
+        'jam_id': jamId,
+        'data': jamData['data'],
+        'ora_inizio': jamData['ora_inizio'],
+        'ora_fine': jamData['ora_fine'],
+        'timestamp': ServerValue.timestamp,
+        'read': false,
+      };
+    }
 
     final feedSnapshot = await _dbRef
         .child('feed')
@@ -1221,10 +1367,22 @@ class DatabaseService {
     final jamData = Map<String, dynamic>.from(snapshot.value as Map);
     final dateStr = jamData['data']?.toString() ?? '';
     final participantIds = _extractIds(jamData['participants']);
+    final creatorId = jamData['creator_id']?.toString() ?? '';
     final updates = <String, dynamic>{
       '/jams/$jamId/stato': JamStatus.annullata.name,
       '/jams/$jamId/participants': null,
     };
+    if (creatorId.isNotEmpty) {
+      updates['/user_notifications/$creatorId/$jamId'] = {
+        'type': 'jam_rejected',
+        'jam_id': jamId,
+        'data': jamData['data'],
+        'ora_inizio': jamData['ora_inizio'],
+        'ora_fine': jamData['ora_fine'],
+        'timestamp': ServerValue.timestamp,
+        'read': false,
+      };
+    }
 
     if (dateStr.isNotEmpty) {
       final slotsToFree = await _findSlotsByBookingId(dateStr, jamId);

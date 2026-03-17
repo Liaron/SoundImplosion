@@ -2,6 +2,7 @@
     package="it.sinnodel.soundimplosion">
     <!-- Permission per accesso a Internet richiesto da Firebase/Google Sign-In -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <application
         android:label="soundimplosion"
         android:icon="@mipmap/ic_launcher">

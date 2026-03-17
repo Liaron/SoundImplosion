@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:soundimplosion/app/features/admin/admin_management_page_mobile.dart';
 import 'package:soundimplosion/app/features/app_scaffold_controller.dart';
@@ -5,7 +7,10 @@ import 'package:soundimplosion/app/features/book/bookings_scaffold_mobile.dart';
 import 'package:soundimplosion/app/features/home/home_page_mobile.dart';
 import 'package:soundimplosion/app/features/jam/jam_session_page_mobile.dart';
 import 'package:soundimplosion/app/features/groups/groups_page_mobile.dart';
+import 'package:soundimplosion/app/features/notifications/notifications_page_mobile.dart';
+import 'package:soundimplosion/app/features/notifications/notifications_repository.dart';
 import 'package:soundimplosion/app/features/profile/profile_details_page_mobile.dart';
+import 'package:soundimplosion/app/features/settings/settings_page_mobile.dart';
 import 'package:soundimplosion/app/features/contact_us/contact_us_page_mobile.dart';
 import 'package:soundimplosion/common/variables.dart';
 import 'package:soundimplosion/services/firebase_auth.dart';
@@ -38,6 +43,11 @@ class AppScaffoldMobile extends StatefulWidget {
 class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
   final AuthService _authService = AuthService();
   final AppScaffoldController _controller = AppScaffoldController();
+  final NotificationsRepository _notificationsRepository =
+      FirebaseNotificationsRepository();
+  StreamSubscription<List<AppNotificationItem>>? _notificationSubscription;
+  final Set<String> _knownNotificationIds = <String>{};
+  bool _hasSeededNotifications = false;
 
   Future<void> _signOut() async {
     await _authService.signOut();
@@ -54,6 +64,7 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
     'Jam Session',
     'Gruppi',
     'Admin',
+    'Notifiche',
     'Profilo',
     'Contattaci',
     'Impostazioni',
@@ -80,9 +91,10 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
       ), // 2 - Passiamo il parametro
       const GroupsPageMobile(embedded: true), // 3
       const AdminManagementPageMobile(embedded: true), // 4
-      const ProfileDetailsPageMobile(), // 5
-      const ContactUsPageMobile(), // 6
-      const PlaceholderPage(title: 'Impostazioni'), // 7
+      const NotificationsPageMobile(), // 5
+      const ProfileDetailsPageMobile(), // 6
+      const ContactUsPageMobile(), // 7
+      const SettingsPageMobile(), // 8
     ];
 
     final maxIndex = _widgetOptions.length - 1;
@@ -93,10 +105,12 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
     _currentPageTitle = _pageTitles[_selectedIndex];
 
     _controller.initialize();
+    _bootstrapNotifications();
   }
 
   @override
   void dispose() {
+    _notificationSubscription?.cancel();
     _controller.removeListener(_handleControllerChanged);
     _controller.dispose();
     super.dispose();
@@ -106,6 +120,37 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
     if (mounted) {
       setState(() {});
     }
+  }
+
+  Future<void> _bootstrapNotifications() async {
+    _notificationSubscription = _notificationsRepository
+        .watchNotifications()
+        .listen((items) async {
+          if (!_hasSeededNotifications) {
+            _knownNotificationIds.addAll(items.map((item) => item.id));
+            _hasSeededNotifications = true;
+            return;
+          }
+
+          final preferences = await _notificationsRepository.loadPreferences();
+          final newItems =
+              items
+                  .where((item) => !_knownNotificationIds.contains(item.id))
+                  .toList()
+                ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+
+          _knownNotificationIds
+            ..clear()
+            ..addAll(items.map((item) => item.id));
+
+          for (final item in newItems) {
+            if (preferences.inAppEnabled && mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('${item.title}: ${item.body}')),
+              );
+            }
+          }
+        });
   }
 
   Future<void> _sendVerificationEmail() async {
@@ -254,19 +299,24 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
             const Spacer(),
             const Divider(),
             ListTile(
+              leading: const Icon(Icons.notifications),
+              title: const Text('Notifiche'),
+              onTap: () => _navigateToPage(5),
+            ),
+            ListTile(
               leading: const Icon(Icons.person),
               title: const Text('Profilo'),
-              onTap: () => _navigateToPage(5),
+              onTap: () => _navigateToPage(6),
             ),
             ListTile(
               leading: const Icon(Icons.contact_mail),
               title: const Text('Contattaci'),
-              onTap: () => _navigateToPage(6),
+              onTap: () => _navigateToPage(7),
             ),
             ListTile(
               leading: const Icon(Icons.settings),
               title: const Text('Impostazioni'),
-              onTap: () => _navigateToPage(7),
+              onTap: () => _navigateToPage(8),
             ),
             const Divider(),
             ListTile(

@@ -17,6 +17,113 @@ function emailKey(value) {
   return normalizeEmail(value).replace(/\./g, ",");
 }
 
+function buildNotificationContent(payload) {
+  const type = (payload && payload.type) || "generic";
+  const date = (payload && payload.data) || "";
+  const start = (payload && payload.ora_inizio) || "";
+  const end = (payload && payload.ora_fine) || "";
+
+  switch (type) {
+    case "booking_created":
+      return {
+        title: "Nuova prenotazione di gruppo",
+        body: `Nuova prenotazione per ${date} ${start}${end ? ` - ${end}` : ""}`.trim(),
+      };
+    case "booking_confirmed":
+      return {
+        title: "Prenotazione confermata",
+        body: `La tua prenotazione del ${date} alle ${start} e stata confermata.`,
+      };
+    case "booking_cancelled":
+      return {
+        title: "Prenotazione annullata",
+        body: `La tua prenotazione del ${date} alle ${start} e stata annullata.`,
+      };
+    case "jam_approved":
+      return {
+        title: "Jam approvata",
+        body: `La tua jam del ${date} alle ${start} e ora pubblicata.`,
+      };
+    case "jam_rejected":
+      return {
+        title: "Jam rifiutata",
+        body: `La tua jam del ${date} alle ${start} e stata annullata.`,
+      };
+    default:
+      return {
+        title: "Nuova notifica",
+        body: (payload && payload.message) || "Hai un nuovo aggiornamento.",
+      };
+  }
+}
+
+async function sendPushToUser(uid, notificationId, payload) {
+  const preferences = await getValue(`users/${uid}/preferenze/notifications`);
+  if (preferences && preferences.system_enabled === false) {
+    return;
+  }
+
+  const devices = await getValue(`user_devices/${uid}`);
+  if (!devices || typeof devices !== "object") {
+    return;
+  }
+
+  const tokens = Object.values(devices)
+      .filter((value) => value && typeof value === "object" && value.token)
+      .map((value) => value.token);
+
+  if (!tokens.length) {
+    return;
+  }
+
+  const content = buildNotificationContent(payload);
+  const response = await admin.messaging().sendEachForMulticast({
+    tokens,
+    notification: {
+      title: content.title,
+      body: content.body,
+    },
+    data: {
+      notification_id: notificationId,
+      type: (payload && payload.type ? String(payload.type) : "generic"),
+    },
+    android: {
+      priority: "high",
+      notification: {
+        channelId: "soundimplosion_notifications",
+      },
+    },
+    apns: {
+      payload: {
+        aps: {
+          sound: "default",
+        },
+      },
+    },
+  });
+
+  const invalidCodes = new Set([
+    "messaging/invalid-registration-token",
+    "messaging/registration-token-not-registered",
+  ]);
+
+  const cleanup = {};
+  response.responses.forEach((result, index) => {
+    if (!result.success && result.error && invalidCodes.has(result.error.code)) {
+      const token = tokens[index];
+      for (const [tokenKey, value] of Object.entries(devices)) {
+        if (value && typeof value === "object" && value.token === token) {
+          cleanup[`/user_devices/${uid}/${tokenKey}`] = null;
+        }
+      }
+    }
+  });
+
+  if (Object.keys(cleanup).length) {
+    await db.ref().update(cleanup);
+  }
+}
+
 async function getValue(path) {
   const snapshot = await db.ref(path).get();
   return snapshot.exists() ? snapshot.val() : null;
@@ -191,3 +298,19 @@ async function cleanupUserData(uid) {
 exports.cleanupDeletedUserData = functions.auth.user().onDelete(async (user) => {
   await cleanupUserData(user.uid);
 });
+
+exports.pushUserNotification = functions.database
+    .ref("/user_notifications/{uid}/{notificationId}")
+    .onCreate(async (snapshot, context) => {
+      const payload = snapshot.val();
+      if (!payload || typeof payload !== "object") {
+        return null;
+      }
+
+      await sendPushToUser(
+          context.params.uid,
+          context.params.notificationId,
+          payload,
+      );
+      return null;
+    });

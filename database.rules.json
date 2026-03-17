@@ -137,6 +137,14 @@
           ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.uid == $uid || newData.child('creator_id').val() == auth.uid || (!newData.exists() && data.child('creator_id').val() == auth.uid) || (!newData.exists() && data.child('group_id').exists() && root.child('groups_info').child(data.child('group_id').val()).child('owner_id').val() == auth.uid))"
         }
       }
+    },
+    "user_devices": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid == $uid || root.child('users').child(auth.uid).child('role').val() == 'admin')",
+        "$tokenKey": {
+          ".write": "auth != null && (auth.uid == $uid || root.child('users').child(auth.uid).child('role').val() == 'admin')"
+        }
+      }
     }
   }
 }
