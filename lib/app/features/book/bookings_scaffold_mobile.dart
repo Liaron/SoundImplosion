@@ -21,7 +21,7 @@ class BookingsScaffoldMobile extends StatelessWidget {
               indicatorColor: colorScheme.secondary,
               tabs: const <Widget>[
                 Tab(
-                  text: 'Le Mie Prenotazioni',
+                  text: 'Prenotazioni',
                   icon: Icon(Icons.history),
                 ),
                 Tab(

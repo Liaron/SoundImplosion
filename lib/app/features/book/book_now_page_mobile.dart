@@ -1,12 +1,13 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:soundimplosion/app/features/app_scaffold_mobile.dart';
-import 'package:soundimplosion/models/models.dart';
-import 'package:soundimplosion/services/database_service.dart';
+import 'package:soundimplosion/app/features/book/book_now_controller.dart';
+import 'package:soundimplosion/app/features/book/booking_repository.dart';
 
 class BookNowPageMobile extends StatefulWidget {
-  const BookNowPageMobile({super.key});
+  const BookNowPageMobile({super.key, this.initialBooking});
+
+  final BookingListItem? initialBooking;
 
   @override
   State<BookNowPageMobile> createState() => _BookNowPageMobileState();
@@ -14,136 +15,44 @@ class BookNowPageMobile extends StatefulWidget {
 
 class _BookNowPageMobileState extends State<BookNowPageMobile> {
   final _formKey = GlobalKey<FormState>();
-  final _databaseService = DatabaseService();
-  final _auth = FirebaseAuth.instance;
+  final BookNowController _controller = BookNowController();
 
-  // Stato UI
-  bool _isLoading = false;
-  bool _isLoadingSlots = false;
-  bool _isLoadingDates = true;
-
-  // Dati
-  List<DateTime> _availableDates = [];
-  List<Map<String, String>> _userGroups = [];
-  List<String> _availableSlots = []; 
-  
-  static const _slotDurationMinutes = 75;
-
-  // Selezioni Utente
-  DateTime? _selectedDate;
-  final List<String> _selectedSlots = []; 
-  String? _selectedGroupId;
-
-  // Controller
   final _peopleController = TextEditingController();
   final _equipmentController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _loadAvailableDates(); 
-    _loadUserGroups();
+    _controller.addListener(_handleControllerChanged);
+    _prefillFromExistingBooking();
+    _controller.initialize(initialBooking: widget.initialBooking);
   }
 
-  Future<void> _loadAvailableDates() async {
-    final now = DateTime.now();
-    final candidateDates = List.generate(30, (index) => now.add(Duration(days: index)));
+  @override
+  void dispose() {
+    _controller.removeListener(_handleControllerChanged);
+    _controller.dispose();
+    _peopleController.dispose();
+    _equipmentController.dispose();
+    super.dispose();
+  }
 
-    final results = await Future.wait(candidateDates.map((date) async {
-      final dateStr = DateFormat('yyyy-MM-dd').format(date);
-      try {
-        final freeSlots = await _databaseService.getFreeSlotsForDate(dateStr);
-        bool hasBookableSlot = false;
-        for (final slot in freeSlots) {
-          if (_isSlotAtLeast24HoursAway(slot, date)) {
-            hasBookableSlot = true;
-            break; 
-          }
-        }
-        return hasBookableSlot ? date : null;
-      } catch (e) {
-        debugPrint("Errore controllo data $dateStr: $e");
-        return null;
-      }
-    }));
-
+  void _handleControllerChanged() {
     if (mounted) {
-      setState(() {
-        _availableDates = results.whereType<DateTime>().toList();
-        _isLoadingDates = false;
-        
-        if (_selectedDate != null && !_availableDates.any((d) => _isSameDay(d, _selectedDate!))) {
-          _selectedDate = null;
-          _availableSlots.clear();
-        }
-      });
+      setState(() {});
     }
   }
 
-  Future<void> _loadUserGroups() async {
-    final groups = await _databaseService.getUserGroups();
-    if (mounted) {
-      setState(() {
-        _userGroups = groups;
-      });
+  bool get _isEditing => widget.initialBooking != null;
+
+  void _prefillFromExistingBooking() {
+    final booking = widget.initialBooking?.booking;
+    if (booking == null) {
+      return;
     }
-  }
 
-  Future<void> _loadAvailableSlots() async {
-    if (_selectedDate == null) return;
-
-    setState(() {
-      _isLoadingSlots = true;
-      _selectedSlots.clear();
-      _availableSlots.clear();
-    });
-
-    try {
-      final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate!);
-      final freeSlotsFromDb = await _databaseService.getFreeSlotsForDate(dateStr);
-      
-      final validSlots = <String>[];
-      for (final slot in freeSlotsFromDb) {
-        if (_isSlotAtLeast24HoursAway(slot, _selectedDate!)) {
-          validSlots.add(slot);
-        }
-      }
-
-      if (mounted) {
-        setState(() {
-          _availableSlots = validSlots;
-        });
-      }
-    } catch (e) {
-      debugPrint("Errore caricamento slot: $e");
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Errore caricamento orari: $e")));
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoadingSlots = false;
-        });
-      }
-    }
-  }
-
-  int _timeToMinutes(String time) {
-    final parts = time.split(':');
-    return int.parse(parts[0]) * 60 + int.parse(parts[1]);
-  }
-
-  bool _isSlotAtLeast24HoursAway(String slot, DateTime date) {
-    final parts = slot.split(':');
-    final slotDateTime = DateTime(
-      date.year,
-      date.month,
-      date.day,
-      int.parse(parts[0]),
-      int.parse(parts[1]),
-    );
-    final minAllowedStart = DateTime.now().add(const Duration(hours: 24));
-    return slotDateTime.isAfter(minAllowedStart);
+    _peopleController.text = booking.numeroUtenti.toString();
+    _equipmentController.text = booking.attrezzatura;
   }
 
   // --- Gestione Calendario ---
@@ -154,20 +63,26 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
 
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: _selectedDate ?? _availableDates.firstOrNull ?? now,
+      initialDate: _controller.selectedDate ?? _controller.availableDates.firstOrNull ?? now,
       firstDate: now,
       lastDate: lastDate,
       // Questa funzione abilita solo i giorni presenti in _availableDates
       selectableDayPredicate: (DateTime day) {
-        return _availableDates.any((available) => _isSameDay(available, day));
+        return _controller.availableDates.any((available) => _isSameDay(available, day));
       },
     );
 
-    if (picked != null && picked != _selectedDate) {
-      setState(() {
-        _selectedDate = picked;
-      });
-      _loadAvailableSlots();
+    if (picked != null && picked != _controller.selectedDate) {
+      try {
+        await _controller.selectDate(picked);
+      } catch (e) {
+        if (!mounted) {
+          return;
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Errore caricamento orari: $e')),
+        );
+      }
     }
   }
 
@@ -175,40 +90,16 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
     return a.year == b.year && a.month == b.month && a.day == b.day;
   }
 
-  void _toggleSlot(String slot) {
-    setState(() {
-      if (_selectedSlots.contains(slot)) {
-        _selectedSlots.remove(slot);
-      } else {
-        _selectedSlots.add(slot);
-        _selectedSlots.sort(); 
-      }
-    });
-  }
-
   Future<void> _submitBooking() async {
     if (!_formKey.currentState!.validate()) return;
 
-    if (_selectedDate == null) {
-       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Seleziona una data')));
-       return;
-    }
-    
-    if (_selectedSlots.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Seleziona almeno un orario')));
-      return;
-    }
-
-    if (!_areSlotsContiguous(_selectedSlots)) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gli orari selezionati devono essere consecutivi.')));
+    final validationError = _controller.validateSelection();
+    if (validationError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(validationError)));
       return;
     }
 
     bool loadingDialogShown = false;
-
-    setState(() {
-      _isLoading = true;
-    });
 
     if (mounted) {
       loadingDialogShown = true;
@@ -220,31 +111,10 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
     }
 
     try {
-      final user = _auth.currentUser;
-      if (user == null) throw Exception("Utente non loggato");
-
-      final startSlot = _selectedSlots.first;
-      final endSlotLast = _selectedSlots.last;
-      
-      final endMin = _timeToMinutes(endSlotLast) + _slotDurationMinutes;
-      final endHour = (endMin ~/ 60).toString().padLeft(2, '0');
-      final endMinute = (endMin % 60).toString().padLeft(2, '0');
-      final endTimeStr = "$endHour:$endMinute";
-
-      final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate!);
-
-      final booking = Booking(
-        userId: user.uid,
-        groupId: _selectedGroupId,
-        data: dateStr,
-        oraInizio: startSlot,
-        oraFine: endTimeStr,
-        numeroUtenti: int.parse(_peopleController.text),
-        attrezzatura: _equipmentController.text,
-        stato: BookingStatus.inElaborazione,
+      await _controller.submitBooking(
+        peopleCount: int.parse(_peopleController.text),
+        equipment: _equipmentController.text,
       );
-
-      await _databaseService.createBooking(booking, _selectedSlots);
 
       if (mounted) {
         if (loadingDialogShown) {
@@ -256,8 +126,12 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
           context: context,
           barrierDismissible: true,
           builder: (_) => AlertDialog(
-            title: const Text('Prenotazione inviata'),
-            content: const Text('La prenotazione è stata registrata con successo.'),
+            title: Text(_isEditing ? 'Prenotazione aggiornata' : 'Prenotazione inviata'),
+            content: Text(
+              _isEditing
+                  ? 'Le modifiche alla prenotazione sono state salvate.'
+                  : 'La prenotazione è stata registrata con successo.',
+            ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(context).pop(),
@@ -268,12 +142,16 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
         );
 
         if (!mounted) return;
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(
-            builder: (_) => const AppScaffoldMobile(initialIndex: 1),
-          ),
-          (route) => false,
-        );
+        if (_isEditing) {
+          Navigator.of(context).pop(true);
+        } else {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(
+              builder: (_) => const AppScaffoldMobile(initialIndex: 1),
+            ),
+            (route) => false,
+          );
+        }
       }
     } catch (e) {
       debugPrint("Errore submit: $e");
@@ -282,41 +160,20 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
           Navigator.of(context, rootNavigator: true).pop();
           loadingDialogShown = false;
         }
-        _loadAvailableSlots(); 
+        await _controller.refreshAvailableSlots();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Errore: ${e.toString().replaceAll("Exception: ", "")}')),
         );
       }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
     }
-  }
-
-  bool _areSlotsContiguous(List<String> slots) {
-    if (slots.length <= 1) return true;
-    
-    for (int i = 0; i < slots.length - 1; i++) {
-      final current = _timeToMinutes(slots[i]);
-      final next = _timeToMinutes(slots[i+1]);
-      if (next - current != _slotDurationMinutes) return false;
-    }
-    return true;
-  }
-  
-  String _calculateEndTime(String startSlot) {
-    final min = _timeToMinutes(startSlot) + _slotDurationMinutes;
-    final h = (min ~/ 60).toString().padLeft(2, '0');
-    final m = (min % 60).toString().padLeft(2, '0');
-    return "$h:$m";
   }
 
   @override
   Widget build(BuildContext context) {
+    final showBookingForm = _controller.selectedDate != null;
+
     return Scaffold(
+      appBar: _isEditing ? AppBar(title: const Text('Modifica Prenotazione')) : null,
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Form(
@@ -324,8 +181,7 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              // 1. Selezione Giorno (Calendario)
-              _isLoadingDates
+              _controller.isLoadingDates
                   ? const SizedBox(
                       height: 60,
                       child: Center(
@@ -340,7 +196,7 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
                       ),
                     )
                   : InkWell(
-                      onTap: _availableDates.isEmpty 
+                      onTap: _controller.availableDates.isEmpty 
                         ? null 
                         : () => _selectDateFromCalendar(context),
                       child: InputDecorator(
@@ -350,12 +206,12 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
                           prefixIcon: Icon(Icons.calendar_today),
                         ),
                         child: Text(
-                          _selectedDate == null
-                              ? (_availableDates.isEmpty 
+                          _controller.selectedDate == null
+                            ? (_controller.availableDates.isEmpty 
                                   ? 'Nessuna data disponibile' 
                                   : 'Tocca per scegliere una data')
-                              : DateFormat('EEEE d MMMM yyyy').format(_selectedDate!),
-                          style: _selectedDate == null 
+                            : DateFormat('EEEE d MMMM yyyy').format(_controller.selectedDate!),
+                          style: _controller.selectedDate == null 
                             ? TextStyle(color: Colors.grey[600]) 
                             : const TextStyle(color: Colors.black),
                         ),
@@ -363,29 +219,27 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
                     ),
               const SizedBox(height: 24),
 
-              // Mostra il resto solo se data selezionata
-              if (_selectedDate != null) ...[
-                
+              if (showBookingForm) ...[
                 // 2. Selezione Orari (Multi-select Chips)
                 const Text(
                   "Seleziona Orari (slot da 75 min)", 
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)
                 ),
                 const SizedBox(height: 8),
-                _isLoadingSlots 
+                _controller.isLoadingSlots 
                   ? const Center(child: CircularProgressIndicator())
-                  : _availableSlots.isEmpty 
+                  : _controller.availableSlots.isEmpty 
                     ? const Text("Nessuna disponibilità per questa data.")
                     : Wrap(
                         spacing: 8.0,
                         runSpacing: 4.0,
-                        children: _availableSlots.map((slot) {
-                          final isSelected = _selectedSlots.contains(slot);
+                        children: _controller.availableSlots.map((slot) {
+                          final isSelected = _controller.selectedSlots.contains(slot);
                           return FilterChip(
                             label: Text(slot),
                             selected: isSelected,
                             onSelected: (bool selected) {
-                              _toggleSlot(slot);
+                              _controller.toggleSlot(slot);
                             },
                             selectedColor: Colors.green[200],
                             checkmarkColor: Colors.green[900],
@@ -393,9 +247,9 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
                         }).toList(),
                       ),
                  const SizedBox(height: 8),
-                 if (_selectedSlots.isNotEmpty)
+                 if (_controller.selectedRangeLabel != null)
                    Text(
-                     "Intervallo selezionato: ${_selectedSlots.first} - ${_calculateEndTime(_selectedSlots.last)}",
+                     'Intervallo selezionato: ${_controller.selectedRangeLabel!}',
                      style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
                    ),
 
@@ -426,14 +280,14 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.group),
                   ),
-                  initialValue: _selectedGroupId,
-                  items: _userGroups.map((group) {
+                  initialValue: _controller.selectedGroupId,
+                  items: _controller.userGroups.map((group) {
                     return DropdownMenuItem(
                       value: group['id'],
                       child: Text(group['name'] ?? ''),
                     );
                   }).toList(),
-                  onChanged: (value) => setState(() => _selectedGroupId = value),
+                  onChanged: _controller.setSelectedGroup,
                 ),
                 const SizedBox(height: 16),
 
@@ -451,14 +305,17 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
 
                 // 6. Invia
                 ElevatedButton(
-                  onPressed: _isLoading ? null : _submitBooking,
+                  onPressed: _controller.isLoading ? null : _submitBooking,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.grey[850],
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
-                  child: _isLoading 
+                  child: _controller.isLoading 
                     ? const CircularProgressIndicator(color: Colors.white) 
-                    : const Text('INVIA PRENOTAZIONE', style: TextStyle(fontSize: 16, color: Colors.white)),
+                    : Text(
+                        _isEditing ? 'SALVA MODIFICHE' : 'INVIA PRENOTAZIONE',
+                        style: const TextStyle(fontSize: 16, color: Colors.white),
+                      ),
                 ),
               ],
             ],

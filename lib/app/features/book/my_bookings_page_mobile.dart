@@ -1,6 +1,7 @@
-import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
-import 'package:soundimplosion/services/database_service.dart';
+import 'package:soundimplosion/app/features/book/book_now_page_mobile.dart';
+import 'package:soundimplosion/app/features/book/booking_repository.dart';
+import 'package:soundimplosion/models/models.dart';
 
 class MyBookingsPageMobile extends StatefulWidget {
   const MyBookingsPageMobile({super.key});
@@ -10,7 +11,7 @@ class MyBookingsPageMobile extends StatefulWidget {
 }
 
 class _MyBookingsPageMobileState extends State<MyBookingsPageMobile> {
-  final DatabaseService _databaseService = DatabaseService();
+  final BookingRepository _bookingRepository = FirebaseBookingRepository();
 
   void _deleteBooking(String bookingId) {
     showDialog(
@@ -26,11 +27,19 @@ class _MyBookingsPageMobileState extends State<MyBookingsPageMobile> {
           TextButton(
             onPressed: () async {
               Navigator.of(ctx).pop();
-              await _databaseService.deleteBooking(bookingId);
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Prenotazione eliminata")),
-                );
+              try {
+                await _bookingRepository.deleteBooking(bookingId);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Prenotazione eliminata")),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Errore: $e')),
+                  );
+                }
               }
             },
             child: const Text("Elimina", style: TextStyle(color: Colors.red)),
@@ -40,18 +49,30 @@ class _MyBookingsPageMobileState extends State<MyBookingsPageMobile> {
     );
   }
 
-  void _editBooking(String bookingId, Map data) {
-    // TODO: Implementare la navigazione alla pagina di modifica
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Funzionalità di modifica non ancora disponibile")),
+  Future<void> _editBooking(String bookingId, Map data) async {
+    final result = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => BookNowPageMobile(
+          initialBooking: BookingListItem(
+            id: bookingId,
+            booking: Booking.fromMap(bookingId, Map<String, dynamic>.from(data)),
+          ),
+        ),
+      ),
     );
+
+    if (result == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Prenotazione aggiornata correttamente')),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: StreamBuilder<DatabaseEvent>(
-        stream: _databaseService.getBookingsStream(),
+      body: StreamBuilder<List<BookingListItem>>(
+        stream: _bookingRepository.watchAccessibleBookings(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -61,53 +82,27 @@ class _MyBookingsPageMobileState extends State<MyBookingsPageMobile> {
             return Center(child: Text('Errore: ${snapshot.error}'));
           }
 
-          if (!snapshot.hasData || snapshot.data?.snapshot.value == null) {
-            return const Center(child: Text('Non hai nessuna prenotazione.'));
+          if (!snapshot.hasData) {
+            return const Center(child: Text('Non ci sono prenotazioni personali o di gruppo.'));
           }
 
-          final dynamic rawData = snapshot.data!.snapshot.value;
-          List<Map<String, dynamic>> bookings = [];
-
-          try {
-            if (rawData is Map) {
-              bookings = rawData.entries.map((entry) {
-                final bookingData = Map<String, dynamic>.from(entry.value as Map);
-                bookingData['key'] = entry.key; 
-                return bookingData;
-              }).toList();
-            } else if (rawData is List) {
-              for (int i = 0; i < rawData.length; i++) {
-                if (rawData[i] != null) {
-                  final bookingData = Map<String, dynamic>.from(rawData[i] as Map);
-                  bookingData['key'] = i.toString();
-                  bookings.add(bookingData);
-                }
-              }
-            }
-          } catch (e) {
-            return Center(child: Text('Errore nel formato dati: $e'));
-          }
-          
-          // Ordina per data (opzionale, qui semplice string sort)
-          bookings.sort((a, b) => (b['data'] ?? '').compareTo(a['data'] ?? ''));
+          final bookings = snapshot.data!;
 
           if (bookings.isEmpty) {
-             return const Center(child: Text('Non hai nessuna prenotazione.'));
+             return const Center(child: Text('Non ci sono prenotazioni personali o di gruppo.'));
           }
 
           return ListView.builder(
             itemCount: bookings.length,
             itemBuilder: (context, index) {
-              final booking = bookings[index];
-              final date = booking['data'] ?? 'N/A';
-              final startTime = booking['ora_inizio'] ?? 'N/A';
-              final endTime = booking['ora_fine'] ?? 'N/A';
-              final status = (booking['stato'] == 'inElaborazione') ? 'In elaborazione' : booking['stato'];
-              final people = booking['numero_utenti'] ?? 0;
-              final groupId = booking['group_id'];
-              final groupText = (groupId != null && groupId.toString().isNotEmpty) 
-                  ? 'Gruppo: $groupId' 
-                  : 'Nessun gruppo';
+              final item = bookings[index];
+              final booking = item.booking;
+              final date = booking.data.isEmpty ? 'N/A' : booking.data;
+              final startTime = booking.oraInizio.isEmpty ? 'N/A' : booking.oraInizio;
+              final endTime = booking.oraFine.isEmpty ? 'N/A' : booking.oraFine;
+              final status = item.statusLabel;
+              final people = booking.numeroUtenti;
+              final groupText = item.groupLabel;
 
               return Card(
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -137,9 +132,9 @@ class _MyBookingsPageMobileState extends State<MyBookingsPageMobile> {
                   trailing: PopupMenuButton<String>(
                     onSelected: (value) {
                       if (value == 'edit') {
-                        _editBooking(booking['key'], booking);
+                        _editBooking(item.id, booking.toMap());
                       } else if (value == 'delete') {
-                        _deleteBooking(booking['key']);
+                        _deleteBooking(item.id);
                       }
                     },
                     itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[

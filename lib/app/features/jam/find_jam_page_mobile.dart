@@ -1,8 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
-import 'package:soundimplosion/services/database_service.dart';
+import 'package:soundimplosion/app/features/jam/find_jam_controller.dart';
+import 'package:soundimplosion/app/features/jam/jam_repository.dart';
+import 'package:soundimplosion/app/features/jam/organize_jam_page_mobile.dart';
 import 'package:soundimplosion/app/features/jam/view/mobile/custom_multi_month_picker.dart';
 
 class FindJamPageMobile extends StatefulWidget {
@@ -16,27 +16,64 @@ class FindJamPageMobile extends StatefulWidget {
 }
 
 class _FindJamPageMobileState extends State<FindJamPageMobile> {
-  final DatabaseService _databaseService = DatabaseService();
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-
-  // State per i filtri
-  List<DateTime> _selectedDates = [];
-  bool _showMyJams = false;
-  bool _showParticipatingJams = false;
-  List<Map<String, dynamic>> _allJams = [];
+  late final FindJamController _controller;
 
   @override
   void initState() {
     super.initState();
-    // Se riceviamo una jam da aprire, la mostriamo in un dialog dopo la build
+    _controller = FindJamController(currentUserId: FirebaseAuth.instance.currentUser?.uid);
+    _controller.addListener(_handleControllerChanged);
+    _controller.initialize();
     if (widget.initialJamToOpen != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _showJamDetails(widget.initialJamToOpen!);
+        _openInitialJam(widget.initialJamToOpen!);
       });
     }
   }
 
-  void _showJamDetails(Map<String, dynamic> jam) {
+  @override
+  void dispose() {
+    _controller.removeListener(_handleControllerChanged);
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _handleControllerChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  Future<void> _openInitialJam(Map<String, dynamic> rawJam) async {
+    final jamId = rawJam['jam_id']?.toString() ?? rawJam['key']?.toString();
+    if (jamId != null && jamId.isNotEmpty) {
+      final loadedJam = await _controller.loadJamById(jamId);
+      if (!mounted) {
+        return;
+      }
+      if (loadedJam != null) {
+        _showJamDetails(loadedJam);
+        return;
+      }
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    final jam = JamListItem.fromMap(
+      rawJam['key']?.toString() ?? jamId ?? 'initial-jam',
+      Map<String, dynamic>.from(rawJam),
+    );
+    _showJamDetails(jam);
+  }
+
+  void _showJamDetails(JamListItem jam) {
+    final isOwnedByCurrentUser = jam.isOwnedBy(_controller.currentUserId);
+    final isJoinedByCurrentUser = jam.isJoinedBy(_controller.currentUserId);
+    final canJoin = jam.isPublished && !isOwnedByCurrentUser && !isJoinedByCurrentUser && jam.hasOpenSpots;
+    final canLeave = isJoinedByCurrentUser && !isOwnedByCurrentUser;
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -46,18 +83,19 @@ class _FindJamPageMobileState extends State<FindJamPageMobile> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (jam['creator_nickname'] != null) ...[
-                Text("Organizzata da: ${jam['creator_nickname']}", style: const TextStyle(fontWeight: FontWeight.bold)),
+              if ((jam.jam.creatorNickname ?? '').isNotEmpty) ...[
+                Text('Organizzata da: ${jam.jam.creatorNickname}', style: const TextStyle(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 16),
               ],
-              Text("Data: ${jam['data'] ?? 'N/A'}"),
-              Text("Orario: ${jam['ora_inizio'] ?? 'N/A'} - ${jam['ora_fine'] ?? 'N/A'}"),
+              Text('Data: ${jam.dateLabel}'),
+              Text('Orario: ${jam.timeRangeLabel}'),
               const SizedBox(height: 16),
               const Text("Descrizione: ", style: TextStyle(fontWeight: FontWeight.bold)),
-              Text(jam['descrizione'] ?? ''),
+              Text(jam.jam.descrizione),
               const SizedBox(height: 8),
-              Text("Persone: ${jam['persone_presenti'] ?? 0} presenti, si cercano ${jam['persone_richieste'] ?? 0}"),
-              Text("Pagamento: ${jam['pagamento'] ?? 'N/A'}"),
+              Text('Persone: ${jam.jam.personePresenti} presenti, si cercano ${jam.jam.personeRichieste}'),
+              Text('Pagamento: ${jam.paymentLabel}'),
+              Text('Stato: ${jam.statusLabel}'),
             ],
           ),
         ),
@@ -67,19 +105,67 @@ class _FindJamPageMobileState extends State<FindJamPageMobile> {
             child: const Text("Chiudi"),
           ),
           ElevatedButton(
-            onPressed: () => _joinJam(jam['key']),
+            onPressed: canJoin
+                ? () => _joinJam(jam.id)
+                : canLeave
+                    ? () => _leaveJam(jam.id)
+                    : null,
             style: ElevatedButton.styleFrom(backgroundColor: Colors.green[700], foregroundColor: Colors.white),
-            child: const Text("Partecipa"),
+            child: Text(
+              isOwnedByCurrentUser
+                  ? (jam.isPublished ? 'La tua jam' : 'In approvazione')
+                  : isJoinedByCurrentUser
+                      ? 'Esci'
+                      : jam.hasOpenSpots
+                      ? (jam.isPublished ? 'Partecipa' : 'Non disponibile')
+                          : 'Al completo',
+            ),
           ),
         ],
       ),
     );
   }
 
-  void _joinJam(String jamId) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Funzionalità "Partecipa" in arrivo!')),
-    );
+  Future<void> _joinJam(String jamId) async {
+    Navigator.of(context).pop();
+
+    try {
+      await _controller.joinJam(jamId);
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Partecipazione confermata')),
+      );
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Errore: ${e.toString().replaceAll('Exception: ', '')}')),
+      );
+    }
+  }
+
+  Future<void> _leaveJam(String jamId) async {
+    Navigator.of(context).pop();
+
+    try {
+      await _controller.leaveJam(jamId);
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sei uscito dalla jam')),
+      );
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Errore: ${e.toString().replaceAll('Exception: ', '')}')),
+      );
+    }
   }
 
   void _deleteJam(String jamId) {
@@ -97,7 +183,7 @@ class _FindJamPageMobileState extends State<FindJamPageMobile> {
             onPressed: () async {
               Navigator.of(ctx).pop();
               try {
-                await _databaseService.deleteJam(jamId);
+                await _controller.deleteJam(jamId);
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text("Jam eliminata correttamente")),
@@ -118,31 +204,20 @@ class _FindJamPageMobileState extends State<FindJamPageMobile> {
     );
   }
 
-  void _editJam(String jamId, Map data) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Funzionalità di modifica non ancora disponibile")),
+  Future<void> _editJam(String jamId, Map data) async {
+    final result = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => OrganizeJamPageMobile(
+          initialJam: JamListItem.fromMap(jamId, Map<String, dynamic>.from(data)),
+        ),
+      ),
     );
-  }
-  
-  DateTime? _parseDate(String dateStr) {
-    try {
-      return DateFormat('dd/MM/yyyy').parseStrict(dateStr);
-    } catch (e) {
-      return null;
-    }
-  }
 
-  bool _isJamPublished(Map<String, dynamic> jam) {
-    final dynamic rawState = jam['stato'] ?? jam['status'];
-    if (rawState == null) {
-      return true;
+    if (result == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Jam aggiornata correttamente')),
+      );
     }
-    final state = rawState.toString().toLowerCase();
-    return state == 'pubblicata' || state == 'published';
-  }
-
-  bool _isSameDay(DateTime a, DateTime b) {
-    return a.year == b.year && a.month == b.month && a.day == b.day;
   }
 
   Future<void> _selectDates(BuildContext context, Function(List<DateTime>) onDatesSelected) async {
@@ -156,19 +231,7 @@ class _FindJamPageMobileState extends State<FindJamPageMobile> {
     );
 
     try {
-      // 2. Fetch data (Jams)
-      // Note: We fetch ALL jams to determine which days have active jams
-      // This might be redundant if we already have the stream, but the request asks for a request on click.
-      final jams = await _databaseService.getPublishedJamsOnce();
-
-      final Set<DateTime> availableDays = {};
-      for (final jam in jams) {
-        if (!_isJamPublished(jam)) continue;
-        final parsed = _parseDate(jam['data'] ?? '');
-        if (parsed != null) {
-          availableDays.add(DateTime(parsed.year, parsed.month, parsed.day));
-        }
-      }
+      final availableDays = await _controller.loadAvailableFilterDates();
 
       if (!mounted) return;
       Navigator.pop(context); // Dismiss loading
@@ -177,8 +240,8 @@ class _FindJamPageMobileState extends State<FindJamPageMobile> {
       final result = await showDialog<List<DateTime>>(
         context: context,
         builder: (ctx) => CustomMultiMonthPicker(
-          jamDates: availableDays.toList(),
-          selectedDates: _selectedDates,
+          jamDates: availableDays,
+          selectedDates: _controller.selectedDates,
         ),
       );
 
@@ -213,9 +276,9 @@ class _FindJamPageMobileState extends State<FindJamPageMobile> {
                             children: [
                               const Text("Date selezionate:", style: TextStyle(fontWeight: FontWeight.bold)),
                               Text(
-                                _selectedDates.isEmpty
+                                _controller.selectedDates.isEmpty
                                     ? 'Tutte'
-                                    : '${_selectedDates.length} date',
+                                    : '${_controller.selectedDates.length} date',
                                 style: const TextStyle(fontSize: 14),
                               ),
                             ],
@@ -226,24 +289,20 @@ class _FindJamPageMobileState extends State<FindJamPageMobile> {
                             TextButton(
                               onPressed: () {
                                 _selectDates(context, (dates) {
-                                  // Update state inside dialog
                                   setStateDialog(() {
-                                    _selectedDates = dates;
-                                  });
-                                  // Update main state
-                                  setState(() {
-                                    _selectedDates = dates;
+                                    _controller.setSelectedDates(dates);
                                   });
                                 });
                               },
                               child: const Text('Seleziona'),
                             ),
-                            if (_selectedDates.isNotEmpty)
+                            if (_controller.selectedDates.isNotEmpty)
                               IconButton(
                                 icon: const Icon(Icons.close, size: 20),
                                 onPressed: () {
-                                  setStateDialog(() => _selectedDates = []);
-                                  setState(() => _selectedDates = []);
+                                  setStateDialog(() {
+                                    _controller.clearSelectedDates();
+                                  });
                                 },
                                 visualDensity: VisualDensity.compact,
                               ),
@@ -254,31 +313,20 @@ class _FindJamPageMobileState extends State<FindJamPageMobile> {
                     const Divider(),
                     SwitchListTile(
                       title: const Text('Solo le mie Jam'),
-                      value: _showMyJams,
+                      value: _controller.showMyJams,
                       onChanged: (bool value) {
                         setStateDialog(() {
-                          _showMyJams = value;
-                        });
-                        setState(() {
-                          _showMyJams = value;
+                          _controller.setShowMyJams(value);
                         });
                       },
                     ),
                     SwitchListTile(
                       title: const Text('Jam a cui partecipo'),
-                      value: _showParticipatingJams,
+                      value: _controller.showParticipatingJams,
                       onChanged: (bool value) {
                          setStateDialog(() {
-                            _showParticipatingJams = value;
+                           _controller.setShowParticipatingJams(value);
                          });
-                         setState(() {
-                            _showParticipatingJams = value;
-                         });
-                         if (value) {
-                             ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Filtro "Partecipo" non ancora disponibile.')),
-                             );
-                         }
                       },
                     ),
                   ],
@@ -299,8 +347,6 @@ class _FindJamPageMobileState extends State<FindJamPageMobile> {
 
   @override
   Widget build(BuildContext context) {
-    final currentUser = _auth.currentUser;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text("Cerca Jam"),
@@ -311,100 +357,45 @@ class _FindJamPageMobileState extends State<FindJamPageMobile> {
            )
         ],
       ),
-      body: StreamBuilder<DatabaseEvent>(
-        stream: _databaseService.getJamsStream(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+      body: Builder(
+        builder: (context) {
+          if (_controller.isLoading) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          if (snapshot.hasError) {
-            return Center(child: Text('Errore: ${snapshot.error}'));
+          if (_controller.streamError != null) {
+            return Center(child: Text('Errore: ${_controller.streamError}'));
           }
 
-          if (!snapshot.hasData || snapshot.data?.snapshot.value == null) {
-            _allJams = [];
+          if (_controller.allJams.isEmpty) {
             return const Center(child: Text('Non ci sono Jam session attive.'));
           }
 
-          final dynamic rawData = snapshot.data!.snapshot.value;
-          List<Map<String, dynamic>> jams = [];
+          final filteredJams = _controller.filteredJams;
 
-          try {
-            if (rawData is Map) {
-              jams = rawData.entries.map((entry) {
-                final jamData = Map<String, dynamic>.from(entry.value as Map);
-                jamData['key'] = entry.key;
-                return jamData;
-              }).toList();
-            } else if (rawData is List) {
-              for (int i = 0; i < rawData.length; i++) {
-                if (rawData[i] != null) {
-                  final jamData = Map<String, dynamic>.from(rawData[i] as Map);
-                  jamData['key'] = i.toString();
-                  jams.add(jamData);
-                }
-              }
-            }
-          } catch (e) {
-            return Center(child: Text('Errore nel formato dati: $e'));
-          }
-
-          _allJams = List<Map<String, dynamic>>.from(jams);
-
-          // Applica i filtri
-          List<Map<String, dynamic>> filteredJams = _allJams.where(_isJamPublished).toList();
-
-          if (_showMyJams) {
-            filteredJams = filteredJams.where((jam) {
-              return jam['creator_id'] == currentUser?.uid;
-            }).toList();
-          }
-
-          if (_showParticipatingJams) {
-            // La logica di questo filtro non è applicata
-          }
-
-          if (_selectedDates.isNotEmpty) {
-            filteredJams = filteredJams.where((jam) {
-              final jamDateStr = jam['data'] ?? '';
-              final jamDate = _parseDate(jamDateStr);
-              if (jamDate == null) return false;
-
-              return _selectedDates.any((selected) => _isSameDay(selected, jamDate));
-            }).toList();
-          }
-
-          filteredJams.sort((a, b) {
-            final dateA = _parseDate(a['data'] ?? '');
-            final dateB = _parseDate(b['data'] ?? '');
-            if (dateA == null || dateB == null) return 0;
-            return dateB.compareTo(dateA);
-          });
-          
           return Column(
             children: [
               // Show active filters summary
-              if (_selectedDates.isNotEmpty || _showMyJams)
+              if (_controller.selectedDates.isNotEmpty || _controller.showMyJams || _controller.showParticipatingJams)
                  Padding(
                    padding: const EdgeInsets.all(8.0),
                    child: Row(
                      children: [
                        const Text("Filtri attivi: ", style: TextStyle(fontWeight: FontWeight.bold)),
-                       if (_showMyJams) const Chip(label: Text("Mie Jam"), visualDensity: VisualDensity.compact),
-                       if (_selectedDates.isNotEmpty)
+                       if (_controller.showMyJams) const Chip(label: Text("Mie Jam"), visualDensity: VisualDensity.compact),
+                       if (_controller.showParticipatingJams)
+                         const Padding(
+                           padding: EdgeInsets.only(left: 4.0),
+                           child: Chip(label: Text('Partecipo'), visualDensity: VisualDensity.compact),
+                         ),
+                       if (_controller.selectedDates.isNotEmpty)
                          Padding(
                            padding: const EdgeInsets.only(left: 4.0),
-                           child: Chip(label: Text("${_selectedDates.length} date"), visualDensity: VisualDensity.compact),
+                           child: Chip(label: Text('${_controller.selectedDates.length} date'), visualDensity: VisualDensity.compact),
                          ),
                        const Spacer(),
                        TextButton(
-                         onPressed: () {
-                           setState(() {
-                             _selectedDates = [];
-                             _showMyJams = false;
-                           });
-                         },
+                         onPressed: _controller.resetFilters,
                          child: const Text("Reset")
                        )
                      ],
@@ -418,17 +409,7 @@ class _FindJamPageMobileState extends State<FindJamPageMobile> {
                         itemCount: filteredJams.length,
                         itemBuilder: (context, index) {
                           final jam = filteredJams[index];
-                          final date = jam['data'] ?? 'N/A';
-                          final startTime = jam['ora_inizio'] ?? 'N/A';
-                          final endTime = jam['ora_fine'] ?? 'N/A';
-                          final desc = jam['descrizione'] ?? '';
-                          final payment = jam['pagamento'] ?? 'Diviso';
-                          final present = jam['persone_presenti'] ?? 0;
-                          final required = jam['persone_richieste'] ?? 0;
-                          final jamId = jam['key'];
-                          final creatorId = jam['creator_id'];
-
-                          final isMyJam = currentUser != null && creatorId == currentUser.uid;
+                          final isMyJam = jam.isOwnedBy(_controller.currentUserId);
 
                           return InkWell(
                             onTap: () => _showJamDetails(jam),
@@ -448,7 +429,7 @@ class _FindJamPageMobileState extends State<FindJamPageMobile> {
                                             const Icon(Icons.music_note, color: Colors.red),
                                             const SizedBox(width: 8),
                                             Text(
-                                              date,
+                                              jam.dateLabel,
                                               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                                             ),
                                           ],
@@ -457,9 +438,9 @@ class _FindJamPageMobileState extends State<FindJamPageMobile> {
                                           PopupMenuButton<String>(
                                             onSelected: (value) {
                                               if (value == 'edit') {
-                                                _editJam(jamId, jam);
+                                                _editJam(jam.id, jam.toMap());
                                               } else if (value == 'delete') {
-                                                _deleteJam(jamId);
+                                                _deleteJam(jam.id);
                                               }
                                             },
                                             itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
@@ -475,18 +456,26 @@ class _FindJamPageMobileState extends State<FindJamPageMobile> {
                                           ),
                                       ],
                                     ),
-                                    if (jam['creator_nickname'] != null)
+                                    if ((jam.jam.creatorNickname ?? '').isNotEmpty)
                                       Padding(
                                         padding: const EdgeInsets.only(top: 8.0),
                                         child: Text(
-                                          "Organizzata da: ${jam['creator_nickname']}",
+                                          'Organizzata da: ${jam.jam.creatorNickname}',
                                           style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey.shade600),
                                         ),
                                       ),
-                                    Text('$startTime - $endTime', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                    Text(jam.timeRangeLabel, style: const TextStyle(fontWeight: FontWeight.bold)),
                                     const SizedBox(height: 8),
-                                    Text(desc, style: const TextStyle(fontSize: 14)),
+                                    Text(jam.jam.descrizione, style: const TextStyle(fontSize: 14)),
                                     const SizedBox(height: 12),
+                                    Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: Chip(
+                                        label: Text(jam.statusLabel, style: const TextStyle(fontSize: 12)),
+                                        backgroundColor: jam.isPublished ? Colors.green[100] : Colors.orange[100],
+                                        visualDensity: VisualDensity.compact,
+                                      ),
+                                    ),
                                     const Divider(),
                                     Row(
                                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -495,12 +484,12 @@ class _FindJamPageMobileState extends State<FindJamPageMobile> {
                                           children: [
                                             const Icon(Icons.people, size: 18, color: Colors.grey),
                                             const SizedBox(width: 4),
-                                            Text('$present presenti / Cerchiamo $required'),
+                                            Text('${jam.jam.personePresenti} presenti / Cerchiamo ${jam.jam.personeRichieste}'),
                                           ],
                                         ),
                                         Chip(
-                                          label: Text(payment, style: const TextStyle(fontSize: 12)),
-                                          backgroundColor: payment == 'Offerto' ? Colors.green[100] : Colors.orange[100],
+                                          label: Text(jam.paymentLabel, style: const TextStyle(fontSize: 12)),
+                                          backgroundColor: jam.paymentLabel == 'Offerto' ? Colors.green[100] : Colors.orange[100],
                                           visualDensity: VisualDensity.compact,
                                         ),
                                       ],

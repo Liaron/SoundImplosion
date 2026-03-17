@@ -1,6 +1,7 @@
-import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
-import 'package:soundimplosion/services/database_service.dart';
+import 'package:soundimplosion/app/features/home/feed_repository.dart';
+import 'package:soundimplosion/app/features/home/home_feed_controller.dart';
+import 'package:soundimplosion/app/features/jam/find_jam_page_mobile.dart';
 
 class HomePageMobile extends StatefulWidget {
   const HomePageMobile({super.key});
@@ -10,81 +11,81 @@ class HomePageMobile extends StatefulWidget {
 }
 
 class _HomePageMobileState extends State<HomePageMobile> {
-  final DatabaseService _dbService = DatabaseService();
+  final HomeFeedController _controller = HomeFeedController();
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_handleControllerChanged);
+    _controller.initialize();
+  }
+
+  @override
+  void dispose() {
+    _controller.removeListener(_handleControllerChanged);
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _handleControllerChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  Future<void> _openJamDetails(HomeFeedItem item) async {
+    final jamId = item.jamId;
+    if (jamId == null || jamId.isEmpty) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Dettagli jam non disponibili per questo aggiornamento.')),
+      );
+      return;
+    }
+
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => FindJamPageMobile(
+          initialJamToOpen: {
+            'key': jamId,
+            'jam_id': jamId,
+            'creator_id': item.creatorId,
+            'data': item.date,
+            'ora_inizio': item.startTime,
+            'descrizione': item.description,
+          },
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: StreamBuilder<DatabaseEvent>(
-        stream: _dbService.getFeedStream(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+      body: Builder(
+        builder: (context) {
+          if (_controller.isLoading) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          if (snapshot.hasError) {
-            return Center(child: Text("Errore caricamento feed: ${snapshot.error}"));
+          if (_controller.error != null) {
+            return Center(child: Text('Errore caricamento feed: ${_controller.error}'));
           }
 
-          if (!snapshot.hasData || snapshot.data?.snapshot.value == null) {
-            return const Center(child: Text("Nessun aggiornamento nel feed."));
+          if (_controller.items.isEmpty) {
+            return const Center(child: Text('Nessun aggiornamento nel feed.'));
           }
 
-          // --- Parsing e Ordinamento ---
-          final dynamic rawData = snapshot.data!.snapshot.value;
-          List<Map<String, dynamic>> feedItems = [];
-
-          try {
-            if (rawData is Map) {
-              feedItems = rawData.entries.map((entry) {
-                final itemData = Map<String, dynamic>.from(entry.value as Map);
-                itemData['key'] = entry.key;
-                return itemData;
-              }).toList();
-            } else if (rawData is List) {
-              for (int i = 0; i < rawData.length; i++) {
-                if (rawData[i] != null) {
-                  final itemData = Map<String, dynamic>.from(rawData[i] as Map);
-                  itemData['key'] = i.toString();
-                  feedItems.add(itemData);
-                }
-              }
-            }
-
-            // Ordiniamo in modo decrescente (più nuovi prima)
-            feedItems.sort((a, b) {
-              final timestampA = a['timestamp'] ?? 0;
-              final timestampB = b['timestamp'] ?? 0;
-              return (timestampB as int).compareTo(timestampA as int);
-            });
-
-          } catch (e) {
-            return Center(child: Text("Errore nel formato dati del feed: $e"));
-          }
-
-          if (feedItems.isEmpty) {
-            return const Center(child: Text("Il feed è vuoto."));
-          }
-
-          // --- UI Feed ---
           return ListView.builder(
-            itemCount: feedItems.length,
+            itemCount: _controller.items.length,
             itemBuilder: (context, index) {
-              final item = feedItems[index];
-              final type = item['type'];
-
-              // Widget specifici per tipo di post
-              if (type == 'jam_published') {
+              final item = _controller.items[index];
+              if (item.isJamPublished) {
                 return _buildJamPostCard(item);
               }
-
-              // Qui puoi aggiungere altri tipi di post, es. 'staff_update'
-              // if (type == 'staff_update') {
-              //   return _buildStaffPostCard(item);
-              // }
-
-              // Fallback per tipi sconosciuti
-              return const SizedBox.shrink(); 
+              return const SizedBox.shrink();
             },
           );
         },
@@ -93,10 +94,10 @@ class _HomePageMobileState extends State<HomePageMobile> {
   }
 
   // Widget per mostrare una nuova JAM nel feed
-  Widget _buildJamPostCard(Map<String, dynamic> item) {
-    final date = item['data'] ?? 'N/A';
-    final startTime = item['ora_inizio'] ?? 'N/A';
-    final description = item['descrizione'] ?? '';
+  Widget _buildJamPostCard(HomeFeedItem item) {
+    final date = item.date ?? 'N/A';
+    final startTime = item.startTime ?? 'N/A';
+    final description = item.description ?? '';
     // Potremmo recuperare il nickname del creatore, ma per ora teniamolo semplice
     // final creatorId = item['creator_id']; 
 
@@ -132,12 +133,7 @@ class _HomePageMobileState extends State<HomePageMobile> {
             Align(
               alignment: Alignment.centerRight,
               child: ElevatedButton(
-                onPressed: () {
-                  // TODO: Navigare alla pagina 'Cerca Jam' o direttamente al dettaglio della Jam
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Navigazione al dettaglio Jam in arrivo...")),
-                  );
-                },
+                onPressed: () => _openJamDetails(item),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.purple[100],
                   foregroundColor: Colors.purple[900],

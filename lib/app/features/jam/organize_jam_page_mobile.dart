@@ -1,12 +1,13 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:soundimplosion/app/features/app_scaffold_mobile.dart';
-import 'package:soundimplosion/models/models.dart';
-import 'package:soundimplosion/services/database_service.dart';
+import 'package:soundimplosion/app/features/jam/organize_jam_controller.dart';
+import 'package:soundimplosion/app/features/jam/jam_repository.dart';
 
 class OrganizeJamPageMobile extends StatefulWidget {
-  const OrganizeJamPageMobile({super.key});
+  const OrganizeJamPageMobile({super.key, this.initialJam});
+
+  final JamListItem? initialJam;
 
   @override
   State<OrganizeJamPageMobile> createState() => _OrganizeJamPageMobileState();
@@ -14,141 +15,50 @@ class OrganizeJamPageMobile extends StatefulWidget {
 
 class _OrganizeJamPageMobileState extends State<OrganizeJamPageMobile> {
   final _formKey = GlobalKey<FormState>();
-  final _databaseService = DatabaseService();
-  final _auth = FirebaseAuth.instance;
+  final OrganizeJamController _controller = OrganizeJamController();
 
-  // Stato UI
-  bool _isLoading = false;
-  bool _isLoadingSlots = false;
-  bool _isLoadingDates = true;
-
-  // Dati
-  List<DateTime> _availableDates = [];
-  List<String> _availableSlots = [];
-  List<Map<String, String>> _userGroups = [];
-  
-  static const _slotDurationMinutes = 75;
-
-  // Selezioni Utente
-  DateTime? _selectedDate;
-  final List<String> _selectedSlots = [];
-  String? _selectedPayment; 
-  String? _selectedGroupId;
-
-  // Controller
   final _presentPeopleController = TextEditingController();
   final _requiredPeopleController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _equipmentController = TextEditingController();
 
-  final List<String> _paymentOptions = ['Offerto', 'Diviso'];
-
   @override
   void initState() {
     super.initState();
-    _loadAvailableDates();
-    _loadUserGroups();
+    _controller.addListener(_handleControllerChanged);
+    _prefillFromExistingJam();
+    _controller.initialize(initialJam: widget.initialJam);
   }
 
-  Future<void> _loadUserGroups() async {
-    final groups = await _databaseService.getUserGroups();
+  @override
+  void dispose() {
+    _controller.removeListener(_handleControllerChanged);
+    _controller.dispose();
+    _presentPeopleController.dispose();
+    _requiredPeopleController.dispose();
+    _descriptionController.dispose();
+    _equipmentController.dispose();
+    super.dispose();
+  }
+
+  void _handleControllerChanged() {
     if (mounted) {
-      setState(() {
-        _userGroups = groups;
-      });
+      setState(() {});
     }
   }
 
-  Future<void> _loadAvailableDates() async {
-    final now = DateTime.now();
-    final candidateDates = List.generate(30, (index) => now.add(Duration(days: index)));
-    
-    final results = await Future.wait(candidateDates.map((date) async {
-      final dateStr = DateFormat('yyyy-MM-dd').format(date);
-      try {
-        final freeSlots = await _databaseService.getFreeSlotsForDate(dateStr);
-        bool hasBookableSlot = false;
-        for (final slot in freeSlots) {
-          if (_isSlotAtLeast24HoursAway(slot, date)) {
-            hasBookableSlot = true;
-            break; 
-          }
-        }
-        return hasBookableSlot ? date : null;
-      } catch (e) {
-        debugPrint("Errore controllo data $dateStr: $e");
-        return null;
-      }
-    }));
+  bool get _isEditing => widget.initialJam != null;
 
-    if (mounted) {
-      setState(() {
-        _availableDates = results.whereType<DateTime>().toList();
-        _isLoadingDates = false;
-        
-        if (_selectedDate != null && !_availableDates.any((d) => _isSameDay(d, _selectedDate!))) {
-          _selectedDate = null;
-          _availableSlots.clear();
-        }
-      });
+  void _prefillFromExistingJam() {
+    final jam = widget.initialJam?.jam;
+    if (jam == null) {
+      return;
     }
-  }
 
-  Future<void> _loadAvailableSlots() async {
-    if (_selectedDate == null) return;
-
-    setState(() {
-      _isLoadingSlots = true;
-      _selectedSlots.clear();
-      _availableSlots.clear();
-    });
-
-    try {
-      final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate!);
-      final freeSlotsFromDb = await _databaseService.getFreeSlotsForDate(dateStr);
-      
-      final validSlots = <String>[];
-      for (final slot in freeSlotsFromDb) {
-        if (_isSlotAtLeast24HoursAway(slot, _selectedDate!)) {
-          validSlots.add(slot);
-        }
-      }
-
-      if (mounted) {
-        setState(() {
-          _availableSlots = validSlots;
-        });
-      }
-    } catch (e) {
-      debugPrint("Errore caricamento slot: $e");
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Errore caricamento orari: $e")));
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoadingSlots = false;
-        });
-      }
-    }
-  }
-
-  int _timeToMinutes(String time) {
-    final parts = time.split(':');
-    return int.parse(parts[0]) * 60 + int.parse(parts[1]);
-  }
-
-  bool _isSlotAtLeast24HoursAway(String slot, DateTime date) {
-    final parts = slot.split(':');
-    final slotDateTime = DateTime(
-      date.year,
-      date.month,
-      date.day,
-      int.parse(parts[0]),
-      int.parse(parts[1]),
-    );
-    final minAllowedStart = DateTime.now().add(const Duration(hours: 24));
-    return slotDateTime.isAfter(minAllowedStart);
+    _presentPeopleController.text = jam.personePresenti.toString();
+    _requiredPeopleController.text = jam.personeRichieste.toString();
+    _descriptionController.text = jam.descrizione;
+    _equipmentController.text = jam.attrezzatura;
   }
 
   Future<void> _selectDateFromCalendar(BuildContext context) async {
@@ -157,19 +67,25 @@ class _OrganizeJamPageMobileState extends State<OrganizeJamPageMobile> {
 
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: _selectedDate ?? _availableDates.firstOrNull ?? now,
+      initialDate: _controller.selectedDate ?? _controller.availableDates.firstOrNull ?? now,
       firstDate: now,
       lastDate: lastDate,
       selectableDayPredicate: (DateTime day) {
-        return _availableDates.any((available) => _isSameDay(available, day));
+        return _controller.availableDates.any((available) => _isSameDay(available, day));
       },
     );
 
-    if (picked != null && picked != _selectedDate) {
-      setState(() {
-        _selectedDate = picked;
-      });
-      _loadAvailableSlots();
+    if (picked != null && picked != _controller.selectedDate) {
+      try {
+        await _controller.selectDate(picked);
+      } catch (e) {
+        if (!mounted) {
+          return;
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Errore caricamento orari: $e')),
+        );
+      }
     }
   }
 
@@ -177,40 +93,16 @@ class _OrganizeJamPageMobileState extends State<OrganizeJamPageMobile> {
     return a.year == b.year && a.month == b.month && a.day == b.day;
   }
 
-  void _toggleSlot(String slot) {
-    setState(() {
-      if (_selectedSlots.contains(slot)) {
-        _selectedSlots.remove(slot);
-      } else {
-        _selectedSlots.add(slot);
-        _selectedSlots.sort(); 
-      }
-    });
-  }
-
   Future<void> _submitJam() async {
     if (!_formKey.currentState!.validate()) return;
 
-    if (_selectedDate == null) {
-       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Seleziona una data')));
-       return;
-    }
-    
-    if (_selectedSlots.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Seleziona almeno un orario')));
-      return;
-    }
-
-    if (!_areSlotsContiguous(_selectedSlots)) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gli orari selezionati devono essere consecutivi.')));
+    final validationError = _controller.validateSelection();
+    if (validationError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(validationError)));
       return;
     }
 
     bool loadingDialogShown = false;
-
-    setState(() {
-      _isLoading = true;
-    });
 
     if (mounted) {
       loadingDialogShown = true;
@@ -222,33 +114,12 @@ class _OrganizeJamPageMobileState extends State<OrganizeJamPageMobile> {
     }
 
     try {
-      final user = _auth.currentUser;
-      if (user == null) throw Exception("Utente non loggato");
-
-      final startSlot = _selectedSlots.first;
-      final endSlotLast = _selectedSlots.last;
-      
-      final endMin = _timeToMinutes(endSlotLast) + _slotDurationMinutes;
-      final endHour = (endMin ~/ 60).toString().padLeft(2, '0');
-      final endMinute = (endMin % 60).toString().padLeft(2, '0');
-      final endTimeStr = "$endHour:$endMinute";
-
-      final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate!);
-
-      final jam = Jam(
-        creatorId: user.uid,
-        groupId: _selectedGroupId,
-        data: dateStr,
-        oraInizio: startSlot,
-        oraFine: endTimeStr,
-        personePresenti: int.parse(_presentPeopleController.text),
-        personeRichieste: int.parse(_requiredPeopleController.text),
-        descrizione: _descriptionController.text,
-        pagamento: _selectedPayment!,
-        attrezzatura: _equipmentController.text,
+      await _controller.submitJam(
+        presentPeople: int.parse(_presentPeopleController.text),
+        requiredPeople: int.parse(_requiredPeopleController.text),
+        description: _descriptionController.text,
+        equipment: _equipmentController.text,
       );
-
-      await _databaseService.createJam(jam, _selectedSlots);
 
       if (mounted) {
         if (loadingDialogShown) {
@@ -260,8 +131,12 @@ class _OrganizeJamPageMobileState extends State<OrganizeJamPageMobile> {
           context: context,
           barrierDismissible: true,
           builder: (_) => AlertDialog(
-            title: const Text('Jam Organizzata!'),
-            content: const Text('La tua Jam Session è stata pubblicata.'),
+            title: Text(_isEditing ? 'Jam aggiornata!' : 'Jam Organizzata!'),
+            content: Text(
+              _isEditing
+                  ? 'Le modifiche alla tua Jam Session sono state salvate.'
+              : 'La tua Jam Session è stata inviata per approvazione.',
+            ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(context).pop(),
@@ -272,12 +147,16 @@ class _OrganizeJamPageMobileState extends State<OrganizeJamPageMobile> {
         );
 
         if (!mounted) return;
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(
-            builder: (_) => const AppScaffoldMobile(initialIndex: 2),
-          ),
-          (route) => false,
-        );
+        if (_isEditing) {
+          Navigator.of(context).pop(true);
+        } else {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(
+              builder: (_) => const AppScaffoldMobile(initialIndex: 2),
+            ),
+            (route) => false,
+          );
+        }
       }
     } catch (e) {
       debugPrint("Errore submit jam: $e");
@@ -286,40 +165,20 @@ class _OrganizeJamPageMobileState extends State<OrganizeJamPageMobile> {
           Navigator.of(context, rootNavigator: true).pop();
           loadingDialogShown = false;
         }
-        _loadAvailableSlots(); 
+        await _controller.refreshAvailableSlots();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Errore: ${e.toString().replaceAll("Exception: ", "")}')),
         );
       }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
     }
-  }
-
-  bool _areSlotsContiguous(List<String> slots) {
-    if (slots.length <= 1) return true;
-    for (int i = 0; i < slots.length - 1; i++) {
-      final current = _timeToMinutes(slots[i]);
-      final next = _timeToMinutes(slots[i+1]);
-      if (next - current != _slotDurationMinutes) return false;
-    }
-    return true;
-  }
-  
-  String _calculateEndTime(String startSlot) {
-    final min = _timeToMinutes(startSlot) + _slotDurationMinutes;
-    final h = (min ~/ 60).toString().padLeft(2, '0');
-    final m = (min % 60).toString().padLeft(2, '0');
-    return "$h:$m";
   }
 
   @override
   Widget build(BuildContext context) {
+    final showJamForm = _controller.selectedDate != null;
+
     return Scaffold(
+      appBar: _isEditing ? AppBar(title: const Text('Modifica Jam')) : null,
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Form(
@@ -327,14 +186,13 @@ class _OrganizeJamPageMobileState extends State<OrganizeJamPageMobile> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              // 1. Data e Orari
-              _isLoadingDates
+              _controller.isLoadingDates
                   ? const SizedBox(
                       height: 60,
                       child: Center(child: CircularProgressIndicator()),
                     )
                   : InkWell(
-                      onTap: _availableDates.isEmpty ? null : () => _selectDateFromCalendar(context),
+                      onTap: _controller.availableDates.isEmpty ? null : () => _selectDateFromCalendar(context),
                       child: InputDecorator(
                         decoration: const InputDecoration(
                           labelText: 'Seleziona Giorno',
@@ -342,36 +200,36 @@ class _OrganizeJamPageMobileState extends State<OrganizeJamPageMobile> {
                           prefixIcon: Icon(Icons.calendar_today),
                         ),
                         child: Text(
-                          _selectedDate == null
-                              ? (_availableDates.isEmpty ? 'Nessuna data disponibile' : 'Tocca per scegliere')
-                              : DateFormat('EEEE d MMMM yyyy').format(_selectedDate!),
-                          style: TextStyle(color: _selectedDate == null ? Colors.grey : Colors.black),
+                          _controller.selectedDate == null
+                              ? (_controller.availableDates.isEmpty ? 'Nessuna data disponibile' : 'Tocca per scegliere')
+                              : DateFormat('EEEE d MMMM yyyy').format(_controller.selectedDate!),
+                          style: TextStyle(color: _controller.selectedDate == null ? Colors.grey : Colors.black),
                         ),
                       ),
                     ),
               const SizedBox(height: 24),
 
-              if (_selectedDate != null) ...[
+              if (showJamForm) ...[
                 const Text("Seleziona Orari", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                 const SizedBox(height: 8),
-                _isLoadingSlots 
+                _controller.isLoadingSlots 
                   ? const Center(child: CircularProgressIndicator())
-                  : _availableSlots.isEmpty 
+                  : _controller.availableSlots.isEmpty 
                     ? const Text("Nessuna disponibilità.")
                     : Wrap(
                         spacing: 8.0,
-                        children: _availableSlots.map((slot) {
+                        children: _controller.availableSlots.map((slot) {
                           return FilterChip(
                             label: Text(slot),
-                            selected: _selectedSlots.contains(slot),
-                            onSelected: (_) => _toggleSlot(slot),
+                            selected: _controller.selectedSlots.contains(slot),
+                            onSelected: (_) => _controller.toggleSlot(slot),
                             selectedColor: Colors.green[200],
                           );
                         }).toList(),
                       ),
                  const SizedBox(height: 8),
-                 if (_selectedSlots.isNotEmpty)
-                   Text("Intervallo: ${_selectedSlots.first} - ${_calculateEndTime(_selectedSlots.last)}",
+                 if (_controller.selectedRangeLabel != null)
+                   Text('Intervallo: ${_controller.selectedRangeLabel!}',
                      style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 24),
 
@@ -441,14 +299,14 @@ class _OrganizeJamPageMobileState extends State<OrganizeJamPageMobile> {
                           border: OutlineInputBorder(),
                           prefixIcon: Icon(Icons.group),
                         ),
-                        initialValue: _selectedGroupId,
-                        items: _userGroups.map((group) {
+                        initialValue: _controller.selectedGroupId,
+                        items: _controller.userGroups.map((group) {
                           return DropdownMenuItem(
                             value: group['id'],
                             child: Text(group['name'] ?? '', overflow: TextOverflow.ellipsis),
                           );
                         }).toList(),
-                        onChanged: (value) => setState(() => _selectedGroupId = value),
+                        onChanged: _controller.setSelectedGroup,
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -459,11 +317,11 @@ class _OrganizeJamPageMobileState extends State<OrganizeJamPageMobile> {
                           border: OutlineInputBorder(),
                           prefixIcon: Icon(Icons.payment),
                         ),
-                        initialValue: _selectedPayment,
-                        items: _paymentOptions.map((opt) {
+                        initialValue: _controller.selectedPayment,
+                        items: OrganizeJamController.paymentOptions.map((opt) {
                           return DropdownMenuItem(value: opt, child: Text(opt));
                         }).toList(),
-                        onChanged: (val) => setState(() => _selectedPayment = val),
+                        onChanged: _controller.setSelectedPayment,
                         validator: (value) => value == null ? 'Obbligatorio' : null,
                       ),
                     ),
@@ -483,14 +341,17 @@ class _OrganizeJamPageMobileState extends State<OrganizeJamPageMobile> {
                 const SizedBox(height: 24),
 
                 ElevatedButton(
-                  onPressed: _isLoading ? null : _submitJam,
+                  onPressed: _controller.isLoading ? null : _submitJam,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.grey[850],
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
-                  child: _isLoading 
+                  child: _controller.isLoading 
                     ? const CircularProgressIndicator(color: Colors.white) 
-                    : const Text('PUBBLICA JAM', style: TextStyle(fontSize: 16, color: Colors.white)),
+                    : Text(
+                        _isEditing ? 'SALVA MODIFICHE' : 'PUBBLICA JAM',
+                        style: const TextStyle(fontSize: 16, color: Colors.white),
+                      ),
                 ),
               ],
             ],

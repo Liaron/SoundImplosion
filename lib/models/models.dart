@@ -1,11 +1,12 @@
-import 'package:flutter/foundation.dart';
-
 // Definisce lo stato di una prenotazione
 enum BookingStatus { inElaborazione, confermata, annullata, sospesa, superata }
+
+enum JamStatus { inElaborazione, pubblicata, annullata, sospesa }
 
 class AppUser {
   final String uid;
   final String nickname;
+  final String? role;
   final List<String> gruppi; // ID dei gruppi
   final List<String> amici; // UID degli amici
   final Map<String, dynamic> preferenze;
@@ -15,6 +16,7 @@ class AppUser {
   AppUser({
     required this.uid,
     required this.nickname,
+    this.role,
     this.gruppi = const [],
     this.amici = const [],
     this.preferenze = const {},
@@ -22,9 +24,13 @@ class AppUser {
     this.profileImageUrl,
   });
 
+  bool get isAdmin => role == 'admin';
+
   Map<String, dynamic> toMap() {
     return {
       'nickname': nickname,
+      'nickname_lowercase': nickname.toLowerCase(),
+      if (role != null) 'role': role,
       // Salva la lista di gruppi come una mappa, più robusto per Firebase
       'gruppi': { for (var id in gruppi) id : true },
       'amici': { for (var id in amici) id : true },
@@ -34,16 +40,37 @@ class AppUser {
     };
   }
 
+  AppUser copyWith({
+    String? nickname,
+    String? role,
+    List<String>? gruppi,
+    List<String>? amici,
+    Map<String, dynamic>? preferenze,
+    List<Map<String, dynamic>>? strumentiList,
+    String? profileImageUrl,
+  }) {
+    return AppUser(
+      uid: uid,
+      nickname: nickname ?? this.nickname,
+      role: role ?? this.role,
+      gruppi: gruppi ?? this.gruppi,
+      amici: amici ?? this.amici,
+      preferenze: preferenze ?? this.preferenze,
+      strumentiList: strumentiList ?? this.strumentiList,
+      profileImageUrl: profileImageUrl ?? this.profileImageUrl,
+    );
+  }
+
   factory AppUser.fromMap(String uid, Map<dynamic, dynamic> map) {
     // Helper robusto per parsare liste da Firebase
-    List<T> _parseList<T>(dynamic value) {
+    List<T> parseList<T>(dynamic value) {
       if (value == null) return [];
       if (value is List) return List<T>.from(value.where((e) => e != null));
       if (value is Map) return List<T>.from(value.keys.where((e) => e != null));
       return [];
     }
 
-    List<Map<String, dynamic>> _parseStrumenti(dynamic value) {
+    List<Map<String, dynamic>> parseStrumenti(dynamic value) {
         if (value == null) return [];
         final list = <Map<String, dynamic>>[];
         if (value is List) {
@@ -61,12 +88,13 @@ class AppUser {
     return AppUser(
       uid: uid,
       nickname: map['nickname'] ?? uid,
-      gruppi: _parseList<String>(map['gruppi']),
-      amici: _parseList<String>(map['amici']),
+      role: map['role'] as String?,
+      gruppi: parseList<String>(map['gruppi']),
+      amici: parseList<String>(map['amici']),
       preferenze: map['preferenze'] != null
           ? Map<String, dynamic>.from(map['preferenze'] as Map)
           : const {},
-      strumentiList: _parseStrumenti(map['strumenti_list']),
+      strumentiList: parseStrumenti(map['strumenti_list']),
       profileImageUrl: map['profile_image_url'] as String?,
     );
   }
@@ -107,6 +135,28 @@ class Booking {
       'stato': stato.name,
     };
   }
+
+  factory Booking.fromMap(String id, Map<String, dynamic> map) {
+    BookingStatus parseStatus(dynamic rawStatus) {
+      final statusName = rawStatus?.toString();
+      return BookingStatus.values.firstWhere(
+        (status) => status.name == statusName,
+        orElse: () => BookingStatus.inElaborazione,
+      );
+    }
+
+    return Booking(
+      id: id,
+      userId: map['user_id'] as String? ?? '',
+      groupId: map['group_id'] as String?,
+      data: map['data'] as String? ?? '',
+      oraInizio: map['ora_inizio'] as String? ?? '',
+      oraFine: map['ora_fine'] as String? ?? '',
+      numeroUtenti: map['numero_utenti'] as int? ?? 0,
+      attrezzatura: map['attrezzatura'] as String? ?? '',
+      stato: parseStatus(map['stato']),
+    );
+  }
 }
 
 class Jam {
@@ -123,6 +173,7 @@ class Jam {
   final String pagamento; 
   final String attrezzatura;
   final String? creatorNickname; // Aggiunto per coerenza
+  final JamStatus stato;
 
   Jam({
     this.id,
@@ -137,6 +188,7 @@ class Jam {
     required this.pagamento,
     required this.attrezzatura,
     this.creatorNickname,
+    this.stato = JamStatus.inElaborazione,
   });
 
   Map<String, dynamic> toMap() {
@@ -152,23 +204,45 @@ class Jam {
       'descrizione': descrizione,
       'pagamento': pagamento,
       'attrezzatura': attrezzatura,
+      'stato': stato.name,
     };
   }
 
   factory Jam.fromMap(String id, Map<String, dynamic> map) {
+    int parseInt(dynamic value) {
+      if (value is int) return value;
+      if (value is num) return value.toInt();
+      return int.tryParse(value?.toString() ?? '') ?? 0;
+    }
+
+    JamStatus parseStatus(dynamic rawStatus) {
+      final statusName = rawStatus?.toString();
+      return JamStatus.values.firstWhere(
+        (status) => status.name == statusName,
+        orElse: () {
+          final normalized = statusName?.toLowerCase();
+          if (normalized == 'published' || normalized == 'pubblicata') {
+            return JamStatus.pubblicata;
+          }
+          return JamStatus.inElaborazione;
+        },
+      );
+    }
+
     return Jam(
       id: id,
-      creatorId: map['creator_id'] as String,
+      creatorId: map['creator_id'] as String? ?? '',
       groupId: map['group_id'] as String?,
-      data: map['data'] as String,
-      oraInizio: map['ora_inizio'] as String,
-      oraFine: map['ora_fine'] as String,
-      personePresenti: map['persone_presenti'] as int,
-      personeRichieste: map['persone_richieste'] as int,
-      descrizione: map['descrizione'] as String,
-      pagamento: map['pagamento'] as String,
-      attrezzatura: map['attrezzatura'] as String,
+      data: map['data'] as String? ?? '',
+      oraInizio: map['ora_inizio'] as String? ?? '',
+      oraFine: map['ora_fine'] as String? ?? '',
+      personePresenti: parseInt(map['persone_presenti']),
+      personeRichieste: parseInt(map['persone_richieste']),
+      descrizione: map['descrizione'] as String? ?? '',
+      pagamento: map['pagamento'] as String? ?? '',
+      attrezzatura: map['attrezzatura'] as String? ?? '',
       creatorNickname: map['creator_nickname'] as String?,
+      stato: parseStatus(map['stato'] ?? map['status']),
     );
   }
 }

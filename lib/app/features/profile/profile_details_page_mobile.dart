@@ -1,9 +1,5 @@
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
-import 'package:soundimplosion/models/models.dart';
-import 'package:soundimplosion/services/database_service.dart';
+import 'package:soundimplosion/app/features/profile/profile_controller.dart';
 
 class ProfileDetailsPageMobile extends StatefulWidget {
   const ProfileDetailsPageMobile({super.key});
@@ -13,59 +9,31 @@ class ProfileDetailsPageMobile extends StatefulWidget {
 }
 
 class _ProfileDetailsPageMobileState extends State<ProfileDetailsPageMobile> {
-  final DatabaseService _databaseService = DatabaseService();
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  
-  AppUser? _user;
-  bool _isLoading = true;
+  final ProfileController _controller = ProfileController();
 
   @override
   void initState() {
     super.initState();
-    _loadUserProfile();
+    _controller.addListener(_handleControllerChanged);
+    _controller.initialize();
   }
 
-  Future<void> _loadUserProfile() async {
-    final currentUser = _auth.currentUser;
-    if (currentUser == null) return;
+  @override
+  void dispose() {
+    _controller.removeListener(_handleControllerChanged);
+    _controller.dispose();
+    super.dispose();
+  }
 
-    try {
-      // Modifica qui: Specifica l'URL europeo
-      final snapshot = await FirebaseDatabase.instanceFor(
-        app: Firebase.app(),
-        databaseURL: 'https://liaron-soundimplosion-default-rtdb.europe-west1.firebasedatabase.app',
-      ).ref().child('users').child(currentUser.uid).get();
-
-      if (snapshot.exists && snapshot.value != null) {
-        final userData = Map<dynamic, dynamic>.from(snapshot.value as Map);
-        if (mounted) {
-          setState(() {
-            _user = AppUser.fromMap(currentUser.uid, userData);
-            _isLoading = false;
-          });
-        }
-      } else {
-        // Utente non trovato nel DB, creiamo profilo base
-        if (mounted) {
-          setState(() {
-            _user = AppUser(
-              uid: currentUser.uid, 
-              nickname: currentUser.displayName ?? 'Utente',
-            );
-            _isLoading = false;
-          });
-        }
-      }
-    } catch (e) {
-      debugPrint("Errore caricamento profilo: $e");
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+  void _handleControllerChanged() {
+    if (mounted) {
+      setState(() {});
     }
   }
 
   Future<void> _updateNickname() async {
-    final controller = TextEditingController(text: _user?.nickname);
+    final currentUser = _controller.user;
+    final controller = TextEditingController(text: currentUser?.nickname);
     await showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -78,19 +46,8 @@ class _ProfileDetailsPageMobileState extends State<ProfileDetailsPageMobile> {
           TextButton(onPressed: () => Navigator.pop(context), child: const Text("Annulla")),
           TextButton(
             onPressed: () async {
-              if (controller.text.isNotEmpty && _user != null) {
-                final updatedUser = AppUser(
-                  uid: _user!.uid,
-                  nickname: controller.text,
-                  gruppi: _user!.gruppi,
-                  amici: _user!.amici,
-                  preferenze: _user!.preferenze,
-                  strumentiList: _user!.strumentiList,
-                  profileImageUrl: _user!.profileImageUrl,
-                );
-                
-                await _databaseService.saveUser(updatedUser);
-                setState(() => _user = updatedUser);
+              if (controller.text.isNotEmpty && currentUser != null) {
+                await _controller.updateNickname(controller.text);
                 if (mounted) Navigator.pop(context);
               }
             },
@@ -134,27 +91,11 @@ class _ProfileDetailsPageMobileState extends State<ProfileDetailsPageMobile> {
               TextButton(onPressed: () => Navigator.pop(context), child: const Text("Annulla")),
               TextButton(
                 onPressed: () async {
-                  if (nameController.text.isNotEmpty && _user != null) {
-                    final newInstrument = {
-                      'nome': nameController.text,
-                      'livello': level.toInt(),
-                    };
-                    
-                    final updatedList = List<Map<String, dynamic>>.from(_user!.strumentiList);
-                    updatedList.add(newInstrument);
-
-                    final updatedUser = AppUser(
-                      uid: _user!.uid,
-                      nickname: _user!.nickname,
-                      gruppi: _user!.gruppi,
-                      amici: _user!.amici,
-                      preferenze: _user!.preferenze,
-                      strumentiList: updatedList,
-                      profileImageUrl: _user!.profileImageUrl,
+                  if (nameController.text.isNotEmpty && _controller.user != null) {
+                    await _controller.addInstrument(
+                      name: nameController.text,
+                      level: level.toInt(),
                     );
-
-                    await _databaseService.saveUser(updatedUser);
-                    setState(() => _user = updatedUser);
                     if (mounted) Navigator.pop(context);
                   }
                 },
@@ -168,23 +109,7 @@ class _ProfileDetailsPageMobileState extends State<ProfileDetailsPageMobile> {
   }
 
   Future<void> _removeInstrument(int index) async {
-    if (_user == null) return;
-    
-    final updatedList = List<Map<String, dynamic>>.from(_user!.strumentiList);
-    updatedList.removeAt(index);
-
-    final updatedUser = AppUser(
-      uid: _user!.uid,
-      nickname: _user!.nickname,
-      gruppi: _user!.gruppi,
-      amici: _user!.amici,
-      preferenze: _user!.preferenze,
-      strumentiList: updatedList,
-      profileImageUrl: _user!.profileImageUrl,
-    );
-
-    await _databaseService.saveUser(updatedUser);
-    setState(() => _user = updatedUser);
+    await _controller.removeInstrument(index);
   }
 
   // Placeholder per gestione foto (senza Storage vero e proprio per ora)
@@ -196,12 +121,13 @@ class _ProfileDetailsPageMobileState extends State<ProfileDetailsPageMobile> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
+    if (_controller.isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (_user == null) {
-      return const Center(child: Text("Errore caricamento profilo"));
+    final user = _controller.user;
+    if (user == null) {
+      return Center(child: Text(_controller.errorMessage ?? 'Errore caricamento profilo'));
     }
 
     return Scaffold(
@@ -216,12 +142,12 @@ class _ProfileDetailsPageMobileState extends State<ProfileDetailsPageMobile> {
                   CircleAvatar(
                     radius: 60,
                     backgroundColor: Colors.grey[300],
-                    backgroundImage: _user!.profileImageUrl != null 
-                        ? NetworkImage(_user!.profileImageUrl!) 
+                    backgroundImage: user.profileImageUrl != null 
+                        ? NetworkImage(user.profileImageUrl!) 
                         : null,
-                    child: _user!.profileImageUrl == null
+                    child: user.profileImageUrl == null
                         ? Text(
-                            _user!.nickname.isNotEmpty ? _user!.nickname[0].toUpperCase() : '?',
+                            user.nickname.isNotEmpty ? user.nickname[0].toUpperCase() : '?',
                             style: const TextStyle(fontSize: 40, color: Colors.black54),
                           )
                         : null,
@@ -248,7 +174,7 @@ class _ProfileDetailsPageMobileState extends State<ProfileDetailsPageMobile> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
-                  _user!.nickname,
+                  user.nickname,
                   style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                 ),
                 IconButton(
@@ -284,7 +210,7 @@ class _ProfileDetailsPageMobileState extends State<ProfileDetailsPageMobile> {
             ),
             const SizedBox(height: 16),
 
-            _user!.strumentiList.isEmpty
+            user.strumentiList.isEmpty
                 ? const Padding(
                     padding: EdgeInsets.symmetric(vertical: 20),
                     child: Text("Nessuno strumento aggiunto.", style: TextStyle(color: Colors.grey)),
@@ -292,9 +218,9 @@ class _ProfileDetailsPageMobileState extends State<ProfileDetailsPageMobile> {
                 : ListView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    itemCount: _user!.strumentiList.length,
+                    itemCount: user.strumentiList.length,
                     itemBuilder: (context, index) {
-                      final item = _user!.strumentiList[index];
+                      final item = user.strumentiList[index];
                       return Card(
                         margin: const EdgeInsets.only(bottom: 8),
                         child: ListTile(

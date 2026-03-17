@@ -1,15 +1,13 @@
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
+import 'package:soundimplosion/app/features/admin/admin_management_page_mobile.dart';
+import 'package:soundimplosion/app/features/app_scaffold_controller.dart';
 import 'package:soundimplosion/app/features/book/bookings_scaffold_mobile.dart';
 import 'package:soundimplosion/app/features/home/home_page_mobile.dart';
 import 'package:soundimplosion/app/features/jam/jam_session_page_mobile.dart';
+import 'package:soundimplosion/app/features/groups/groups_page_mobile.dart';
 import 'package:soundimplosion/app/features/profile/profile_details_page_mobile.dart';
 import 'package:soundimplosion/app/features/contact_us/contact_us_page_mobile.dart';
 import 'package:soundimplosion/common/variables.dart';
-import 'package:soundimplosion/models/models.dart';
-import 'package:soundimplosion/services/database_service.dart';
 import 'package:soundimplosion/services/firebase_auth.dart';
 
 
@@ -43,11 +41,7 @@ class AppScaffoldMobile extends StatefulWidget {
 class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
 
   final AuthService _authService = AuthService();
-  final DatabaseService _dbService = DatabaseService();
-  final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
-
-  bool _isLoadingProfile = true;
-  bool _isProfileConfigured = false;
+  final AppScaffoldController _controller = AppScaffoldController();
   final TextEditingController _nicknameController = TextEditingController();
 
   Future<void> _signOut() async {
@@ -77,9 +71,28 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
     });
   }
 
+  Future<void> _openAdminPanel() async {
+    Navigator.pop(context);
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => const AdminManagementPageMobile(),
+      ),
+    );
+  }
+
+  Future<void> _openGroupsPage() async {
+    Navigator.pop(context);
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => const GroupsPageMobile(),
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
+    _controller.addListener(_handleControllerChanged);
     
     _widgetOptions = <Widget>[
       const HomePageMobile(), // 0
@@ -97,67 +110,24 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
         : (incoming > maxIndex ? maxIndex : incoming);
     _currentPageTitle = _pageTitles[_selectedIndex];
     
-    _checkUserProfile();
+    _controller.initialize();
   }
 
-  Future<void> _checkUserProfile() async {
-    final user = _firebaseAuth.currentUser;
-    if (user == null) {
-      if (mounted) setState(() => _isLoadingProfile = false);
-      return;
-    }
+  @override
+  void dispose() {
+    _controller.removeListener(_handleControllerChanged);
+    _controller.dispose();
+    _nicknameController.dispose();
+    super.dispose();
+  }
 
-    try {
-      // CORREZIONE: Uso l'istanza DB corretta (europe-west1)
-      final dbRef = FirebaseDatabase.instanceFor(
-        app: Firebase.app(), 
-        databaseURL: 'https://liaron-soundimplosion-default-rtdb.europe-west1.firebasedatabase.app'
-      ).ref();
-
-      final snapshot = await dbRef.child('users').child(user.uid).get();
-      
-      if (snapshot.exists && snapshot.value != null) {
-        final userData = Map<dynamic, dynamic>.from(snapshot.value as Map);
-        final appUser = AppUser.fromMap(user.uid, userData);
-        
-        if (appUser.nickname == user.uid) {
-          if (mounted) {
-            setState(() {
-              _isProfileConfigured = false;
-              _isLoadingProfile = false;
-            });
-          }
-        } else {
-          if (mounted) {
-            setState(() {
-              _isProfileConfigured = true;
-              _isLoadingProfile = false;
-            });
-          }
-        }
-      } else {
-        final newUser = AppUser(uid: user.uid, nickname: user.uid);
-        await _dbService.saveUser(newUser);
-        
-        if (mounted) {
-          setState(() {
-            _isProfileConfigured = false; 
-            _isLoadingProfile = false;
-          });
-        }
-      }
-    } catch (e) {
-      debugPrint("Errore check profilo: $e");
-      if (mounted) {
-        setState(() => _isLoadingProfile = false);
-      }
+  void _handleControllerChanged() {
+    if (mounted) {
+      setState(() {});
     }
   }
 
   Future<void> _saveInitialProfile() async {
-    final user = _firebaseAuth.currentUser;
-    if (user == null) return;
-    
     if (_nicknameController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Inserisci un nickname valido")),
@@ -165,46 +135,11 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
       return;
     }
 
-    setState(() => _isLoadingProfile = true);
-
     try {
-      final dbRef = FirebaseDatabase.instanceFor(
-        app: Firebase.app(), 
-        databaseURL: 'https://liaron-soundimplosion-default-rtdb.europe-west1.firebasedatabase.app'
-      ).ref();
-      
-      final snapshot = await dbRef.child('users').child(user.uid).get();
-      AppUser currentUserData;
-      
-      if (snapshot.exists && snapshot.value != null) {
-        final userData = Map<dynamic, dynamic>.from(snapshot.value as Map);
-        currentUserData = AppUser.fromMap(user.uid, userData);
-      } else {
-        currentUserData = AppUser(uid: user.uid, nickname: user.uid);
-      }
-
-      final updatedUser = AppUser(
-        uid: currentUserData.uid,
-        nickname: _nicknameController.text.trim(),
-        gruppi: currentUserData.gruppi,
-        amici: currentUserData.amici,
-        preferenze: currentUserData.preferenze,
-        strumentiList: currentUserData.strumentiList,
-        profileImageUrl: currentUserData.profileImageUrl,
-      );
-
-      await _dbService.saveUser(updatedUser);
-
-      if (mounted) {
-        setState(() {
-          _isProfileConfigured = true;
-          _isLoadingProfile = false;
-        });
-      }
+      await _controller.saveInitialProfile(_nicknameController.text);
     } catch (e) {
       debugPrint("Errore salvataggio profilo iniziale: $e");
       if (mounted) {
-        setState(() => _isLoadingProfile = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("Errore salvataggio: $e")),
         );
@@ -214,13 +149,13 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoadingProfile) {
+    if (_controller.isLoadingProfile) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
       );
     }
 
-    if (!_isProfileConfigured) {
+    if (!_controller.isProfileConfigured) {
       return Scaffold(
         appBar: AppBar(title: const Text("Benvenuto su SoundImplosion")),
         body: Padding(
@@ -296,6 +231,17 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
               title: const Text('Jam Session'),
               onTap: () => _navigateToPage(2),
             ),
+            ListTile(
+              leading: const Icon(Icons.groups),
+              title: const Text('Gruppi'),
+              onTap: _openGroupsPage,
+            ),
+            if (_controller.isAdmin)
+              ListTile(
+                leading: const Icon(Icons.admin_panel_settings),
+                title: const Text('Admin'),
+                onTap: _openAdminPanel,
+              ),
             const Spacer(), 
             const Divider(),
             ListTile(
