@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:soundimplosion/app/startup_loading_screen.dart';
 import 'package:soundimplosion/models/models.dart';
 import 'package:soundimplosion/services/database_service.dart';
 import 'package:soundimplosion/services/firebase_auth.dart';
@@ -209,7 +210,8 @@ class _AuthPageMobileState extends State<AuthPageMobile> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
                 Image.asset(
-                  'lib/common/images/soundimplosion_logo_no_sfondo.png',
+                  startupLogoAsset,
+                  width: 260,
                 ),
                 const SizedBox(height: 0),
                 Text(

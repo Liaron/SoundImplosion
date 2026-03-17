@@ -66,6 +66,15 @@ class AuthService {
     await user.sendEmailVerification();
   }
 
+  Future<void> requestEmailChange(String newEmail) async {
+    final user = _firebaseAuth.currentUser;
+    if (user == null) {
+      throw Exception('Utente non loggato');
+    }
+
+    await user.verifyBeforeUpdateEmail(newEmail.trim());
+  }
+
   Future<bool> reloadCurrentUser() async {
     final user = _firebaseAuth.currentUser;
     if (user == null) {

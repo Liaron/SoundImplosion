@@ -1,8 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:soundimplosion/app/features/admin/admin_management_page_mobile.dart';
 import 'package:soundimplosion/app/features/app_scaffold_controller.dart';
+import 'package:soundimplosion/app/startup_loading_screen.dart';
+import 'package:soundimplosion/app/features/book/booking_repository.dart';
 import 'package:soundimplosion/app/features/book/bookings_scaffold_mobile.dart';
 import 'package:soundimplosion/app/features/home/home_page_mobile.dart';
 import 'package:soundimplosion/app/features/jam/jam_session_page_mobile.dart';
@@ -12,7 +15,8 @@ import 'package:soundimplosion/app/features/notifications/notifications_reposito
 import 'package:soundimplosion/app/features/profile/profile_details_page_mobile.dart';
 import 'package:soundimplosion/app/features/settings/settings_page_mobile.dart';
 import 'package:soundimplosion/app/features/contact_us/contact_us_page_mobile.dart';
-import 'package:soundimplosion/common/variables.dart';
+import 'package:soundimplosion/services/app_preferences_service.dart';
+import 'package:soundimplosion/services/booking_reminder_service.dart';
 import 'package:soundimplosion/services/firebase_auth.dart';
 
 // Widget segnaposto per le pagine non ancora create.
@@ -45,9 +49,14 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
   final AppScaffoldController _controller = AppScaffoldController();
   final NotificationsRepository _notificationsRepository =
       FirebaseNotificationsRepository();
+  final BookingRepository _bookingRepository = FirebaseBookingRepository();
   StreamSubscription<List<AppNotificationItem>>? _notificationSubscription;
+  StreamSubscription<List<BookingListItem>>? _bookingReminderSubscription;
   final Set<String> _knownNotificationIds = <String>{};
   bool _hasSeededNotifications = false;
+  List<BookingListItem> _latestBookings = const [];
+  bool _postProfileBootstrapped = false;
+  String? _appVersionLabel;
 
   Future<void> _signOut() async {
     await _authService.signOut();
@@ -82,6 +91,7 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
   void initState() {
     super.initState();
     _controller.addListener(_handleControllerChanged);
+    AppPreferencesService.instance.addListener(_handlePreferencesChanged);
 
     _widgetOptions = <Widget>[
       const HomePageMobile(), // 0
@@ -104,22 +114,43 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
         : (incoming > maxIndex ? maxIndex : incoming);
     _currentPageTitle = _pageTitles[_selectedIndex];
 
+    _loadAppVersion();
     _controller.initialize();
-    _bootstrapNotifications();
   }
 
   @override
   void dispose() {
     _notificationSubscription?.cancel();
+    _bookingReminderSubscription?.cancel();
     _controller.removeListener(_handleControllerChanged);
+    AppPreferencesService.instance.removeListener(_handlePreferencesChanged);
     _controller.dispose();
     super.dispose();
   }
 
   void _handleControllerChanged() {
+    if (!_controller.isLoadingProfile && !_postProfileBootstrapped) {
+      _postProfileBootstrapped = true;
+      _bootstrapNotifications();
+      _bootstrapBookingReminders();
+    }
     if (mounted) {
       setState(() {});
     }
+  }
+
+  void _handlePreferencesChanged() {
+    _syncBookingReminders();
+  }
+
+  Future<void> _loadAppVersion() async {
+    final packageInfo = await PackageInfo.fromPlatform();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _appVersionLabel = 'v${packageInfo.version}+${packageInfo.buildNumber}';
+    });
   }
 
   Future<void> _bootstrapNotifications() async {
@@ -151,6 +182,26 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
             }
           }
         });
+  }
+
+  Future<void> _bootstrapBookingReminders() async {
+    _bookingReminderSubscription = _bookingRepository.watchUserBookings().listen(
+      (items) {
+        _latestBookings = items;
+        _syncBookingReminders();
+      },
+      onError: (_) {},
+    );
+  }
+
+  Future<void> _syncBookingReminders() async {
+    try {
+      await BookingReminderService.instance.syncReminders(
+        bookings: _latestBookings,
+        enabled: AppPreferencesService.instance.bookingRemindersEnabled,
+        minutesBefore: AppPreferencesService.instance.bookingReminderMinutes,
+      );
+    } catch (_) {}
   }
 
   Future<void> _sendVerificationEmail() async {
@@ -196,7 +247,7 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
   @override
   Widget build(BuildContext context) {
     if (_controller.isLoadingProfile) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const StartupLoadingScreen();
     }
 
     if (!_controller.isEmailVerified) {
@@ -327,7 +378,7 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Text(
-                'SoundImplosion v${AppVariables.appVersion}',
+                'SoundImplosion ${_appVersionLabel ?? ''}'.trimRight(),
                 textAlign: TextAlign.center,
                 style: const TextStyle(color: Colors.grey, fontSize: 11.0),
               ),

@@ -12,6 +12,7 @@ void main() {
       );
       final controller = AppScaffoldController(
         profileRepository: repository,
+        currentAuthUser: () => null,
         currentEmailVerified: () => true,
         refreshEmailVerification: () async => true,
         sendVerificationEmail: () async {},
@@ -35,6 +36,7 @@ void main() {
       );
       final controller = AppScaffoldController(
         profileRepository: repository,
+        currentAuthUser: () => null,
         currentEmailVerified: () => true,
         refreshEmailVerification: () async => true,
         sendVerificationEmail: () async {},
@@ -55,6 +57,7 @@ void main() {
     var verified = false;
     final controller = AppScaffoldController(
       profileRepository: repository,
+      currentAuthUser: () => null,
       currentEmailVerified: () => verified,
       refreshEmailVerification: () async {
         verified = true;

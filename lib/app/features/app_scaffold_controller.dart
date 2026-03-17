@@ -2,14 +2,18 @@ import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:soundimplosion/app/features/profile/profile_repository.dart';
 import 'package:soundimplosion/models/models.dart';
+import 'package:soundimplosion/services/app_preferences_service.dart';
 
 class AppScaffoldController extends ChangeNotifier {
   AppScaffoldController({
     ProfileRepository? profileRepository,
+    User? Function()? currentAuthUser,
     bool Function()? currentEmailVerified,
     Future<bool> Function()? refreshEmailVerification,
     Future<void> Function()? sendVerificationEmail,
   }) : _profileRepository = profileRepository ?? FirebaseProfileRepository(),
+       _currentAuthUser =
+           currentAuthUser ?? (() => FirebaseAuth.instance.currentUser),
        _currentEmailVerified =
            currentEmailVerified ??
            (() => FirebaseAuth.instance.currentUser?.emailVerified ?? false),
@@ -34,6 +38,7 @@ class AppScaffoldController extends ChangeNotifier {
            });
 
   final ProfileRepository _profileRepository;
+  final User? Function() _currentAuthUser;
   final bool Function() _currentEmailVerified;
   final Future<bool> Function() _refreshEmailVerification;
   final Future<void> Function() _sendVerificationEmail;
@@ -49,18 +54,24 @@ class AppScaffoldController extends ChangeNotifier {
     notifyListeners();
 
     try {
+      final currentUser = _currentAuthUser();
       isEmailVerified = _currentEmailVerified();
-      var loadedUser = await _profileRepository.loadProfile();
+      final loadedUser = await _profileRepository
+          .loadProfile()
+          .timeout(
+            const Duration(seconds: 8),
+            onTimeout: () => _buildFallbackUser(currentUser),
+          );
       if (loadedUser == null) {
-        user = null;
-        isLoadingProfile = false;
-        notifyListeners();
-        return;
+        user = _buildFallbackUser(currentUser);
+      } else {
+        user = loadedUser;
+        AppPreferencesService.instance.applyUserPreferences(
+          loadedUser.preferenze,
+        );
       }
-
-      user = loadedUser;
     } catch (_) {
-      user = null;
+      user = _buildFallbackUser(_currentAuthUser());
     } finally {
       isLoadingProfile = false;
       notifyListeners();
@@ -81,5 +92,22 @@ class AppScaffoldController extends ChangeNotifier {
 
   Future<void> sendVerificationEmail() {
     return _sendVerificationEmail();
+  }
+
+  AppUser? _buildFallbackUser(User? firebaseUser) {
+    if (firebaseUser == null) {
+      return null;
+    }
+
+    final nickname = firebaseUser.displayName?.trim().isNotEmpty == true
+        ? firebaseUser.displayName!
+        : firebaseUser.uid;
+
+    return AppUser(
+      uid: firebaseUser.uid,
+      nickname: nickname,
+      email: firebaseUser.email,
+      profileImageUrl: firebaseUser.photoURL,
+    );
   }
 }

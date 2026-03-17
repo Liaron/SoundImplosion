@@ -11,7 +11,6 @@ class ProfileDetailsPageMobile extends StatefulWidget {
 
 class _ProfileDetailsPageMobileState extends State<ProfileDetailsPageMobile> {
   final ProfileController _controller = ProfileController();
-
   @override
   void initState() {
     super.initState();
@@ -30,49 +29,6 @@ class _ProfileDetailsPageMobileState extends State<ProfileDetailsPageMobile> {
     if (mounted) {
       setState(() {});
     }
-  }
-
-  Future<void> _updateNickname() async {
-    final currentUser = _controller.user;
-    final controller = TextEditingController(text: currentUser?.nickname);
-    await showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text("Modifica Username"),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(labelText: "Nuovo Username"),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text("Annulla"),
-          ),
-          TextButton(
-            onPressed: () async {
-              if (controller.text.isNotEmpty && currentUser != null) {
-                try {
-                  await _controller.updateNickname(controller.text);
-                  if (dialogContext.mounted) {
-                    Navigator.pop(dialogContext);
-                  }
-                } catch (e) {
-                  if (!dialogContext.mounted) {
-                    return;
-                  }
-                  ScaffoldMessenger.of(dialogContext).showSnackBar(
-                    SnackBar(
-                      content: Text(e.toString().replaceAll('Exception: ', '')),
-                    ),
-                  );
-                }
-              }
-            },
-            child: const Text("Salva"),
-          ),
-        ],
-      ),
-    );
   }
 
   Future<void> _addInstrument() async {
@@ -199,6 +155,10 @@ class _ProfileDetailsPageMobileState extends State<ProfileDetailsPageMobile> {
       );
     }
 
+    final city = user.preferenze['general'] is Map
+        ? ((user.preferenze['general'] as Map)['city']?.toString() ?? '')
+        : '';
+
     return Scaffold(
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -247,22 +207,14 @@ class _ProfileDetailsPageMobileState extends State<ProfileDetailsPageMobile> {
             ),
             const SizedBox(height: 24),
 
-            // 2. Username
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  user.nickname,
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.edit, size: 20),
-                  onPressed: _updateNickname,
-                ),
-              ],
+            Text(
+              user.nickname,
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              city.isEmpty ? 'Citta non impostata' : city,
+              style: TextStyle(fontSize: 16, color: Colors.grey[700]),
             ),
             const SizedBox(height: 32),
 
