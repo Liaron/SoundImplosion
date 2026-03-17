@@ -507,18 +507,121 @@ class DatabaseService {
     }
   }
 
+  Future<List<Map<String, dynamic>>> getAdminSlotsForDate(
+    String dateStr,
+  ) async {
+    final slotsRef = _dbRef.child('slots').child(dateStr);
+
+    try {
+      var snapshot = await slotsRef.get();
+      if (!snapshot.exists) {
+        await _generateSlotsForDate(dateStr);
+        snapshot = await slotsRef.get();
+      }
+
+      final slots = <Map<String, dynamic>>[];
+      final rawData = snapshot.value;
+
+      if (rawData is Map) {
+        final data = Map<String, dynamic>.from(rawData);
+        for (final entry in data.entries) {
+          if (entry.value is! Map) {
+            continue;
+          }
+          final slot = Map<String, dynamic>.from(entry.value as Map);
+          slot['key'] = entry.key.toString();
+          slots.add(slot);
+        }
+      } else if (rawData is List) {
+        for (final item in rawData) {
+          if (item is! Map) {
+            continue;
+          }
+          slots.add(Map<String, dynamic>.from(item));
+        }
+      }
+
+      slots.sort((a, b) {
+        final left = a['time']?.toString() ?? '';
+        final right = b['time']?.toString() ?? '';
+        return left.compareTo(right);
+      });
+
+      return slots;
+    } catch (e) {
+      debugPrint("Errore getAdminSlotsForDate: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> updateAdminSlotStatuses({
+    required String dateStr,
+    required List<String> slotTimes,
+    required bool disabled,
+  }) async {
+    await _ensureCurrentUserIsAdminOrThrow();
+    if (slotTimes.isEmpty) {
+      return;
+    }
+
+    await getAdminSlotsForDate(dateStr);
+
+    final snapshot = await _dbRef.child('slots').child(dateStr).get();
+    if (!snapshot.exists || snapshot.value == null || snapshot.value is! Map) {
+      throw Exception('Slot non trovati per la data selezionata');
+    }
+
+    final slotsMap = Map<String, dynamic>.from(snapshot.value as Map);
+    final updates = <String, dynamic>{};
+
+    for (final slotTime in slotTimes) {
+      final slotKey = slotTime.replaceAll(':', '_');
+      final rawSlot = slotsMap[slotKey];
+      if (rawSlot is! Map) {
+        continue;
+      }
+
+      final slotData = Map<String, dynamic>.from(rawSlot);
+      final currentStatus = slotData['status']?.toString() ?? 'libero';
+      final bookingId = slotData['booking_id']?.toString() ?? '';
+      final isJam = slotData['is_jam'] == true;
+      final isOccupied =
+          currentStatus != 'libero' &&
+          currentStatus != 'disabilitato' &&
+          bookingId.isNotEmpty;
+      if (isOccupied || isJam) {
+        throw Exception(
+          'Lo slot $slotTime non puo essere modificato perche e gia occupato',
+        );
+      }
+
+      updates['/slots/$dateStr/$slotKey/status'] = disabled
+          ? 'disabilitato'
+          : 'libero';
+      updates['/slots/$dateStr/$slotKey/booked_by'] = null;
+      updates['/slots/$dateStr/$slotKey/booking_id'] = null;
+      updates['/slots/$dateStr/$slotKey/is_jam'] = null;
+    }
+
+    if (updates.isEmpty) {
+      return;
+    }
+
+    await _dbRef.update(updates);
+  }
+
   Future<void> _generateSlotsForDate(String dateStr) async {
     final times = _generateStandardTimes();
-    final Map<String, dynamic> slotsUpdate = {};
+    final updates = <String, dynamic>{};
 
     for (int i = 0; i < times.length; i++) {
       final time = times[i];
       final key = time.replaceAll(":", "_");
 
-      slotsUpdate[key] = {'time': time, 'status': 'libero'};
+      updates['/slots/$dateStr/$key'] = {'time': time, 'status': 'libero'};
     }
 
-    await _dbRef.child('slots').child(dateStr).set(slotsUpdate);
+    await _dbRef.update(updates);
   }
 
   List<String> _generateStandardTimes() {

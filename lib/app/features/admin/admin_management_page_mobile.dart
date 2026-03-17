@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:soundimplosion/app/features/admin/admin_booking_management_page_mobile.dart';
 import 'package:soundimplosion/app/features/admin/admin_jam_management_page_mobile.dart';
+import 'package:soundimplosion/app/features/admin/admin_slot_management_page_mobile.dart';
 
 class AdminManagementPageMobile extends StatelessWidget {
   const AdminManagementPageMobile({super.key, this.embedded = false});
@@ -12,7 +13,7 @@ class AdminManagementPageMobile extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
 
     final content = DefaultTabController(
-      length: 2,
+      length: 3,
       child: Column(
         children: [
           Material(
@@ -28,6 +29,7 @@ class AdminManagementPageMobile extends StatelessWidget {
               tabs: const [
                 Tab(icon: Icon(Icons.book_online), text: 'Prenotazioni'),
                 Tab(icon: Icon(Icons.music_note), text: 'Jam'),
+                Tab(icon: Icon(Icons.event_busy), text: 'Slot'),
               ],
             ),
           ),
@@ -36,6 +38,7 @@ class AdminManagementPageMobile extends StatelessWidget {
               children: [
                 AdminBookingManagementPageMobile(embedded: true),
                 AdminJamManagementPageMobile(embedded: true),
+                AdminSlotManagementPageMobile(embedded: true),
               ],
             ),
           ),
