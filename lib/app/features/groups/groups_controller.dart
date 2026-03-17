@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:soundimplosion/app/features/groups/groups_repository.dart';
+import 'package:soundimplosion/services/app_telemetry_service.dart';
 
 class GroupsController extends ChangeNotifier {
   GroupsController({GroupsRepository? repository, FirebaseAuth? auth})
@@ -49,6 +50,9 @@ class GroupsController extends ChangeNotifier {
     notifyListeners();
     try {
       await _repository.createGroup(name, description: description);
+      await AppTelemetryService.instance.logCreateGroup(
+        hasDescription: description.trim().isNotEmpty,
+      );
     } finally {
       isSubmitting = false;
       notifyListeners();
@@ -63,6 +67,7 @@ class GroupsController extends ChangeNotifier {
     notifyListeners();
     try {
       await _repository.inviteUserToGroup(groupId: groupId, nickname: nickname);
+      await AppTelemetryService.instance.logInviteGroup();
     } finally {
       isSubmitting = false;
       notifyListeners();

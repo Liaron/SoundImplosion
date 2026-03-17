@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:soundimplosion/app/features/jam/jam_repository.dart';
+import 'package:soundimplosion/services/app_telemetry_service.dart';
 
 class OrganizeJamController extends ChangeNotifier {
   OrganizeJamController({JamRepository? repository})
@@ -202,6 +203,9 @@ class OrganizeJamController extends ChangeNotifier {
           payment: payment,
           equipment: equipment,
         );
+        await AppTelemetryService.instance.logJamUpdated(
+          hasGroup: (selectedGroupId ?? '').isNotEmpty,
+        );
       } else {
         await _repository.submitJam(
           selectedDate: currentDate,
@@ -212,6 +216,9 @@ class OrganizeJamController extends ChangeNotifier {
           payment: payment,
           equipment: equipment,
           selectedGroupId: selectedGroupId,
+        );
+        await AppTelemetryService.instance.logJamCreated(
+          hasGroup: (selectedGroupId ?? '').isNotEmpty,
         );
       }
     } finally {

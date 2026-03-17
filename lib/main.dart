@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:soundimplosion/app/features/app_scaffold_mobile.dart';
@@ -7,15 +10,46 @@ import 'package:soundimplosion/app/features/home/auth_page_mobile.dart';
 import 'package:soundimplosion/services/app_preferences_service.dart';
 import 'package:soundimplosion/services/firebase_auth.dart';
 import 'package:soundimplosion/services/local_notification_service.dart';
+import 'package:soundimplosion/services/app_telemetry_service.dart';
 import 'package:soundimplosion/services/push_notification_service.dart';
 
 void main() async {
-  final binding = WidgetsFlutterBinding.ensureInitialized();
-  binding.deferFirstFrame();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  await LocalNotificationService.instance.initialize();
-  await PushNotificationService.instance.initialize();
-  runApp(MyApp(onFirstFrameReady: () => binding.allowFirstFrame()));
+  runZonedGuarded(
+    () async {
+      final binding = WidgetsFlutterBinding.ensureInitialized();
+      binding.deferFirstFrame();
+      await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+      await AppTelemetryService.instance.initialize();
+      FlutterError.onError = AppTelemetryService.instance.recordFlutterError;
+      PlatformDispatcher.instance.onError = (error, stackTrace) {
+        unawaited(
+          AppTelemetryService.instance.recordError(
+            error,
+            stackTrace,
+            reason: 'PlatformDispatcher.onError',
+            fatal: true,
+          ),
+        );
+        return true;
+      };
+      await LocalNotificationService.instance.initialize();
+      await PushNotificationService.instance.initialize();
+      AuthService().authStateChanges.listen(
+        AppTelemetryService.instance.syncCurrentUser,
+      );
+      runApp(MyApp(onFirstFrameReady: () => binding.allowFirstFrame()));
+    },
+    (error, stackTrace) {
+      unawaited(
+        AppTelemetryService.instance.recordError(
+          error,
+          stackTrace,
+          reason: 'runZonedGuarded',
+          fatal: true,
+        ),
+      );
+    },
+  );
 }
 
 class MyApp extends StatefulWidget {
@@ -118,6 +152,7 @@ class _MyAppState extends State<MyApp> {
           themeMode: prefs.themeMode,
           theme: _buildTheme(Brightness.light),
           darkTheme: _buildTheme(Brightness.dark),
+          navigatorObservers: [AppTelemetryService.instance.navigatorObserver],
           builder: (context, child) {
             final mediaQuery = MediaQuery.of(context);
             return MediaQuery(

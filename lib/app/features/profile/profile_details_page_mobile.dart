@@ -93,44 +93,6 @@ class _ProfileDetailsPageMobileState extends State<ProfileDetailsPageMobile> {
     await _controller.removeInstrument(index);
   }
 
-  Future<void> _deleteProfile() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Elimina profilo'),
-        content: const Text(
-          'Il profilo verra eliminato insieme a prenotazioni, jam, partecipazioni e riferimenti collegati. Vuoi continuare?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Annulla'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Elimina', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true) {
-      return;
-    }
-
-    try {
-      await _controller.deleteProfile();
-    } catch (e) {
-      if (!mounted) {
-        return;
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
-      );
-    }
-  }
-
   // Placeholder per gestione foto (senza Storage vero e proprio per ora)
   Future<void> _manageProfilePhoto() async {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -274,21 +236,6 @@ class _ProfileDetailsPageMobileState extends State<ProfileDetailsPageMobile> {
                       );
                     },
                   ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: _controller.isLoading ? null : _deleteProfile,
-                icon: const Icon(Icons.delete_forever, color: Colors.red),
-                label: const Text(
-                  'Elimina profilo',
-                  style: TextStyle(color: Colors.red),
-                ),
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Colors.red),
-                ),
-              ),
-            ),
           ],
         ),
       ),

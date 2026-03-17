@@ -3,9 +3,14 @@ import 'package:soundimplosion/app/features/groups/groups_controller.dart';
 import 'package:soundimplosion/app/features/groups/groups_repository.dart';
 
 class GroupsPageMobile extends StatefulWidget {
-  const GroupsPageMobile({super.key, this.embedded = false});
+  const GroupsPageMobile({
+    super.key,
+    this.embedded = false,
+    this.initialGroupIdToOpen,
+  });
 
   final bool embedded;
+  final String? initialGroupIdToOpen;
 
   @override
   State<GroupsPageMobile> createState() => _GroupsPageMobileState();
@@ -17,6 +22,7 @@ class _GroupsPageMobileState extends State<GroupsPageMobile> {
   final TextEditingController _groupDescriptionController =
       TextEditingController();
   final Map<String, TextEditingController> _inviteControllers = {};
+  bool _didOpenInitialGroup = false;
 
   @override
   void initState() {
@@ -38,6 +44,22 @@ class _GroupsPageMobileState extends State<GroupsPageMobile> {
   }
 
   void _handleControllerChanged() {
+    if (!_didOpenInitialGroup &&
+        widget.initialGroupIdToOpen != null &&
+        widget.initialGroupIdToOpen!.isNotEmpty &&
+        _controller.groups.isNotEmpty) {
+      final match = _controller.groups.where(
+        (group) => group.id == widget.initialGroupIdToOpen,
+      );
+      if (match.isNotEmpty) {
+        _didOpenInitialGroup = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _showGroupDetails(match.first);
+          }
+        });
+      }
+    }
     if (mounted) {
       setState(() {});
     }

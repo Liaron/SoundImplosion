@@ -131,7 +131,10 @@ class FirebaseJamRepository implements JamRepository {
 
   @override
   Future<List<DateTime>> loadAvailableDates() async {
+    await _databaseService.cleanupPastSlots();
+
     final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
     final candidateDates = List.generate(
       30,
       (index) => now.add(Duration(days: index)),
@@ -144,11 +147,18 @@ class FirebaseJamRepository implements JamRepository {
         final hasBookableSlot = freeSlots.any(
           (slot) => _isSlotAtLeast24HoursAway(slot, date),
         );
-        return hasBookableSlot ? date : null;
+        return hasBookableSlot
+            ? DateTime(date.year, date.month, date.day)
+            : null;
       }),
     );
 
-    return results.whereType<DateTime>().toList();
+    return results
+        .whereType<DateTime>()
+        .where(
+          (date) => !DateTime(date.year, date.month, date.day).isBefore(today),
+        )
+        .toList();
   }
 
   @override

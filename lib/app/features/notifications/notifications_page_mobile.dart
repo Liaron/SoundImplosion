@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:soundimplosion/app/features/book/bookings_scaffold_mobile.dart';
+import 'package:soundimplosion/app/features/groups/groups_page_mobile.dart';
+import 'package:soundimplosion/app/features/jam/jam_session_page_mobile.dart';
 import 'package:intl/intl.dart';
 import 'package:soundimplosion/app/features/notifications/notifications_controller.dart';
 import 'package:soundimplosion/app/features/notifications/notifications_repository.dart';
@@ -14,6 +17,7 @@ class NotificationsPageMobile extends StatefulWidget {
 class _NotificationsPageMobileState extends State<NotificationsPageMobile> {
   final NotificationsController _controller = NotificationsController();
   final Set<String> _processingInvites = <String>{};
+  final Set<String> _selectedNotificationIds = <String>{};
 
   @override
   void initState() {
@@ -46,6 +50,160 @@ class _NotificationsPageMobileState extends State<NotificationsPageMobile> {
 
   Future<void> _markAllAsRead() async {
     await _controller.markAllAsRead();
+  }
+
+  bool _isDeletable(AppNotificationItem notification) {
+    return !notification.isPendingGroupInvite;
+  }
+
+  bool get _isSelectionMode => _selectedNotificationIds.isNotEmpty;
+
+  void _toggleSelection(AppNotificationItem notification) {
+    if (!_isDeletable(notification)) {
+      return;
+    }
+
+    setState(() {
+      if (_selectedNotificationIds.contains(notification.id)) {
+        _selectedNotificationIds.remove(notification.id);
+      } else {
+        _selectedNotificationIds.add(notification.id);
+      }
+    });
+  }
+
+  void _clearSelection() {
+    setState(() {
+      _selectedNotificationIds.clear();
+    });
+  }
+
+  Future<void> _deleteSingle(AppNotificationItem notification) async {
+    if (!_isDeletable(notification)) {
+      return;
+    }
+
+    await _controller.deleteNotification(notification.id);
+  }
+
+  Future<void> _deleteSelected() async {
+    if (_selectedNotificationIds.isEmpty) {
+      return;
+    }
+    await _controller.deleteSelectedNotifications(_selectedNotificationIds.toList());
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _selectedNotificationIds.clear();
+    });
+  }
+
+  Future<void> _deleteAll() async {
+    final deletableIds = _controller.notifications
+        .where(_isDeletable)
+        .map((notification) => notification.id)
+        .toList();
+    if (deletableIds.isEmpty) {
+      return;
+    }
+
+    await _controller.deleteSelectedNotifications(deletableIds);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _selectedNotificationIds.clear();
+    });
+  }
+
+  Future<void> _confirmDelete({
+    required String title,
+    required String content,
+    required Future<void> Function() onConfirm,
+  }) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Text(content),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Annulla'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Elimina'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    try {
+      await onConfirm();
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Notifiche eliminate')),
+      );
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Errore: ${e.toString().replaceAll('Exception: ', '')}')),
+      );
+    }
+  }
+
+  Future<void> _openNotification(AppNotificationItem notification) async {
+    if (!notification.isRead) {
+      await _controller.markAsRead(notification.id);
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    final target = notification.routeTarget;
+    switch (target.pageIndex) {
+      case 1:
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => BookingsScaffoldMobile(
+              initialBookingIdToOpen: target.bookingId,
+            ),
+          ),
+        );
+        break;
+      case 2:
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => JamSessionPageMobile(
+              initialJamToOpen: target.jamId == null
+                  ? null
+                  : <String, dynamic>{'jam_id': target.jamId},
+            ),
+          ),
+        );
+        break;
+      case 3:
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) =>
+                GroupsPageMobile(initialGroupIdToOpen: target.groupId),
+          ),
+        );
+        break;
+      default:
+        break;
+    }
   }
 
   Future<void> _respondToInvite(
@@ -107,9 +265,38 @@ class _NotificationsPageMobileState extends State<NotificationsPageMobile> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Notifiche'),
+        leading: _isSelectionMode
+            ? IconButton(
+                onPressed: _clearSelection,
+                icon: const Icon(Icons.close),
+              )
+            : null,
+        title: Text(
+          _isSelectionMode
+              ? '${_selectedNotificationIds.length} selezionate'
+              : 'Notifiche',
+        ),
         actions: [
-          if (_controller.unreadCount > 0)
+          if (_isSelectionMode)
+            IconButton(
+              onPressed: () => _confirmDelete(
+                title: 'Elimina selezionate',
+                content: 'Vuoi eliminare le notifiche selezionate?',
+                onConfirm: _deleteSelected,
+              ),
+              icon: const Icon(Icons.delete_outline),
+            )
+          else if (_controller.notifications.any(_isDeletable))
+            IconButton(
+              onPressed: () => _confirmDelete(
+                title: 'Elimina tutte',
+                content:
+                    'Vuoi eliminare tutte le notifiche eliminabili? Gli inviti pendenti resteranno disponibili.',
+                onConfirm: _deleteAll,
+              ),
+              icon: const Icon(Icons.delete_sweep_outlined),
+            ),
+          if (!_isSelectionMode && _controller.unreadCount > 0)
             TextButton(
               onPressed: _markAllAsRead,
               child: const Text('Segna tutte'),
@@ -132,11 +319,21 @@ class _NotificationsPageMobileState extends State<NotificationsPageMobile> {
                         ).colorScheme.secondary.withValues(alpha: 0.08),
                   margin: const EdgeInsets.only(bottom: 12),
                   child: ListTile(
-                    onTap: notification.isPendingGroupInvite || notification.isRead
+                    onLongPress: _isDeletable(notification)
+                        ? () => _toggleSelection(notification)
+                        : null,
+                    onTap: _isSelectionMode
+                        ? (_isDeletable(notification)
+                              ? () => _toggleSelection(notification)
+                              : null)
+                        : notification.isPendingGroupInvite
                         ? null
-                        : () => _controller.markAsRead(notification.id),
+                        : () => _openNotification(notification),
+                    selected: _selectedNotificationIds.contains(notification.id),
                     leading: Icon(
-                      notification.isRead
+                      _selectedNotificationIds.contains(notification.id)
+                          ? Icons.check_circle
+                          : notification.isRead
                           ? Icons.notifications_none
                           : Icons.notifications_active,
                     ),
@@ -185,11 +382,37 @@ class _NotificationsPageMobileState extends State<NotificationsPageMobile> {
                         ],
                       ],
                     ),
-                    trailing: notification.isPendingGroupInvite
+                    trailing: _isSelectionMode
                         ? null
-                        : notification.isRead
+                        : notification.isPendingGroupInvite
                         ? null
-                        : const Icon(Icons.fiber_new, color: Colors.redAccent),
+                        : PopupMenuButton<String>(
+                            onSelected: (value) {
+                              if (value == 'delete') {
+                                _confirmDelete(
+                                  title: 'Elimina notifica',
+                                  content: 'Vuoi eliminare questa notifica?',
+                                  onConfirm: () => _deleteSingle(notification),
+                                );
+                              }
+                            },
+                            itemBuilder: (context) => const [
+                              PopupMenuItem<String>(
+                                value: 'delete',
+                                child: ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  leading: Icon(Icons.delete_outline),
+                                  title: Text('Elimina'),
+                                ),
+                              ),
+                            ],
+                            child: notification.isRead
+                                ? const Icon(Icons.more_vert)
+                                : const Icon(
+                                    Icons.fiber_new,
+                                    color: Colors.redAccent,
+                                  ),
+                          ),
                   ),
                 );
               },

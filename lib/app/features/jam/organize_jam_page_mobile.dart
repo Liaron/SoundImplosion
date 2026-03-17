@@ -99,6 +99,161 @@ class _OrganizeJamPageMobileState extends State<OrganizeJamPageMobile> {
     return a.year == b.year && a.month == b.month && a.day == b.day;
   }
 
+  List<DateTime> _weekDays() {
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, now.day);
+    return List<DateTime>.generate(
+      7,
+      (index) => DateTime(start.year, start.month, start.day + index),
+    );
+  }
+
+  bool _isSelectableDay(DateTime day) {
+    return _controller.availableDates.any(
+      (available) => _isSameDay(available, day),
+    );
+  }
+
+  Future<void> _selectQuickDay(DateTime date) async {
+    if (!_isSelectableDay(date)) {
+      return;
+    }
+    await _controller.selectDate(date);
+  }
+
+  Widget _buildWeeklyStrip() {
+    final days = _weekDays();
+    return SizedBox(
+      height: 94,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemBuilder: (context, index) {
+          final day = days[index];
+          final isSelectable = _isSelectableDay(day);
+          final isSelected =
+              _controller.selectedDate != null &&
+              _isSameDay(_controller.selectedDate!, day);
+          return InkWell(
+            onTap: isSelectable ? () => _selectQuickDay(day) : null,
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              width: 76,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? Colors.black87
+                    : isSelectable
+                    ? Colors.white
+                    : Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isSelected
+                      ? Colors.black87
+                      : isSelectable
+                      ? Colors.black26
+                      : Colors.grey.shade300,
+                ),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    DateFormat('EEE').format(day),
+                    style: TextStyle(
+                      color: isSelected
+                          ? Colors.white70
+                          : isSelectable
+                          ? Colors.black54
+                          : Colors.grey,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    day.day.toString(),
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: isSelected
+                          ? Colors.white
+                          : isSelectable
+                          ? Colors.black
+                          : Colors.grey,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isSelectable
+                          ? (isSelected ? Colors.white : Colors.green)
+                          : Colors.transparent,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemCount: days.length,
+      ),
+    );
+  }
+
+  Widget _buildSlotSelector() {
+    if (_controller.isLoadingSlots) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_controller.availableSlots.isEmpty) {
+      return const Text("Nessuna disponibilità per questa data.");
+    }
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: _controller.availableSlots.map((slot) {
+        final isSelected = _controller.selectedSlots.contains(slot);
+        return GestureDetector(
+          onTap: () => _controller.toggleSlot(slot),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 120),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: isSelected ? Colors.black87 : Colors.green.shade50,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: isSelected ? Colors.black87 : Colors.green.shade300,
+                width: isSelected ? 2 : 1,
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  slot,
+                  style: TextStyle(
+                    color: isSelected ? Colors.white : Colors.green.shade900,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  isSelected ? 'Selezionato' : 'Libero',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: isSelected ? Colors.white : Colors.green.shade900,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
   Future<void> _submitJam() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -206,31 +361,30 @@ class _OrganizeJamPageMobileState extends State<OrganizeJamPageMobile> {
                       height: 60,
                       child: Center(child: CircularProgressIndicator()),
                     )
-                  : InkWell(
-                      onTap: _controller.availableDates.isEmpty
-                          ? null
-                          : () => _selectDateFromCalendar(context),
-                      child: InputDecorator(
-                        decoration: const InputDecoration(
-                          labelText: 'Seleziona Giorno',
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.calendar_today),
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Prossimi giorni',
+                          style: Theme.of(context).textTheme.titleMedium,
                         ),
-                        child: Text(
-                          _controller.selectedDate == null
-                              ? (_controller.availableDates.isEmpty
-                                    ? 'Nessuna data disponibile'
-                                    : 'Tocca per scegliere')
-                              : DateFormat(
-                                  'EEEE d MMMM yyyy',
-                                ).format(_controller.selectedDate!),
-                          style: TextStyle(
-                            color: _controller.selectedDate == null
-                                ? Colors.grey
-                                : Colors.black,
+                        const SizedBox(height: 8),
+                        _buildWeeklyStrip(),
+                        const SizedBox(height: 12),
+                        OutlinedButton.icon(
+                          onPressed: _controller.availableDates.isEmpty
+                              ? null
+                              : () => _selectDateFromCalendar(context),
+                          icon: const Icon(Icons.calendar_month),
+                          label: Text(
+                            _controller.selectedDate == null
+                                ? 'Apri selettore data'
+                                : DateFormat(
+                                    'EEEE d MMMM yyyy',
+                                  ).format(_controller.selectedDate!),
                           ),
                         ),
-                      ),
+                      ],
                     ),
               const SizedBox(height: 24),
 
@@ -240,21 +394,7 @@ class _OrganizeJamPageMobileState extends State<OrganizeJamPageMobile> {
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                 ),
                 const SizedBox(height: 8),
-                _controller.isLoadingSlots
-                    ? const Center(child: CircularProgressIndicator())
-                    : _controller.availableSlots.isEmpty
-                    ? const Text("Nessuna disponibilità.")
-                    : Wrap(
-                        spacing: 8.0,
-                        children: _controller.availableSlots.map((slot) {
-                          return FilterChip(
-                            label: Text(slot),
-                            selected: _controller.selectedSlots.contains(slot),
-                            onSelected: (_) => _controller.toggleSlot(slot),
-                            selectedColor: Colors.green[200],
-                          );
-                        }).toList(),
-                      ),
+                _buildSlotSelector(),
                 const SizedBox(height: 8),
                 if (_controller.selectedRangeLabel != null)
                   Text(

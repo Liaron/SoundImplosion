@@ -18,6 +18,8 @@ import 'package:soundimplosion/app/features/contact_us/contact_us_page_mobile.da
 import 'package:soundimplosion/services/app_preferences_service.dart';
 import 'package:soundimplosion/services/booking_reminder_service.dart';
 import 'package:soundimplosion/services/firebase_auth.dart';
+import 'package:soundimplosion/services/local_notification_service.dart';
+import 'package:soundimplosion/services/push_notification_service.dart';
 
 // Widget segnaposto per le pagine non ancora create.
 class PlaceholderPage extends StatelessWidget {
@@ -52,11 +54,14 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
   final BookingRepository _bookingRepository = FirebaseBookingRepository();
   StreamSubscription<List<AppNotificationItem>>? _notificationSubscription;
   StreamSubscription<List<BookingListItem>>? _bookingReminderSubscription;
+  StreamSubscription<String>? _notificationTapSubscription;
+  StreamSubscription<String>? _pushOpenedSubscription;
   final Set<String> _knownNotificationIds = <String>{};
   bool _hasSeededNotifications = false;
   List<BookingListItem> _latestBookings = const [];
   bool _postProfileBootstrapped = false;
   String? _appVersionLabel;
+  int _unreadNotificationCount = 0;
 
   Future<void> _signOut() async {
     await _authService.signOut();
@@ -79,8 +84,10 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
     'Impostazioni',
   ];
 
-  void _navigateToPage(int index) {
-    Navigator.pop(context); // Chiude il drawer
+  void _navigateToPage(int index, {bool closeDrawer = true}) {
+    if (closeDrawer) {
+      Navigator.pop(context);
+    }
     setState(() {
       _selectedIndex = index;
       _currentPageTitle = _pageTitles[index];
@@ -122,6 +129,8 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
   void dispose() {
     _notificationSubscription?.cancel();
     _bookingReminderSubscription?.cancel();
+    _notificationTapSubscription?.cancel();
+    _pushOpenedSubscription?.cancel();
     _controller.removeListener(_handleControllerChanged);
     AppPreferencesService.instance.removeListener(_handlePreferencesChanged);
     _controller.dispose();
@@ -154,9 +163,34 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
   }
 
   Future<void> _bootstrapNotifications() async {
+    _notificationTapSubscription = LocalNotificationService.instance.tapStream
+        .listen(_handleNotificationPayload);
+    _pushOpenedSubscription = PushNotificationService.instance.openedPayloadStream
+        .listen(_handleNotificationPayload);
+    final initialPayload = LocalNotificationService.instance.takeInitialPayload();
+    if (initialPayload != null && initialPayload.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _handleNotificationPayload(initialPayload);
+      });
+    }
+    final initialPushPayload = PushNotificationService.instance
+        .takeInitialPayload();
+    if (initialPushPayload != null && initialPushPayload.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _handleNotificationPayload(initialPushPayload);
+      });
+    }
+
     _notificationSubscription = _notificationsRepository
         .watchNotifications()
         .listen((items) async {
+          final unreadCount = items.where((item) => !item.isRead).length;
+          if (mounted && _unreadNotificationCount != unreadCount) {
+            setState(() {
+              _unreadNotificationCount = unreadCount;
+            });
+          }
+
           if (!_hasSeededNotifications) {
             _knownNotificationIds.addAll(items.map((item) => item.id));
             _hasSeededNotifications = true;
@@ -175,13 +209,73 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
             ..addAll(items.map((item) => item.id));
 
           for (final item in newItems) {
+            if (!preferences.allowsCategory(item.category)) {
+              continue;
+            }
+
             if (preferences.inAppEnabled && mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('${item.title}: ${item.body}')),
+                SnackBar(
+                  content: Text('${item.title}: ${item.body}'),
+                  action: SnackBarAction(
+                    label: 'Apri',
+                    onPressed: () => _openNotificationTarget(item.routeTarget),
+                  ),
+                ),
               );
             }
           }
         });
+  }
+
+  Future<void> _handleNotificationPayload(String payload) async {
+    final target = NotificationRouteTarget.fromPayload(payload);
+    if (target == null || !mounted) {
+      return;
+    }
+    await _openNotificationTarget(target);
+  }
+
+  Future<void> _openNotificationTarget(NotificationRouteTarget target) async {
+    if (!mounted) {
+      return;
+    }
+
+    switch (target.pageIndex) {
+      case 1:
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => BookingsScaffoldMobile(
+              initialBookingIdToOpen: target.bookingId,
+            ),
+          ),
+        );
+        break;
+      case 2:
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => JamSessionPageMobile(
+              initialJamToOpen: target.jamId == null
+                  ? null
+                  : <String, dynamic>{'jam_id': target.jamId},
+            ),
+          ),
+        );
+        break;
+      case 3:
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) =>
+                GroupsPageMobile(initialGroupIdToOpen: target.groupId),
+          ),
+        );
+        break;
+      case 5:
+        _navigateToPage(5, closeDrawer: false);
+        break;
+      default:
+        break;
+    }
   }
 
   Future<void> _bootstrapBookingReminders() async {
@@ -352,6 +446,22 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
             ListTile(
               leading: const Icon(Icons.notifications),
               title: const Text('Notifiche'),
+              trailing: _unreadNotificationCount > 0
+                  ? CircleAvatar(
+                      radius: 12,
+                      backgroundColor: Theme.of(context).colorScheme.secondary,
+                      child: Text(
+                        _unreadNotificationCount > 99
+                            ? '99+'
+                            : _unreadNotificationCount.toString(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    )
+                  : null,
               onTap: () => _navigateToPage(5),
             ),
             ListTile(

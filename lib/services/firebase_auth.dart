@@ -9,6 +9,16 @@ class AuthService {
   Stream<User?> get authStateChanges => _firebaseAuth.authStateChanges();
   User? get currentUser => _firebaseAuth.currentUser;
   bool get isEmailVerified => _firebaseAuth.currentUser?.emailVerified ?? false;
+  bool get isPasswordProviderLinked =>
+      _firebaseAuth.currentUser?.providerData.any(
+        (provider) => provider.providerId == 'password',
+      ) ??
+      false;
+  bool get isGoogleProviderLinked =>
+      _firebaseAuth.currentUser?.providerData.any(
+        (provider) => provider.providerId == 'google.com',
+      ) ??
+      false;
 
   Future<void> _ensureGoogleInitialized() {
     return _googleInitialization ??= _googleSignIn.initialize();
@@ -72,7 +82,34 @@ class AuthService {
       throw Exception('Utente non loggato');
     }
 
+    await _reauthenticateIfNeeded();
     await user.verifyBeforeUpdateEmail(newEmail.trim());
+  }
+
+  Future<void> requestEmailChangeWithReauthentication({
+    required String newEmail,
+    String? currentPassword,
+  }) async {
+    final user = _firebaseAuth.currentUser;
+    if (user == null) {
+      throw Exception('Utente non loggato');
+    }
+
+    await _reauthenticateIfNeeded(currentPassword: currentPassword);
+    await user.verifyBeforeUpdateEmail(newEmail.trim());
+  }
+
+  Future<void> updatePassword({
+    required String newPassword,
+    String? currentPassword,
+  }) async {
+    final user = _firebaseAuth.currentUser;
+    if (user == null) {
+      throw Exception('Utente non loggato');
+    }
+
+    await _reauthenticateIfNeeded(currentPassword: currentPassword);
+    await user.updatePassword(newPassword.trim());
   }
 
   Future<bool> reloadCurrentUser() async {
@@ -92,5 +129,42 @@ class AuthService {
     }
 
     await user.delete();
+  }
+
+  Future<void> _reauthenticateIfNeeded({String? currentPassword}) async {
+    final user = _firebaseAuth.currentUser;
+    if (user == null) {
+      throw Exception('Utente non loggato');
+    }
+
+    if (isPasswordProviderLinked) {
+      final email = user.email?.trim() ?? '';
+      final password = currentPassword?.trim() ?? '';
+      if (email.isEmpty || password.isEmpty) {
+        throw Exception('Inserisci la password attuale per confermare');
+      }
+
+      final credential = EmailAuthProvider.credential(
+        email: email,
+        password: password,
+      );
+      await user.reauthenticateWithCredential(credential);
+      return;
+    }
+
+    if (isGoogleProviderLinked) {
+      await _ensureGoogleInitialized();
+      final googleUser = await _googleSignIn.authenticate();
+      final googleAuth = googleUser.authentication;
+      final credential = GoogleAuthProvider.credential(
+        idToken: googleAuth.idToken,
+      );
+      await user.reauthenticateWithCredential(credential);
+      return;
+    }
+
+    throw Exception(
+      "Provider di accesso non supportato per la riconferma dell'identita",
+    );
   }
 }

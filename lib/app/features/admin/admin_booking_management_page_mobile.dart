@@ -64,18 +64,18 @@ class _AdminBookingManagementPageMobileState
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Annulla prenotazione'),
+        title: const Text('Rifiuta prenotazione'),
         content: const Text(
-          'Vuoi annullare questa prenotazione e liberare gli slot?',
+          'Vuoi rifiutare questa prenotazione e liberare gli slot?',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('No'),
+            child: const Text('Annulla'),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Annulla prenotazione'),
+            child: const Text('Rifiuta prenotazione'),
           ),
         ],
       ),
@@ -92,7 +92,7 @@ class _AdminBookingManagementPageMobileState
       }
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Prenotazione annullata')));
+      ).showSnackBar(const SnackBar(content: Text('Prenotazione rifiutata')));
     } catch (e) {
       if (!mounted) {
         return;
@@ -179,7 +179,7 @@ class _AdminBookingManagementPageMobileState
                       onPressed: _controller.isSubmitting
                           ? null
                           : () => _cancelBooking(item.id),
-                      child: const Text('Annulla'),
+                      child: const Text('Rifiuta'),
                     ),
                     OutlinedButton(
                       onPressed: _controller.isSubmitting

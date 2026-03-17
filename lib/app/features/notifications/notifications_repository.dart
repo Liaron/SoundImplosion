@@ -1,5 +1,65 @@
+import 'dart:convert';
+
 import 'package:firebase_database/firebase_database.dart';
 import 'package:soundimplosion/services/database_service.dart';
+
+enum NotificationCategory { bookings, jams, groups, system }
+
+class NotificationRouteTarget {
+  const NotificationRouteTarget({
+    required this.pageIndex,
+    this.bookingId,
+    this.jamId,
+    this.groupId,
+  });
+
+  final int pageIndex;
+  final String? bookingId;
+  final String? jamId;
+  final String? groupId;
+
+  bool get hasSpecificTarget =>
+      (bookingId?.isNotEmpty ?? false) ||
+      (jamId?.isNotEmpty ?? false) ||
+      (groupId?.isNotEmpty ?? false);
+
+  String toPayload() {
+    return jsonEncode({
+      'pageIndex': pageIndex,
+      'bookingId': bookingId,
+      'jamId': jamId,
+      'groupId': groupId,
+    });
+  }
+
+  static NotificationRouteTarget? fromPayload(String? payload) {
+    if (payload == null || payload.trim().isEmpty) {
+      return null;
+    }
+
+    try {
+      final decoded = jsonDecode(payload);
+      if (decoded is! Map) {
+        return null;
+      }
+
+      final map = Map<String, dynamic>.from(decoded);
+      final pageIndex = map['pageIndex'];
+      if (pageIndex is! int) {
+        return null;
+      }
+
+      return NotificationRouteTarget(
+        pageIndex: pageIndex,
+        bookingId: map['bookingId']?.toString(),
+        jamId: map['jamId']?.toString(),
+        groupId: map['groupId']?.toString(),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+}
 
 class AppNotificationItem {
   const AppNotificationItem({
@@ -27,6 +87,39 @@ class AppNotificationItem {
   final String? inviterUsername;
   final String? username;
   final String? inviteStatus;
+
+  NotificationCategory get category {
+    switch (type) {
+      case 'booking_created':
+      case 'booking_confirmed':
+      case 'booking_cancelled':
+        return NotificationCategory.bookings;
+      case 'jam_approved':
+      case 'jam_rejected':
+        return NotificationCategory.jams;
+      case 'group_invite':
+      case 'group_invite_accepted':
+      case 'group_invite_rejected':
+        return NotificationCategory.groups;
+      default:
+        return NotificationCategory.system;
+    }
+  }
+
+  NotificationRouteTarget get routeTarget {
+    switch (category) {
+      case NotificationCategory.bookings:
+        return NotificationRouteTarget(pageIndex: 1, bookingId: id);
+      case NotificationCategory.jams:
+        return NotificationRouteTarget(pageIndex: 2, jamId: id);
+      case NotificationCategory.groups:
+        return NotificationRouteTarget(pageIndex: 3, groupId: groupId);
+      case NotificationCategory.system:
+        return const NotificationRouteTarget(pageIndex: 5);
+    }
+  }
+
+  String get payload => routeTarget.toPayload();
 
   bool get isPendingGroupInvite =>
       type == 'group_invite' &&
@@ -119,15 +212,48 @@ class NotificationPreferences {
   const NotificationPreferences({
     this.inAppEnabled = true,
     this.systemEnabled = true,
+    this.bookingEnabled = true,
+    this.jamEnabled = true,
+    this.groupEnabled = true,
+    this.systemCategoryEnabled = true,
   });
 
   final bool inAppEnabled;
   final bool systemEnabled;
+  final bool bookingEnabled;
+  final bool jamEnabled;
+  final bool groupEnabled;
+  final bool systemCategoryEnabled;
 
-  NotificationPreferences copyWith({bool? inAppEnabled, bool? systemEnabled}) {
+  bool allowsCategory(NotificationCategory category) {
+    switch (category) {
+      case NotificationCategory.bookings:
+        return bookingEnabled;
+      case NotificationCategory.jams:
+        return jamEnabled;
+      case NotificationCategory.groups:
+        return groupEnabled;
+      case NotificationCategory.system:
+        return systemCategoryEnabled;
+    }
+  }
+
+  NotificationPreferences copyWith({
+    bool? inAppEnabled,
+    bool? systemEnabled,
+    bool? bookingEnabled,
+    bool? jamEnabled,
+    bool? groupEnabled,
+    bool? systemCategoryEnabled,
+  }) {
     return NotificationPreferences(
       inAppEnabled: inAppEnabled ?? this.inAppEnabled,
       systemEnabled: systemEnabled ?? this.systemEnabled,
+      bookingEnabled: bookingEnabled ?? this.bookingEnabled,
+      jamEnabled: jamEnabled ?? this.jamEnabled,
+      groupEnabled: groupEnabled ?? this.groupEnabled,
+      systemCategoryEnabled:
+          systemCategoryEnabled ?? this.systemCategoryEnabled,
     );
   }
 }
@@ -136,6 +262,9 @@ abstract class NotificationsRepository {
   Stream<List<AppNotificationItem>> watchNotifications();
   Future<void> markAsRead(String notificationId);
   Future<void> markAllAsRead();
+  Future<void> deleteNotification(String notificationId);
+  Future<void> deleteSelectedNotifications(List<String> notificationIds);
+  Future<void> deleteAllNotifications();
   Future<void> acceptGroupInvite(String groupId);
   Future<void> rejectGroupInvite(String groupId);
   Future<NotificationPreferences> loadPreferences();
@@ -166,6 +295,21 @@ class FirebaseNotificationsRepository implements NotificationsRepository {
   }
 
   @override
+  Future<void> deleteNotification(String notificationId) {
+    return _databaseService.deleteUserNotification(notificationId);
+  }
+
+  @override
+  Future<void> deleteSelectedNotifications(List<String> notificationIds) {
+    return _databaseService.deleteSelectedUserNotifications(notificationIds);
+  }
+
+  @override
+  Future<void> deleteAllNotifications() {
+    return _databaseService.deleteAllUserNotifications();
+  }
+
+  @override
   Future<void> acceptGroupInvite(String groupId) {
     return _databaseService.acceptGroupInvite(groupId);
   }
@@ -181,6 +325,10 @@ class FirebaseNotificationsRepository implements NotificationsRepository {
     return NotificationPreferences(
       inAppEnabled: map['in_app_enabled'] != false,
       systemEnabled: map['system_enabled'] != false,
+      bookingEnabled: map['booking_enabled'] != false,
+      jamEnabled: map['jam_enabled'] != false,
+      groupEnabled: map['group_enabled'] != false,
+      systemCategoryEnabled: map['system_category_enabled'] != false,
     );
   }
 
@@ -189,6 +337,10 @@ class FirebaseNotificationsRepository implements NotificationsRepository {
     return _databaseService.saveNotificationPreferences({
       'in_app_enabled': preferences.inAppEnabled,
       'system_enabled': preferences.systemEnabled,
+      'booking_enabled': preferences.bookingEnabled,
+      'jam_enabled': preferences.jamEnabled,
+      'group_enabled': preferences.groupEnabled,
+      'system_category_enabled': preferences.systemCategoryEnabled,
     });
   }
 

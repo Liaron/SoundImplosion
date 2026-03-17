@@ -3,6 +3,7 @@ import 'package:soundimplosion/app/features/notifications/notifications_reposito
 import 'package:soundimplosion/app/features/profile/profile_repository.dart';
 import 'package:soundimplosion/models/models.dart';
 import 'package:soundimplosion/services/app_preferences_service.dart';
+import 'package:soundimplosion/services/app_telemetry_service.dart';
 import 'package:soundimplosion/services/database_service.dart';
 import 'package:soundimplosion/services/firebase_auth.dart';
 import 'package:soundimplosion/services/local_notification_service.dart';
@@ -144,17 +145,38 @@ class _SettingsPageMobileState extends State<SettingsPageMobile> {
       return;
     }
 
-    final controller = TextEditingController(text: currentUser.email ?? '');
+    final emailController = TextEditingController(text: currentUser.email ?? '');
+    final passwordController = TextEditingController();
+    final requiresPassword = _authService.isPasswordProviderLinked;
     final messenger = ScaffoldMessenger.of(context);
-    final newEmail = await showDialog<String>(
+    final result =
+        await showDialog<({String newEmail, String currentPassword})>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Modifica email'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          keyboardType: TextInputType.emailAddress,
-          decoration: const InputDecoration(labelText: 'Nuova email'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: emailController,
+              autofocus: true,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(labelText: 'Nuova email'),
+            ),
+            const SizedBox(height: 12),
+            if (requiresPassword)
+              TextField(
+                controller: passwordController,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Password attuale',
+                ),
+              )
+            else
+              const Text(
+                'Per confermare la modifica verra richiesta una nuova autenticazione con il provider collegato.',
+              ),
+          ],
         ),
         actions: [
           TextButton(
@@ -162,15 +184,18 @@ class _SettingsPageMobileState extends State<SettingsPageMobile> {
             child: const Text('Annulla'),
           ),
           TextButton(
-            onPressed: () =>
-                Navigator.pop(dialogContext, controller.text.trim()),
+            onPressed: () => Navigator.pop(dialogContext, (
+              newEmail: emailController.text.trim(),
+              currentPassword: passwordController.text,
+            )),
             child: const Text('Invia verifica'),
           ),
         ],
       ),
     );
 
-    if (newEmail == null || newEmail.isEmpty || newEmail == currentUser.email) {
+    final newEmail = result?.newEmail.trim() ?? '';
+    if (newEmail.isEmpty || newEmail == currentUser.email) {
       return;
     }
 
@@ -183,18 +208,133 @@ class _SettingsPageMobileState extends State<SettingsPageMobile> {
         throw Exception('Questa email e gia registrata');
       }
 
-      await _authService.requestEmailChange(newEmail);
+      await _authService.requestEmailChangeWithReauthentication(
+        newEmail: newEmail,
+        currentPassword: result?.currentPassword,
+      );
+      await AppTelemetryService.instance.logEmailChangeRequested();
       if (!mounted) {
         return;
       }
       messenger.showSnackBar(
         SnackBar(
           content: Text(
-            'Email di conferma inviata a $newEmail. Dopo la verifica, l’account verra aggiornato.',
+            "Email di conferma inviata a $newEmail. Dopo la verifica, l'account verra aggiornato.",
           ),
         ),
       );
-    } catch (e) {
+    } catch (e, stackTrace) {
+      await AppTelemetryService.instance.recordError(
+        e,
+        stackTrace,
+        reason: 'Email change request failed',
+      );
+      if (!mounted) {
+        return;
+      }
+      messenger.showSnackBar(
+        SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+      );
+    }
+  }
+
+  Future<void> _updatePassword() async {
+    final user = _authService.currentUser;
+    if (user == null || !_authService.isPasswordProviderLinked) {
+      return;
+    }
+
+    final currentPasswordController = TextEditingController();
+    final newPasswordController = TextEditingController();
+    final confirmPasswordController = TextEditingController();
+    final messenger = ScaffoldMessenger.of(context);
+    final result = await showDialog<
+      ({String currentPassword, String newPassword, String confirmPassword})
+    >(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Modifica password'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: currentPasswordController,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'Password attuale',
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: newPasswordController,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'Nuova password'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: confirmPasswordController,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'Conferma nuova password',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Annulla'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, (
+              currentPassword: currentPasswordController.text,
+              newPassword: newPasswordController.text,
+              confirmPassword: confirmPasswordController.text,
+            )),
+            child: const Text('Aggiorna'),
+          ),
+        ],
+      ),
+    );
+
+    if (result == null) {
+      return;
+    }
+
+    final newPassword = result.newPassword.trim();
+    if (newPassword.length < 6) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('La nuova password deve essere di almeno 6 caratteri'),
+        ),
+      );
+      return;
+    }
+    if (newPassword != result.confirmPassword.trim()) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Le nuove password non coincidono')),
+      );
+      return;
+    }
+
+    try {
+      await _authService.updatePassword(
+        newPassword: newPassword,
+        currentPassword: result.currentPassword,
+      );
+      await AppTelemetryService.instance.logPasswordUpdated();
+      if (!mounted) {
+        return;
+      }
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Password aggiornata correttamente')),
+      );
+    } catch (e, stackTrace) {
+      await AppTelemetryService.instance.recordError(
+        e,
+        stackTrace,
+        reason: 'Password update failed',
+      );
       if (!mounted) {
         return;
       }
@@ -294,6 +434,7 @@ class _SettingsPageMobileState extends State<SettingsPageMobile> {
     }
 
     await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+    await AppTelemetryService.instance.logPasswordResetRequested();
     if (!mounted) {
       return;
     }
@@ -309,6 +450,53 @@ class _SettingsPageMobileState extends State<SettingsPageMobile> {
       _notificationPreferences = preferences;
     });
     await _notificationsRepository.savePreferences(preferences);
+  }
+
+  Future<void> _deleteAccount() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Elimina account'),
+        content: const Text(
+          'L’account verra eliminato insieme a prenotazioni, jam, partecipazioni e riferimenti collegati. Vuoi continuare?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Annulla'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Elimina', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await _profileRepository.deleteProfile();
+    } catch (e, stackTrace) {
+      await AppTelemetryService.instance.recordError(
+        e,
+        stackTrace,
+        reason: 'Account deletion failed',
+      );
+      if (!mounted) {
+        return;
+      }
+      messenger.showSnackBar(
+        SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+      );
+    }
   }
 
   Widget _buildSection({
@@ -528,12 +716,27 @@ class _SettingsPageMobileState extends State<SettingsPageMobile> {
                     ListTile(
                       contentPadding: EdgeInsets.zero,
                       title: const Text('Password'),
+                      subtitle: Text(
+                        _authService.isPasswordProviderLinked
+                            ? 'Aggiorna la password con conferma credenziali.'
+                            : 'Nessuna password locale collegata a questo account.',
+                      ),
+                      trailing: _authService.isPasswordProviderLinked
+                          ? TextButton(
+                              onPressed: _updatePassword,
+                              child: const Text('Modifica'),
+                            )
+                          : null,
+                    ),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Reset password via email'),
                       subtitle: const Text(
                         'Invia una email per reimpostare la password.',
                       ),
                       trailing: TextButton(
                         onPressed: _sendPasswordReset,
-                        child: const Text('Reimposta'),
+                        child: const Text('Invia'),
                       ),
                     ),
                   ],
@@ -578,6 +781,32 @@ class _SettingsPageMobileState extends State<SettingsPageMobile> {
                     ),
                   ],
                 ),
+                _buildSection(
+                  title: 'Area pericolosa',
+                  children: [
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(
+                        Icons.delete_forever,
+                        color: Colors.red,
+                      ),
+                      title: const Text(
+                        'Elimina account',
+                        style: TextStyle(color: Colors.red),
+                      ),
+                      subtitle: const Text(
+                        'Rimuove definitivamente account e dati collegati.',
+                      ),
+                      trailing: TextButton(
+                        onPressed: _deleteAccount,
+                        child: const Text(
+                          'Elimina',
+                          style: TextStyle(color: Colors.red),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
             ListView(
@@ -608,6 +837,57 @@ class _SettingsPageMobileState extends State<SettingsPageMobile> {
                     }
                     await _updateNotificationPreferences(
                       _notificationPreferences.copyWith(systemEnabled: value),
+                    );
+                  },
+                ),
+                const Divider(),
+                SwitchListTile(
+                  value: _notificationPreferences.bookingEnabled,
+                  title: const Text('Categoria prenotazioni'),
+                  subtitle: const Text(
+                    'Conferme, rifiuti e aggiornamenti prenotazioni.',
+                  ),
+                  onChanged: (value) {
+                    _updateNotificationPreferences(
+                      _notificationPreferences.copyWith(bookingEnabled: value),
+                    );
+                  },
+                ),
+                SwitchListTile(
+                  value: _notificationPreferences.jamEnabled,
+                  title: const Text('Categoria jam'),
+                  subtitle: const Text(
+                    'Approvazioni, rifiuti e aggiornamenti jam.',
+                  ),
+                  onChanged: (value) {
+                    _updateNotificationPreferences(
+                      _notificationPreferences.copyWith(jamEnabled: value),
+                    );
+                  },
+                ),
+                SwitchListTile(
+                  value: _notificationPreferences.groupEnabled,
+                  title: const Text('Categoria gruppi'),
+                  subtitle: const Text(
+                    'Inviti e risposte relative ai gruppi.',
+                  ),
+                  onChanged: (value) {
+                    _updateNotificationPreferences(
+                      _notificationPreferences.copyWith(groupEnabled: value),
+                    );
+                  },
+                ),
+                SwitchListTile(
+                  value: _notificationPreferences.systemCategoryEnabled,
+                  title: const Text('Categoria sistema'),
+                  subtitle: const Text(
+                    'Messaggi generici e notifiche non classificate.',
+                  ),
+                  onChanged: (value) {
+                    _updateNotificationPreferences(
+                      _notificationPreferences.copyWith(
+                        systemCategoryEnabled: value,
+                      ),
                     );
                   },
                 ),

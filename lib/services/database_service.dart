@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:soundimplosion/models/models.dart';
@@ -11,6 +12,10 @@ class DatabaseService {
     databaseURL:
         'https://liaron-soundimplosion-default-rtdb.europe-west1.firebasedatabase.app',
   ).ref();
+  final FirebaseFunctions _functions = FirebaseFunctions.instanceFor(
+    app: Firebase.app(),
+    region: 'us-central1',
+  );
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
@@ -503,144 +508,77 @@ class DatabaseService {
     }
   }
 
-  Future<void> acceptGroupInvite(String groupId) async {
+  Future<void> deleteUserNotification(String notificationId) async {
     final user = _auth.currentUser;
     if (user == null) {
       throw Exception('Utente non loggato');
     }
 
-    final inviteSnapshot = await _dbRef
-        .child('group_invites')
+    await _dbRef
+        .child('user_notifications')
         .child(user.uid)
-        .child(groupId)
-        .get();
-    if (!inviteSnapshot.exists || inviteSnapshot.value == null) {
-      throw Exception('Invito non disponibile');
+        .child(notificationId)
+        .remove();
+  }
+
+  Future<void> deleteSelectedUserNotifications(List<String> notificationIds) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception('Utente non loggato');
+    }
+    if (notificationIds.isEmpty) {
+      return;
     }
 
-    final inviteData = Map<String, dynamic>.from(inviteSnapshot.value as Map);
-    if (inviteData['status']?.toString() != 'pending') {
-      throw Exception('Invito non piu disponibile');
+    final updates = <String, dynamic>{};
+    for (final notificationId in notificationIds) {
+      final trimmed = notificationId.trim();
+      if (trimmed.isEmpty) {
+        continue;
+      }
+      updates['/user_notifications/${user.uid}/$trimmed'] = null;
     }
 
-    final groupSnapshot = await _dbRef
-        .child('groups_info')
-        .child(groupId)
-        .get();
-    if (!groupSnapshot.exists || groupSnapshot.value == null) {
-      await _dbRef.update({
-        '/group_invites/${user.uid}/$groupId': null,
-        '/user_notifications/${user.uid}/${_groupInviteNotificationId(groupId)}':
-            null,
+    if (updates.isNotEmpty) {
+      await _dbRef.update(updates);
+    }
+  }
+
+  Future<void> deleteAllUserNotifications() async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception('Utente non loggato');
+    }
+
+    await _dbRef.child('user_notifications').child(user.uid).remove();
+  }
+
+  Future<void> acceptGroupInvite(String groupId) async {
+    try {
+      await _functions.httpsCallable('acceptGroupInvite').call({
+        'groupId': groupId,
       });
-      throw Exception('Gruppo non trovato');
+    } on FirebaseFunctionsException catch (error) {
+      throw Exception(error.message ?? 'Accettazione invito fallita');
     }
-
-    final groupData = Map<String, dynamic>.from(groupSnapshot.value as Map);
-    final currentUserSnapshot = await _dbRef.child('users').child(user.uid).get();
-    final currentUserData =
-        currentUserSnapshot.exists && currentUserSnapshot.value is Map
-        ? Map<String, dynamic>.from(currentUserSnapshot.value as Map)
-        : <String, dynamic>{};
-
-    final targetUsername =
-        inviteData['invited_username']?.toString() ??
-        currentUserData['username']?.toString() ??
-        currentUserData['nickname']?.toString() ??
-        user.displayName ??
-        user.uid;
-    final ownerId = groupData['owner_id']?.toString() ?? '';
-    final notificationId = _groupInviteNotificationId(groupId);
-
-    final updates = <String, dynamic>{
-      '/groups_info/$groupId/members/${user.uid}': true,
-      '/groups_info/$groupId/member_nicknames/${user.uid}': targetUsername,
-      '/groups_info/$groupId/pending_invites/${user.uid}': null,
-      '/users/${user.uid}/gruppi/$groupId': true,
-      '/group_invites/${user.uid}/$groupId': null,
-      '/user_notifications/${user.uid}/$notificationId/invite_status':
-          'accepted',
-      '/user_notifications/${user.uid}/$notificationId/read': true,
-      '/user_notifications/${user.uid}/$notificationId/responded_at':
-          ServerValue.timestamp,
-    };
-
-    if (ownerId.isNotEmpty && ownerId != user.uid) {
-      updates['/user_notifications/$ownerId/group_invite_accepted_${groupId}_${user.uid}'] =
-          {
-            'type': 'group_invite_accepted',
-            'group_id': groupId,
-            'group_name': groupData['name']?.toString() ?? '',
-            'user_id': user.uid,
-            'username': targetUsername,
-            'timestamp': ServerValue.timestamp,
-            'creator_id': user.uid,
-            'read': false,
-          };
-    }
-
-    await _dbRef.update(updates);
   }
 
   Future<void> rejectGroupInvite(String groupId) async {
-    final user = _auth.currentUser;
-    if (user == null) {
-      throw Exception('Utente non loggato');
+    try {
+      await _functions.httpsCallable('rejectGroupInvite').call({
+        'groupId': groupId,
+      });
+    } on FirebaseFunctionsException catch (error) {
+      throw Exception(error.message ?? 'Rifiuto invito fallito');
     }
+  }
 
-    final inviteSnapshot = await _dbRef
-        .child('group_invites')
-        .child(user.uid)
-        .child(groupId)
-        .get();
-    if (!inviteSnapshot.exists || inviteSnapshot.value == null) {
-      throw Exception('Invito non disponibile');
+  Future<void> cleanupPastSlots() async {
+    try {
+      await _functions.httpsCallable('cleanupPastSlots').call();
+    } on FirebaseFunctionsException catch (error) {
+      debugPrint('cleanupPastSlots fallita: ${error.message}');
     }
-
-    final inviteData = Map<String, dynamic>.from(inviteSnapshot.value as Map);
-    if (inviteData['status']?.toString() != 'pending') {
-      throw Exception('Invito non piu disponibile');
-    }
-
-    final currentUserSnapshot = await _dbRef.child('users').child(user.uid).get();
-    final currentUserData =
-        currentUserSnapshot.exists && currentUserSnapshot.value is Map
-        ? Map<String, dynamic>.from(currentUserSnapshot.value as Map)
-        : <String, dynamic>{};
-    final targetUsername =
-        inviteData['invited_username']?.toString() ??
-        currentUserData['username']?.toString() ??
-        currentUserData['nickname']?.toString() ??
-        user.displayName ??
-        user.uid;
-    final ownerId = inviteData['inviter_uid']?.toString() ?? '';
-    final notificationId = _groupInviteNotificationId(groupId);
-
-    final updates = <String, dynamic>{
-      '/groups_info/$groupId/pending_invites/${user.uid}': null,
-      '/group_invites/${user.uid}/$groupId': null,
-      '/user_notifications/${user.uid}/$notificationId/invite_status':
-          'rejected',
-      '/user_notifications/${user.uid}/$notificationId/read': true,
-      '/user_notifications/${user.uid}/$notificationId/responded_at':
-          ServerValue.timestamp,
-    };
-
-    if (ownerId.isNotEmpty && ownerId != user.uid) {
-      updates['/user_notifications/$ownerId/group_invite_rejected_${groupId}_${user.uid}'] =
-          {
-            'type': 'group_invite_rejected',
-            'group_id': groupId,
-            'group_name': inviteData['group_name']?.toString() ?? '',
-            'user_id': user.uid,
-            'username': targetUsername,
-            'timestamp': ServerValue.timestamp,
-            'creator_id': user.uid,
-            'read': false,
-          };
-    }
-
-    await _dbRef.update(updates);
   }
 
   Future<Map<String, dynamic>> getNotificationPreferences() async {
@@ -2067,88 +2005,63 @@ class DatabaseService {
     await _dbRef.update(updates);
   }
 
+  Future<List<Map<String, dynamic>>> getSlotsForDate(String dateStr) async {
+    final slotsRef = _dbRef.child('slots').child(dateStr);
+
+    try {
+      var snapshot = await slotsRef.get();
+      if (!snapshot.exists) {
+        await _generateSlotsForDate(dateStr);
+        snapshot = await slotsRef.get();
+      }
+
+      final slots = <Map<String, dynamic>>[];
+      final rawData = snapshot.value;
+
+      if (rawData is Map) {
+        final data = Map<String, dynamic>.from(rawData);
+        for (final entry in data.entries) {
+          if (entry.value is! Map) {
+            continue;
+          }
+          final slot = Map<String, dynamic>.from(entry.value as Map);
+          slot['key'] = entry.key.toString();
+          slots.add(slot);
+        }
+      } else if (rawData is List) {
+        for (final item in rawData) {
+          if (item is! Map) {
+            continue;
+          }
+          slots.add(Map<String, dynamic>.from(item));
+        }
+      }
+
+      slots.sort((a, b) {
+        final left = a['time']?.toString() ?? '';
+        final right = b['time']?.toString() ?? '';
+        return left.compareTo(right);
+      });
+
+      return slots;
+    } catch (e) {
+      debugPrint("Errore getSlotsForDate: $e");
+      rethrow;
+    }
+  }
+
   Future<void> inviteUserToGroup({
     required String groupId,
     required String nickname,
   }) async {
-    final user = _auth.currentUser;
-    if (user == null) {
-      throw Exception('Utente non loggato');
+    try {
+      await _functions.httpsCallable('inviteUserToGroup').call({
+        'groupId': groupId,
+        'nickname': nickname.trim(),
+      });
+    } on FirebaseFunctionsException catch (error) {
+      throw Exception(error.message ?? 'Invio invito fallito');
     }
-
-    final groupSnapshot = await _dbRef
-        .child('groups_info')
-        .child(groupId)
-        .get();
-    if (!groupSnapshot.exists || groupSnapshot.value == null) {
-      throw Exception('Gruppo non trovato');
-    }
-
-    final groupData = Map<String, dynamic>.from(groupSnapshot.value as Map);
-    final isAdmin = await _isCurrentUserAdmin();
-    if (groupData['owner_id']?.toString() != user.uid && !isAdmin) {
-      throw Exception('Solo il proprietario del gruppo puo invitare membri');
-    }
-
-    final matches = await searchUsersByNickname(nickname);
-    if (matches.isEmpty) {
-      throw Exception('Nessun utente trovato con questo username');
-    }
-
-    final targetUser = matches.first;
-    final targetUid = targetUser['uid']?.toString() ?? '';
-    final targetNickname =
-        targetUser['nickname']?.toString() ?? nickname.trim();
-    if (targetUid.isEmpty) {
-      throw Exception('Utente non valido');
-    }
-
-    final members = _extractIds(groupData['members']);
-    if (members.contains(targetUid)) {
-      throw Exception('Questo utente e gia nel gruppo');
-    }
-    final pendingInvites = _extractIds(groupData['pending_invites']);
-    if (pendingInvites.contains(targetUid)) {
-      throw Exception('Questo utente ha gia un invito pendente');
-    }
-
-    final inviterSnapshot = await _dbRef.child('users').child(user.uid).get();
-    final inviterData =
-        inviterSnapshot.exists && inviterSnapshot.value is Map
-        ? Map<String, dynamic>.from(inviterSnapshot.value as Map)
-        : <String, dynamic>{};
-    final inviterUsername =
-        inviterData['username']?.toString() ??
-        inviterData['nickname']?.toString() ??
-        user.displayName ??
-        user.uid;
-    final groupName = groupData['name']?.toString() ?? 'Gruppo';
-    final notificationId = _groupInviteNotificationId(groupId);
-
-    await _dbRef.update({
-      '/groups_info/$groupId/pending_invites/$targetUid': targetNickname,
-      '/group_invites/$targetUid/$groupId': {
-        'group_id': groupId,
-        'group_name': groupName,
-        'inviter_uid': user.uid,
-        'inviter_username': inviterUsername,
-        'invited_username': targetNickname,
-        'status': 'pending',
-        'timestamp': ServerValue.timestamp,
-      },
-      '/user_notifications/$targetUid/$notificationId': {
-        'type': 'group_invite',
-        'group_id': groupId,
-        'group_name': groupName,
-        'inviter_uid': user.uid,
-        'inviter_username': inviterUsername,
-        'invited_username': targetNickname,
-        'invite_status': 'pending',
-        'timestamp': ServerValue.timestamp,
-        'creator_id': user.uid,
-        'read': false,
-      },
-    });
   }
 
   int _timeToMinutes(String time) {

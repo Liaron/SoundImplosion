@@ -96,6 +96,264 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
     return a.year == b.year && a.month == b.month && a.day == b.day;
   }
 
+  List<DateTime> _weekDays() {
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, now.day);
+    return List<DateTime>.generate(
+      7,
+      (index) => DateTime(start.year, start.month, start.day + index),
+    );
+  }
+
+  bool _isSelectableDay(DateTime day) {
+    return _controller.availableDates.any((available) => _isSameDay(available, day));
+  }
+
+  Future<void> _selectCalendarDay(DateTime date) async {
+    if (!_isSelectableDay(date)) {
+      return;
+    }
+    await _controller.selectDate(date);
+  }
+
+  Color _slotBackgroundColor(BookingSlotItem slot, bool isSelected) {
+    if (isSelected) {
+      return Colors.black87;
+    }
+    if (slot.isDisabled) {
+      return Colors.grey.shade200;
+    }
+    if (slot.isFree) {
+      return Colors.green.shade50;
+    }
+    return slot.isJam ? Colors.deepPurple.shade50 : Colors.orange.shade50;
+  }
+
+  Color _slotBorderColor(BookingSlotItem slot, bool isSelected) {
+    if (isSelected) {
+      return Colors.black87;
+    }
+    if (slot.isDisabled) {
+      return Colors.grey.shade400;
+    }
+    if (slot.isFree) {
+      return Colors.green.shade300;
+    }
+    return slot.isJam ? Colors.deepPurple.shade300 : Colors.orange.shade300;
+  }
+
+  Color _slotTextColor(BookingSlotItem slot, bool isSelected) {
+    if (isSelected) {
+      return Colors.white;
+    }
+    if (slot.isDisabled) {
+      return Colors.grey.shade700;
+    }
+    if (slot.isFree) {
+      return Colors.green.shade900;
+    }
+    return slot.isJam ? Colors.deepPurple.shade900 : Colors.orange.shade900;
+  }
+
+  bool _canToggleSlot(BookingSlotItem slot) {
+    if (_controller.selectedSlots.contains(slot.time)) {
+      return true;
+    }
+    if (slot.isFree) {
+      return true;
+    }
+    return _isEditing && slot.bookingId == widget.initialBooking?.id;
+  }
+
+  Widget _buildLegendItem({
+    required Color color,
+    required String label,
+    Color? borderColor,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 14,
+          height: 14,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: borderColor ?? color),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(label),
+      ],
+    );
+  }
+
+  Widget _buildWeeklyStrip() {
+    final days = _weekDays();
+    return SizedBox(
+      height: 94,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemBuilder: (context, index) {
+          final day = days[index];
+          final isSelectable = _isSelectableDay(day);
+          final isSelected =
+              _controller.selectedDate != null &&
+              _isSameDay(_controller.selectedDate!, day);
+          return InkWell(
+            onTap: isSelectable ? () => _selectCalendarDay(day) : null,
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              width: 76,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? Colors.black87
+                    : isSelectable
+                    ? Colors.white
+                    : Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isSelected
+                      ? Colors.black87
+                      : isSelectable
+                      ? Colors.black26
+                      : Colors.grey.shade300,
+                ),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    DateFormat('EEE').format(day),
+                    style: TextStyle(
+                      color: isSelected
+                          ? Colors.white70
+                          : isSelectable
+                          ? Colors.black54
+                          : Colors.grey,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    day.day.toString(),
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: isSelected
+                          ? Colors.white
+                          : isSelectable
+                          ? Colors.black
+                          : Colors.grey,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isSelectable
+                          ? (isSelected ? Colors.white : Colors.green)
+                          : Colors.transparent,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemCount: days.length,
+      ),
+    );
+  }
+
+  Widget _buildSlotOverview() {
+    if (_controller.isLoadingSlots) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_controller.slotOverview.isEmpty) {
+      return const Text("Nessuna disponibilità per questa data.");
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 16,
+          runSpacing: 10,
+          children: [
+            _buildLegendItem(
+              color: Colors.green.shade50,
+              borderColor: Colors.green.shade300,
+              label: 'Libero',
+            ),
+            _buildLegendItem(
+              color: Colors.orange.shade50,
+              borderColor: Colors.orange.shade300,
+              label: 'Occupato',
+            ),
+            _buildLegendItem(
+              color: Colors.deepPurple.shade50,
+              borderColor: Colors.deepPurple.shade300,
+              label: 'Jam',
+            ),
+            _buildLegendItem(
+              color: Colors.grey.shade200,
+              borderColor: Colors.grey.shade400,
+              label: 'Disabilitato',
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: _controller.slotOverview.map((slot) {
+            final isSelected = _controller.selectedSlots.contains(slot.time);
+            final canToggle = _canToggleSlot(slot);
+            return GestureDetector(
+              onTap: canToggle ? () => _controller.toggleSlot(slot.time) : null,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 120),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: _slotBackgroundColor(slot, isSelected),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: _slotBorderColor(slot, isSelected),
+                    width: isSelected ? 2 : 1,
+                  ),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      slot.time,
+                      style: TextStyle(
+                        color: _slotTextColor(slot, isSelected),
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      isSelected ? 'Selezionato' : slot.statusLabel,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: _slotTextColor(slot, isSelected),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
   Future<void> _submitBooking() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -214,61 +472,40 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
                         ),
                       ),
                     )
-                  : InkWell(
-                      onTap: _controller.availableDates.isEmpty
-                          ? null
-                          : () => _selectDateFromCalendar(context),
-                      child: InputDecorator(
-                        decoration: const InputDecoration(
-                          labelText: 'Seleziona Giorno',
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.calendar_today),
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Prossimi giorni',
+                          style: Theme.of(context).textTheme.titleMedium,
                         ),
-                        child: Text(
-                          _controller.selectedDate == null
-                              ? (_controller.availableDates.isEmpty
-                                    ? 'Nessuna data disponibile'
-                                    : 'Tocca per scegliere una data')
-                              : DateFormat(
-                                  'EEEE d MMMM yyyy',
-                                ).format(_controller.selectedDate!),
-                          style: _controller.selectedDate == null
-                              ? TextStyle(color: Colors.grey[600])
-                              : const TextStyle(color: Colors.black),
+                        const SizedBox(height: 8),
+                        _buildWeeklyStrip(),
+                        const SizedBox(height: 12),
+                        OutlinedButton.icon(
+                          onPressed: _controller.availableDates.isEmpty
+                              ? null
+                              : () => _selectDateFromCalendar(context),
+                          icon: const Icon(Icons.calendar_month),
+                          label: Text(
+                            _controller.selectedDate == null
+                                ? 'Apri selettore data'
+                                : DateFormat(
+                                    'EEEE d MMMM yyyy',
+                                  ).format(_controller.selectedDate!),
+                          ),
                         ),
-                      ),
+                      ],
                     ),
               const SizedBox(height: 24),
 
               if (showBookingForm) ...[
-                // 2. Selezione Orari (Multi-select Chips)
                 const Text(
                   "Seleziona Orari (slot da 75 min)",
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                 ),
                 const SizedBox(height: 8),
-                _controller.isLoadingSlots
-                    ? const Center(child: CircularProgressIndicator())
-                    : _controller.availableSlots.isEmpty
-                    ? const Text("Nessuna disponibilità per questa data.")
-                    : Wrap(
-                        spacing: 8.0,
-                        runSpacing: 4.0,
-                        children: _controller.availableSlots.map((slot) {
-                          final isSelected = _controller.selectedSlots.contains(
-                            slot,
-                          );
-                          return FilterChip(
-                            label: Text(slot),
-                            selected: isSelected,
-                            onSelected: (bool selected) {
-                              _controller.toggleSlot(slot);
-                            },
-                            selectedColor: Colors.green[200],
-                            checkmarkColor: Colors.green[900],
-                          );
-                        }).toList(),
-                      ),
+                _buildSlotOverview(),
                 const SizedBox(height: 8),
                 if (_controller.selectedRangeLabel != null)
                   Text(

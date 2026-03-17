@@ -169,6 +169,19 @@ class FakeBookingRepository implements BookingRepository {
   }
 
   @override
+  Future<List<BookingSlotItem>> loadSlotsOverview(DateTime date) async {
+    final slots = availableSlotsByDate[_dateKey(date)] ?? const [];
+    return slots
+        .map(
+          (slot) => BookingSlotItem(
+            time: slot,
+            status: 'libero',
+          ),
+        )
+        .toList();
+  }
+
+  @override
   Future<List<Map<String, String>>> loadUserGroups() async => userGroups;
 
   @override

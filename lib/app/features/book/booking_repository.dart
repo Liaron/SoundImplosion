@@ -36,10 +36,41 @@ class BookingListItem {
   }
 }
 
+class BookingSlotItem {
+  const BookingSlotItem({
+    required this.time,
+    required this.status,
+    this.bookedBy,
+    this.bookingId,
+    this.isJam = false,
+  });
+
+  final String time;
+  final String status;
+  final String? bookedBy;
+  final String? bookingId;
+  final bool isJam;
+
+  bool get isDisabled => status == 'disabilitato';
+  bool get isFree => status == 'libero';
+  bool get isOccupied => !isFree && !isDisabled;
+
+  String get statusLabel {
+    if (isDisabled) {
+      return 'Disabilitato';
+    }
+    if (isOccupied) {
+      return isJam ? 'Jam' : 'Occupato';
+    }
+    return 'Libero';
+  }
+}
+
 abstract class BookingRepository {
   Future<List<DateTime>> loadAvailableDates();
   Future<List<Map<String, String>>> loadUserGroups();
   Future<List<String>> loadAvailableSlots(DateTime date);
+  Future<List<BookingSlotItem>> loadSlotsOverview(DateTime date);
   Future<void> updateBooking({
     required String bookingId,
     required DateTime selectedDate,
@@ -84,7 +115,10 @@ class FirebaseBookingRepository implements BookingRepository {
 
   @override
   Future<List<DateTime>> loadAvailableDates() async {
+    await _databaseService.cleanupPastSlots();
+
     final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
     final candidateDates = List.generate(
       30,
       (index) => now.add(Duration(days: index)),
@@ -97,11 +131,18 @@ class FirebaseBookingRepository implements BookingRepository {
         final hasBookableSlot = freeSlots.any(
           (slot) => _isSlotAtLeast24HoursAway(slot, date),
         );
-        return hasBookableSlot ? date : null;
+        return hasBookableSlot
+            ? DateTime(date.year, date.month, date.day)
+            : null;
       }),
     );
 
-    return results.whereType<DateTime>().toList();
+    return results
+        .whereType<DateTime>()
+        .where(
+          (date) => !DateTime(date.year, date.month, date.day).isBefore(today),
+        )
+        .toList();
   }
 
   @override
@@ -115,6 +156,25 @@ class FirebaseBookingRepository implements BookingRepository {
     final freeSlots = await _databaseService.getFreeSlotsForDate(dateStr);
     return freeSlots
         .where((slot) => _isSlotAtLeast24HoursAway(slot, date))
+        .toList();
+  }
+
+  @override
+  Future<List<BookingSlotItem>> loadSlotsOverview(DateTime date) async {
+    final dateStr = DateFormat('yyyy-MM-dd').format(date);
+    final slotMaps = await _databaseService.getSlotsForDate(dateStr);
+    return slotMaps
+        .map(
+          (slot) => BookingSlotItem(
+            time: slot['time']?.toString() ?? '',
+            status: slot['status']?.toString() ?? 'libero',
+            bookedBy: slot['booked_by']?.toString(),
+            bookingId: slot['booking_id']?.toString(),
+            isJam: slot['is_jam'] == true,
+          ),
+        )
+        .where((slot) => slot.time.isNotEmpty)
+        .where((slot) => _isSlotAtLeast24HoursAway(slot.time, date))
         .toList();
   }
 

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:soundimplosion/app/features/book/booking_repository.dart';
+import 'package:soundimplosion/services/app_telemetry_service.dart';
 
 class BookNowController extends ChangeNotifier {
   BookNowController({BookingRepository? repository})
@@ -14,6 +15,7 @@ class BookNowController extends ChangeNotifier {
   List<DateTime> availableDates = [];
   List<Map<String, String>> userGroups = [];
   List<String> availableSlots = [];
+  List<BookingSlotItem> slotOverview = [];
   BookingListItem? editingBooking;
   DateTime? _originalDate;
   List<String> _originalSelectedSlots = [];
@@ -110,10 +112,12 @@ class BookNowController extends ChangeNotifier {
 
     isLoadingSlots = true;
     availableSlots = [];
+    slotOverview = [];
     notifyListeners();
 
     try {
       final loadedSlots = await _repository.loadAvailableSlots(currentDate);
+      final overviewSlots = await _repository.loadSlotsOverview(currentDate);
       final mergedSlots = {...loadedSlots};
 
       if (_originalDate != null &&
@@ -122,6 +126,7 @@ class BookNowController extends ChangeNotifier {
       }
 
       availableSlots = mergedSlots.toList()..sort();
+      slotOverview = overviewSlots;
       _selectedSlots
         ..clear()
         ..addAll(
@@ -136,6 +141,24 @@ class BookNowController extends ChangeNotifier {
   }
 
   void toggleSlot(String slot) {
+    BookingSlotItem? slotItem;
+    for (final candidate in slotOverview) {
+      if (candidate.time == slot) {
+        slotItem = candidate;
+        break;
+      }
+    }
+    final canToggle =
+        slotItem == null ||
+        slotItem.isFree ||
+        _selectedSlots.contains(slot) ||
+        (isEditing &&
+            slotItem.bookingId != null &&
+            slotItem.bookingId == editingBooking?.id);
+    if (!canToggle) {
+      return;
+    }
+
     if (_selectedSlots.contains(slot)) {
       _selectedSlots.remove(slot);
     } else {
@@ -190,6 +213,9 @@ class BookNowController extends ChangeNotifier {
           peopleCount: peopleCount,
           equipment: equipment,
         );
+        await AppTelemetryService.instance.logBookingUpdated(
+          isGroupBooking: (selectedGroupId ?? '').isNotEmpty,
+        );
       } else {
         await _repository.submitBooking(
           selectedDate: currentDate,
@@ -197,6 +223,9 @@ class BookNowController extends ChangeNotifier {
           peopleCount: peopleCount,
           equipment: equipment,
           selectedGroupId: selectedGroupId,
+        );
+        await AppTelemetryService.instance.logBookingCreated(
+          isGroupBooking: (selectedGroupId ?? '').isNotEmpty,
         );
       }
     } finally {

@@ -227,7 +227,7 @@ class _PendingJamCard extends StatelessWidget {
               children: [
                 OutlinedButton(
                   onPressed: isSubmitting ? null : onReject,
-                  child: const Text('Annulla'),
+                  child: const Text('Rifiuta'),
                 ),
                 OutlinedButton(
                   onPressed: isSubmitting ? null : onReschedule,

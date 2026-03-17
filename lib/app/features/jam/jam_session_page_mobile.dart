@@ -4,14 +4,20 @@ import 'package:soundimplosion/app/features/jam/find_jam_page_mobile.dart';
 
 class JamSessionPageMobile extends StatelessWidget {
   final Map<String, dynamic>? initialJamToOpen;
+  final int initialTabIndex;
 
-  const JamSessionPageMobile({super.key, this.initialJamToOpen});
+  const JamSessionPageMobile({
+    super.key,
+    this.initialJamToOpen,
+    this.initialTabIndex = 0,
+  });
 
   @override
   Widget build(BuildContext context) {
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
 
     return DefaultTabController(
+      initialIndex: initialTabIndex,
       length: 2,
       child: Column(
         children: <Widget>[

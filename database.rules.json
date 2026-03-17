@@ -111,12 +111,12 @@
         ".write": "auth != null && ((!data.exists() && newData.child('owner_id').val() == auth.uid) || (data.exists() && !newData.exists() && (data.child('owner_id').val() == auth.uid || root.child('users').child(auth.uid).child('role').val() == 'admin')) || (data.exists() && newData.exists() && (data.child('owner_id').val() == auth.uid || root.child('users').child(auth.uid).child('role').val() == 'admin')))",
         "members": {
           "$uid": {
-            ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('groups_info').child($groupId).child('owner_id').val() == auth.uid || (auth.uid == $uid && !newData.exists()) || (auth.uid == $uid && root.child('group_invites').child($uid).child($groupId).child('status').val() == 'pending'))"
+            ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('groups_info').child($groupId).child('owner_id').val() == auth.uid || (auth.uid == $uid && !newData.exists()))"
           }
         },
         "member_nicknames": {
           "$uid": {
-            ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('groups_info').child($groupId).child('owner_id').val() == auth.uid || (auth.uid == $uid && !newData.exists()) || (auth.uid == $uid && root.child('group_invites').child($uid).child($groupId).child('status').val() == 'pending'))"
+            ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('groups_info').child($groupId).child('owner_id').val() == auth.uid || (auth.uid == $uid && !newData.exists()))"
           }
         },
         "pending_invites": {
@@ -131,7 +131,7 @@
       "$uid": {
         ".read": "auth != null && (auth.uid == $uid || root.child('users').child(auth.uid).child('role').val() == 'admin')",
         "$groupId": {
-          ".write": "auth != null && (auth.uid == $uid || root.child('groups_info').child($groupId).child('owner_id').val() == auth.uid || root.child('users').child(auth.uid).child('role').val() == 'admin')"
+          ".write": "auth != null && (root.child('groups_info').child($groupId).child('owner_id').val() == auth.uid || root.child('users').child(auth.uid).child('role').val() == 'admin' || (auth.uid == $uid && !newData.exists()))"
         }
       }
     },

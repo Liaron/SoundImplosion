@@ -44,6 +44,18 @@ class NotificationsController extends ChangeNotifier {
     return _repository.markAllAsRead();
   }
 
+  Future<void> deleteNotification(String notificationId) {
+    return _repository.deleteNotification(notificationId);
+  }
+
+  Future<void> deleteSelectedNotifications(List<String> notificationIds) {
+    return _repository.deleteSelectedNotifications(notificationIds);
+  }
+
+  Future<void> deleteAllNotifications() {
+    return _repository.deleteAllNotifications();
+  }
+
   Future<void> acceptGroupInvite(String groupId) {
     return _repository.acceptGroupInvite(groupId);
   }

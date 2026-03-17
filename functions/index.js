@@ -17,6 +17,53 @@ function emailKey(value) {
   return normalizeEmail(value).replace(/\./g, ",");
 }
 
+function groupInviteNotificationId(groupId) {
+  return `group_invite_${groupId}`;
+}
+
+function extractIds(rawValue) {
+  if (!rawValue) {
+    return [];
+  }
+
+  if (Array.isArray(rawValue)) {
+    return rawValue
+        .map((value, index) => value != null ? String(index) : "")
+        .filter(Boolean);
+  }
+
+  if (typeof rawValue === "object") {
+    return Object.keys(rawValue);
+  }
+
+  return [];
+}
+
+function parseIndexedUserIds(rawValue) {
+  if (!rawValue) {
+    return [];
+  }
+
+  if (typeof rawValue === "string") {
+    return rawValue.trim() ? [rawValue.trim()] : [];
+  }
+
+  if (typeof rawValue !== "object" || Array.isArray(rawValue)) {
+    return [];
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(rawValue, "uid") ||
+    Object.prototype.hasOwnProperty.call(rawValue, "nickname") ||
+    Object.prototype.hasOwnProperty.call(rawValue, "username")
+  ) {
+    const uid = String(rawValue.uid || "").trim();
+    return uid ? [uid] : [];
+  }
+
+  return Object.keys(rawValue);
+}
+
 function buildNotificationContent(payload) {
   const type = (payload && payload.type) || "generic";
   const date = (payload && payload.data) || "";
@@ -57,9 +104,37 @@ function buildNotificationContent(payload) {
   }
 }
 
+function notificationCategory(type) {
+  switch (type) {
+    case "booking_created":
+    case "booking_confirmed":
+    case "booking_cancelled":
+      return "booking";
+    case "jam_approved":
+    case "jam_rejected":
+      return "jam";
+    case "group_invite":
+    case "group_invite_accepted":
+    case "group_invite_rejected":
+      return "group";
+    default:
+      return "system";
+  }
+}
+
 async function sendPushToUser(uid, notificationId, payload) {
   const preferences = await getValue(`users/${uid}/preferenze/notifications`);
   if (preferences && preferences.system_enabled === false) {
+    return;
+  }
+
+  const category = notificationCategory(payload && payload.type);
+  if (
+    (category === "booking" && preferences && preferences.booking_enabled === false) ||
+    (category === "jam" && preferences && preferences.jam_enabled === false) ||
+    (category === "group" && preferences && preferences.group_enabled === false) ||
+    (category === "system" && preferences && preferences.system_category_enabled === false)
+  ) {
     return;
   }
 
@@ -86,6 +161,7 @@ async function sendPushToUser(uid, notificationId, payload) {
     data: {
       notification_id: notificationId,
       type: (payload && payload.type ? String(payload.type) : "generic"),
+      group_id: (payload && payload.group_id ? String(payload.group_id) : ""),
     },
     android: {
       priority: "high",
@@ -314,3 +390,286 @@ exports.pushUserNotification = functions.database
       );
       return null;
     });
+
+exports.inviteUserToGroup = functions.region("us-central1").https.onCall(async (data, context) => {
+  if (!context.auth || !context.auth.uid) {
+    throw new functions.https.HttpsError(
+        "unauthenticated",
+        "Utente non autenticato.",
+    );
+  }
+
+  const groupId = String((data && data.groupId) || "").trim();
+  const nickname = String((data && data.nickname) || "").trim();
+  if (!groupId || !nickname) {
+    throw new functions.https.HttpsError(
+        "invalid-argument",
+        "groupId e username sono obbligatori.",
+    );
+  }
+
+  const callerUid = context.auth.uid;
+  const group = await getValue(`groups_info/${groupId}`);
+  if (!group || typeof group !== "object") {
+    throw new functions.https.HttpsError("not-found", "Gruppo non trovato.");
+  }
+
+  const callerData = await getValue(`users/${callerUid}`);
+  const isAdmin = callerData && typeof callerData === "object" && callerData.role === "admin";
+  if (group.owner_id !== callerUid && !isAdmin) {
+    throw new functions.https.HttpsError(
+        "permission-denied",
+        "Solo il proprietario del gruppo puo invitare membri.",
+    );
+  }
+
+  const normalizedNickname = normalizeNickname(nickname);
+  const rawIndexEntry = await getValue(`user_search_index/${normalizedNickname}`);
+  const candidateUids = parseIndexedUserIds(rawIndexEntry);
+  if (!candidateUids.length) {
+    throw new functions.https.HttpsError(
+        "not-found",
+        "Nessun utente trovato con questo username.",
+    );
+  }
+
+  const targetUid = candidateUids[0];
+  if (!targetUid) {
+    throw new functions.https.HttpsError(
+        "failed-precondition",
+        "Utente non valido.",
+    );
+  }
+
+  const members = new Set([
+    ...extractIds(group.members),
+    ...extractIds(group.member_nicknames),
+  ]);
+  if (members.has(targetUid)) {
+    throw new functions.https.HttpsError(
+        "already-exists",
+        "Questo utente e gia nel gruppo.",
+    );
+  }
+
+  const pendingInvites = new Set(extractIds(group.pending_invites));
+  if (pendingInvites.has(targetUid)) {
+    throw new functions.https.HttpsError(
+        "already-exists",
+        "Questo utente ha gia un invito pendente.",
+    );
+  }
+
+  const targetUser = await getValue(`users/${targetUid}`);
+  if (!targetUser || typeof targetUser !== "object") {
+    throw new functions.https.HttpsError(
+        "not-found",
+        "Utente non trovato.",
+    );
+  }
+
+  const inviterUsername =
+      String(callerData?.username || callerData?.nickname || callerUid);
+  const invitedUsername =
+      String(targetUser.username || targetUser.nickname || nickname);
+  const groupName = String(group.name || "Gruppo");
+  const notificationId = groupInviteNotificationId(groupId);
+
+  await db.ref().update({
+    [`/groups_info/${groupId}/pending_invites/${targetUid}`]: invitedUsername,
+    [`/group_invites/${targetUid}/${groupId}`]: {
+      group_id: groupId,
+      group_name: groupName,
+      inviter_uid: callerUid,
+      inviter_username: inviterUsername,
+      invited_username: invitedUsername,
+      status: "pending",
+      timestamp: admin.database.ServerValue.TIMESTAMP,
+    },
+    [`/user_notifications/${targetUid}/${notificationId}`]: {
+      type: "group_invite",
+      group_id: groupId,
+      group_name: groupName,
+      inviter_uid: callerUid,
+      inviter_username: inviterUsername,
+      invited_username: invitedUsername,
+      invite_status: "pending",
+      timestamp: admin.database.ServerValue.TIMESTAMP,
+      creator_id: callerUid,
+      read: false,
+    },
+  });
+
+  return {ok: true};
+});
+
+exports.acceptGroupInvite = functions.region("us-central1").https.onCall(async (data, context) => {
+  if (!context.auth || !context.auth.uid) {
+    throw new functions.https.HttpsError(
+        "unauthenticated",
+        "Utente non autenticato.",
+    );
+  }
+
+  const uid = context.auth.uid;
+  const groupId = String((data && data.groupId) || "").trim();
+  if (!groupId) {
+    throw new functions.https.HttpsError(
+        "invalid-argument",
+        "groupId obbligatorio.",
+    );
+  }
+
+  const invite = await getValue(`group_invites/${uid}/${groupId}`);
+  if (!invite || typeof invite !== "object" || invite.status !== "pending") {
+    throw new functions.https.HttpsError(
+        "failed-precondition",
+        "Invito non disponibile.",
+    );
+  }
+
+  const group = await getValue(`groups_info/${groupId}`);
+  if (!group || typeof group !== "object") {
+    await db.ref().update({
+      [`/group_invites/${uid}/${groupId}`]: null,
+      [`/user_notifications/${uid}/${groupInviteNotificationId(groupId)}`]: null,
+    });
+    throw new functions.https.HttpsError("not-found", "Gruppo non trovato.");
+  }
+
+  const userData = await getValue(`users/${uid}`);
+  const username = String(
+      invite.invited_username ||
+      userData?.username ||
+      userData?.nickname ||
+      uid,
+  );
+  const ownerId = String(group.owner_id || "");
+  const notificationId = groupInviteNotificationId(groupId);
+
+  const updates = {
+    [`/groups_info/${groupId}/members/${uid}`]: true,
+    [`/groups_info/${groupId}/member_nicknames/${uid}`]: username,
+    [`/groups_info/${groupId}/pending_invites/${uid}`]: null,
+    [`/users/${uid}/gruppi/${groupId}`]: true,
+    [`/group_invites/${uid}/${groupId}`]: null,
+    [`/user_notifications/${uid}/${notificationId}/invite_status`]: "accepted",
+    [`/user_notifications/${uid}/${notificationId}/read`]: true,
+    [`/user_notifications/${uid}/${notificationId}/responded_at`]:
+      admin.database.ServerValue.TIMESTAMP,
+  };
+
+  if (ownerId && ownerId !== uid) {
+    updates[`/user_notifications/${ownerId}/group_invite_accepted_${groupId}_${uid}`] = {
+      type: "group_invite_accepted",
+      group_id: groupId,
+      group_name: String(group.name || ""),
+      user_id: uid,
+      username,
+      timestamp: admin.database.ServerValue.TIMESTAMP,
+      creator_id: uid,
+      read: false,
+    };
+  }
+
+  await db.ref().update(updates);
+  return {ok: true};
+});
+
+exports.rejectGroupInvite = functions.region("us-central1").https.onCall(async (data, context) => {
+  if (!context.auth || !context.auth.uid) {
+    throw new functions.https.HttpsError(
+        "unauthenticated",
+        "Utente non autenticato.",
+    );
+  }
+
+  const uid = context.auth.uid;
+  const groupId = String((data && data.groupId) || "").trim();
+  if (!groupId) {
+    throw new functions.https.HttpsError(
+        "invalid-argument",
+        "groupId obbligatorio.",
+    );
+  }
+
+  const invite = await getValue(`group_invites/${uid}/${groupId}`);
+  if (!invite || typeof invite !== "object" || invite.status !== "pending") {
+    throw new functions.https.HttpsError(
+        "failed-precondition",
+        "Invito non disponibile.",
+    );
+  }
+
+  const userData = await getValue(`users/${uid}`);
+  const username = String(
+      invite.invited_username ||
+      userData?.username ||
+      userData?.nickname ||
+      uid,
+  );
+  const ownerId = String(invite.inviter_uid || "");
+  const notificationId = groupInviteNotificationId(groupId);
+
+  const updates = {
+    [`/groups_info/${groupId}/pending_invites/${uid}`]: null,
+    [`/group_invites/${uid}/${groupId}`]: null,
+    [`/user_notifications/${uid}/${notificationId}/invite_status`]: "rejected",
+    [`/user_notifications/${uid}/${notificationId}/read`]: true,
+    [`/user_notifications/${uid}/${notificationId}/responded_at`]:
+      admin.database.ServerValue.TIMESTAMP,
+  };
+
+  if (ownerId && ownerId !== uid) {
+    updates[`/user_notifications/${ownerId}/group_invite_rejected_${groupId}_${uid}`] = {
+      type: "group_invite_rejected",
+      group_id: groupId,
+      group_name: String(invite.group_name || ""),
+      user_id: uid,
+      username,
+      timestamp: admin.database.ServerValue.TIMESTAMP,
+      creator_id: uid,
+      read: false,
+    };
+  }
+
+  await db.ref().update(updates);
+  return {ok: true};
+});
+
+exports.cleanupPastSlots = functions.region("us-central1").https.onCall(async (_data, context) => {
+  if (!context.auth || !context.auth.uid) {
+    throw new functions.https.HttpsError(
+        "unauthenticated",
+        "Utente non autenticato.",
+    );
+  }
+
+  const slots = await getValue("slots");
+  if (!slots || typeof slots !== "object") {
+    return {deletedCount: 0};
+  }
+
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const updates = {};
+  let deletedCount = 0;
+
+  for (const dateKey of Object.keys(slots)) {
+    const parsedDate = new Date(`${dateKey}T00:00:00`);
+    if (Number.isNaN(parsedDate.getTime())) {
+      continue;
+    }
+
+    if (parsedDate < today) {
+      updates[`/slots/${dateKey}`] = null;
+      deletedCount += 1;
+    }
+  }
+
+  if (deletedCount > 0) {
+    await db.ref().update(updates);
+  }
+
+  return {deletedCount};
+});

@@ -3,6 +3,7 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:soundimplosion/app/features/notifications/notifications_repository.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
+import 'dart:async';
 
 class LocalNotificationService {
   LocalNotificationService._();
@@ -16,7 +17,18 @@ class LocalNotificationService {
 
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
+  final StreamController<String> _tapController =
+      StreamController<String>.broadcast();
   bool _initialized = false;
+  String? _initialPayload;
+
+  Stream<String> get tapStream => _tapController.stream;
+
+  String? takeInitialPayload() {
+    final payload = _initialPayload;
+    _initialPayload = null;
+    return payload;
+  }
 
   Future<void> initialize() async {
     if (_initialized) {
@@ -32,7 +44,21 @@ class LocalNotificationService {
     final timezoneName = await FlutterTimezone.getLocalTimezone();
     tz.setLocalLocation(tz.getLocation(timezoneName));
 
-    await _plugin.initialize(initializationSettings);
+    await _plugin.initialize(
+      initializationSettings,
+      onDidReceiveNotificationResponse: (response) {
+        final payload = response.payload;
+        if (payload != null && payload.isNotEmpty) {
+          _tapController.add(payload);
+        }
+      },
+    );
+
+    final launchDetails = await _plugin.getNotificationAppLaunchDetails();
+    final launchPayload = launchDetails?.notificationResponse?.payload;
+    if (launchPayload != null && launchPayload.isNotEmpty) {
+      _initialPayload = launchPayload;
+    }
 
     const channel = AndroidNotificationChannel(
       _channelId,
@@ -87,7 +113,7 @@ class LocalNotificationService {
       item.title,
       item.body,
       details,
-      payload: item.id,
+      payload: item.payload,
     );
   }
 
@@ -95,6 +121,7 @@ class LocalNotificationService {
     required int id,
     required String title,
     required String body,
+    String? payload,
   }) async {
     await initialize();
 
@@ -113,7 +140,7 @@ class LocalNotificationService {
       ),
     );
 
-    await _plugin.show(id, title, body, details);
+    await _plugin.show(id, title, body, details, payload: payload);
   }
 
   Future<void> scheduleNotification({

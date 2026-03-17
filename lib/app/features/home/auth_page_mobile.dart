@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:soundimplosion/app/startup_loading_screen.dart';
 import 'package:soundimplosion/models/models.dart';
+import 'package:soundimplosion/services/app_telemetry_service.dart';
 import 'package:soundimplosion/services/database_service.dart';
 import 'package:soundimplosion/services/firebase_auth.dart';
 
@@ -87,9 +88,21 @@ class _AuthPageMobileState extends State<AuthPageMobile> {
         );
         await _dbService.saveUser(newUser);
       }
+
+      final isNewUser = userCredential.additionalUserInfo?.isNewUser == true;
+      if (isNewUser) {
+        await AppTelemetryService.instance.logSignUp(method: 'google');
+      } else {
+        await AppTelemetryService.instance.logLogin(method: 'google');
+      }
     } catch (e, stackTrace) {
       debugPrint('AUTH google failed: $e');
       debugPrintStack(stackTrace: stackTrace);
+      await AppTelemetryService.instance.recordError(
+        e,
+        stackTrace,
+        reason: 'Google auth flow failed',
+      );
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
@@ -119,6 +132,7 @@ class _AuthPageMobileState extends State<AuthPageMobile> {
             email: _emailController.text.trim(),
             password: _passwordController.text.trim(),
           );
+          await AppTelemetryService.instance.logLogin(method: 'password');
           debugPrint('AUTH login:success');
         } else {
           final email = _emailController.text.trim();
@@ -171,6 +185,7 @@ class _AuthPageMobileState extends State<AuthPageMobile> {
                   'AUTH register:sendVerification:failed $verificationError',
                 );
               }
+              await AppTelemetryService.instance.logSignUp(method: 'password');
             } catch (e) {
               debugPrint('AUTH register:saveUser:failed $e');
               await userCredential.user?.delete();
@@ -181,6 +196,11 @@ class _AuthPageMobileState extends State<AuthPageMobile> {
       } catch (e, stackTrace) {
         debugPrint('AUTH flow failed: $e');
         debugPrintStack(stackTrace: stackTrace);
+        await AppTelemetryService.instance.recordError(
+          e,
+          stackTrace,
+          reason: 'Email/password auth flow failed',
+        );
         if (!mounted) return;
         ScaffoldMessenger.of(
           context,
