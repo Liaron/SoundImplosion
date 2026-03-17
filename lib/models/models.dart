@@ -6,6 +6,7 @@ enum JamStatus { inElaborazione, pubblicata, annullata, sospesa }
 class AppUser {
   final String uid;
   final String nickname;
+  final String? email;
   final String? role;
   final List<String> gruppi; // ID dei gruppi
   final List<String> amici; // UID degli amici
@@ -16,7 +17,8 @@ class AppUser {
   AppUser({
     required this.uid,
     required this.nickname,
-    this.role,
+    this.email,
+    this.role = 'user',
     this.gruppi = const [],
     this.amici = const [],
     this.preferenze = const {},
@@ -25,15 +27,18 @@ class AppUser {
   });
 
   bool get isAdmin => role == 'admin';
+  String get username => nickname;
 
   Map<String, dynamic> toMap() {
     return {
-      'nickname': nickname,
-      'nickname_lowercase': nickname.toLowerCase(),
-      if (role != null) 'role': role,
+      'username': nickname,
+      'username_lowercase': nickname.toLowerCase(),
+      'email': email,
+      'email_lowercase': email?.toLowerCase(),
+      'role': role ?? 'user',
       // Salva la lista di gruppi come una mappa, più robusto per Firebase
-      'gruppi': { for (var id in gruppi) id : true },
-      'amici': { for (var id in amici) id : true },
+      'gruppi': {for (var id in gruppi) id: true},
+      'amici': {for (var id in amici) id: true},
       'preferenze': preferenze,
       'strumenti_list': strumentiList,
       'profile_image_url': profileImageUrl,
@@ -42,6 +47,7 @@ class AppUser {
 
   AppUser copyWith({
     String? nickname,
+    String? email,
     String? role,
     List<String>? gruppi,
     List<String>? amici,
@@ -52,7 +58,8 @@ class AppUser {
     return AppUser(
       uid: uid,
       nickname: nickname ?? this.nickname,
-      role: role ?? this.role,
+      email: email ?? this.email,
+      role: role ?? this.role ?? 'user',
       gruppi: gruppi ?? this.gruppi,
       amici: amici ?? this.amici,
       preferenze: preferenze ?? this.preferenze,
@@ -70,32 +77,57 @@ class AppUser {
       return [];
     }
 
+    Map<String, dynamic> parseMap(dynamic value) {
+      if (value is Map) {
+        return Map<String, dynamic>.from(value);
+      }
+      return const <String, dynamic>{};
+    }
+
     List<Map<String, dynamic>> parseStrumenti(dynamic value) {
-        if (value == null) return [];
-        final list = <Map<String, dynamic>>[];
-        if (value is List) {
-          for (final item in value) {
-            if (item is Map) list.add(Map<String, dynamic>.from(item));
-          }
-        } else if (value is Map) {
-          for (final item in value.values) {
-            if (item is Map) list.add(Map<String, dynamic>.from(item));
-          }
+      if (value == null) return [];
+      final list = <Map<String, dynamic>>[];
+
+      void addItem(dynamic item) {
+        if (item is Map) {
+          list.add(Map<String, dynamic>.from(item));
+          return;
         }
-        return list;
+        final instrumentName = item?.toString().trim() ?? '';
+        if (instrumentName.isNotEmpty) {
+          list.add({'nome': instrumentName, 'livello': 0});
+        }
+      }
+
+      if (value is List) {
+        for (final item in value) {
+          addItem(item);
+        }
+      } else if (value is Map) {
+        for (final item in value.values) {
+          addItem(item);
+        }
+      } else {
+        addItem(value);
+      }
+
+      return list;
     }
 
     return AppUser(
       uid: uid,
-      nickname: map['nickname'] ?? uid,
-      role: map['role'] as String?,
+      nickname: map['username']?.toString().trim().isNotEmpty == true
+          ? map['username'].toString()
+          : (map['nickname']?.toString().trim().isNotEmpty == true
+                ? map['nickname'].toString()
+                : uid),
+      email: map['email']?.toString(),
+      role: map['role']?.toString() ?? 'user',
       gruppi: parseList<String>(map['gruppi']),
       amici: parseList<String>(map['amici']),
-      preferenze: map['preferenze'] != null
-          ? Map<String, dynamic>.from(map['preferenze'] as Map)
-          : const {},
+      preferenze: parseMap(map['preferenze']),
       strumentiList: parseStrumenti(map['strumenti_list']),
-      profileImageUrl: map['profile_image_url'] as String?,
+      profileImageUrl: map['profile_image_url']?.toString(),
     );
   }
 }
@@ -166,11 +198,11 @@ class Jam {
   final String data;
   final String oraInizio;
   final String oraFine;
-  
+
   final int personePresenti;
   final int personeRichieste;
   final String descrizione;
-  final String pagamento; 
+  final String pagamento;
   final String attrezzatura;
   final String? creatorNickname; // Aggiunto per coerenza
   final JamStatus stato;

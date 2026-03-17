@@ -22,35 +22,44 @@ void main() {
     controller.dispose();
   });
 
-  test('BookNowController validates slot continuity and delegates submit', () async {
-    final repository = FakeBookingRepository(
-      availableDates: [DateTime(2026, 3, 20)],
-      availableSlotsByDate: {
-        '2026-03-20': ['10:00', '11:15', '13:45'],
-      },
-    );
-    final controller = BookNowController(repository: repository);
+  test(
+    'BookNowController validates slot continuity and delegates submit',
+    () async {
+      final repository = FakeBookingRepository(
+        availableDates: [DateTime(2026, 3, 20)],
+        availableSlotsByDate: {
+          '2026-03-20': ['10:00', '11:15', '13:45'],
+        },
+      );
+      final controller = BookNowController(repository: repository);
 
-    await controller.selectDate(DateTime(2026, 3, 20));
-    controller.toggleSlot('10:00');
-    controller.toggleSlot('13:45');
+      await controller.selectDate(DateTime(2026, 3, 20));
+      controller.toggleSlot('10:00');
+      controller.toggleSlot('13:45');
 
-    expect(controller.validateSelection(), 'Gli orari selezionati devono essere consecutivi.');
+      expect(
+        controller.validateSelection(),
+        'Gli orari selezionati devono essere consecutivi.',
+      );
 
-    controller.toggleSlot('13:45');
-    controller.toggleSlot('11:15');
+      controller.toggleSlot('13:45');
+      controller.toggleSlot('11:15');
 
-    expect(controller.validateSelection(), isNull);
-    expect(controller.selectedRangeLabel, '10:00 - 12:30');
+      expect(controller.validateSelection(), isNull);
+      expect(controller.selectedRangeLabel, '10:00 - 12:30');
 
-    await controller.submitBooking(peopleCount: 3, equipment: 'Amplificatore');
+      await controller.submitBooking(
+        peopleCount: 3,
+        equipment: 'Amplificatore',
+      );
 
-    expect(repository.submitCallCount, 1);
-    expect(repository.lastSubmittedPeopleCount, 3);
-    expect(repository.lastSubmittedSlots, ['10:00', '11:15']);
+      expect(repository.submitCallCount, 1);
+      expect(repository.lastSubmittedPeopleCount, 3);
+      expect(repository.lastSubmittedSlots, ['10:00', '11:15']);
 
-    controller.dispose();
-  });
+      controller.dispose();
+    },
+  );
 
   test('BookNowController updates existing booking in edit mode', () async {
     final repository = FakeBookingRepository(
@@ -117,7 +126,8 @@ class FakeBookingRepository implements BookingRepository {
     }
 
     for (int index = 0; index < slots.length - 1; index++) {
-      if (_timeToMinutes(slots[index + 1]) - _timeToMinutes(slots[index]) != 75) {
+      if (_timeToMinutes(slots[index + 1]) - _timeToMinutes(slots[index]) !=
+          75) {
         return false;
       }
     }

@@ -19,13 +19,12 @@ class JamSessionPageMobile extends StatelessWidget {
             color: colorScheme.primary,
             child: TabBar(
               labelColor: colorScheme.onPrimary,
-              unselectedLabelColor: colorScheme.onPrimary.withAlpha(128), // Metodo corretto per opacità
+              unselectedLabelColor: colorScheme.onPrimary.withAlpha(
+                128,
+              ), // Metodo corretto per opacità
               indicatorColor: colorScheme.secondary,
               tabs: const <Widget>[
-                Tab(
-                  text: 'Cerca Jam',
-                  icon: Icon(Icons.search),
-                ),
+                Tab(text: 'Cerca Jam', icon: Icon(Icons.search)),
                 Tab(
                   text: 'Organizza Jam',
                   icon: Icon(Icons.add_circle_outline),

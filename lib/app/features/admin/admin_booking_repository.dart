@@ -10,9 +10,17 @@ abstract class AdminBookingRepository {
 
 class FirebaseAdminBookingRepository implements AdminBookingRepository {
   FirebaseAdminBookingRepository({DatabaseService? databaseService})
-      : _databaseService = databaseService ?? DatabaseService();
+    : _databaseService = databaseService ?? DatabaseService();
 
   final DatabaseService _databaseService;
+
+  Map<String, dynamic>? _mapFromRawValue(dynamic rawValue) {
+    if (rawValue is! Map) {
+      return null;
+    }
+
+    return Map<String, dynamic>.from(rawValue);
+  }
 
   @override
   Stream<List<BookingListItem>> watchPendingBookings() {
@@ -22,7 +30,10 @@ class FirebaseAdminBookingRepository implements AdminBookingRepository {
 
       if (rawData is Map) {
         for (final entry in rawData.entries) {
-          final bookingData = Map<String, dynamic>.from(entry.value as Map);
+          final bookingData = _mapFromRawValue(entry.value);
+          if (bookingData == null) {
+            continue;
+          }
           bookings.add(
             BookingListItem(
               id: entry.key.toString(),
@@ -36,7 +47,10 @@ class FirebaseAdminBookingRepository implements AdminBookingRepository {
           if (item == null) {
             continue;
           }
-          final bookingData = Map<String, dynamic>.from(item as Map);
+          final bookingData = _mapFromRawValue(item);
+          if (bookingData == null) {
+            continue;
+          }
           bookings.add(
             BookingListItem(
               id: index.toString(),
@@ -46,7 +60,11 @@ class FirebaseAdminBookingRepository implements AdminBookingRepository {
         }
       }
 
-      bookings.sort((a, b) => '${a.booking.data} ${a.booking.oraInizio}'.compareTo('${b.booking.data} ${b.booking.oraInizio}'));
+      bookings.sort(
+        (a, b) => '${a.booking.data} ${a.booking.oraInizio}'.compareTo(
+          '${b.booking.data} ${b.booking.oraInizio}',
+        ),
+      );
       return bookings;
     });
   }

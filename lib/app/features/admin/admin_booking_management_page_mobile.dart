@@ -9,10 +9,12 @@ class AdminBookingManagementPageMobile extends StatefulWidget {
   final bool embedded;
 
   @override
-  State<AdminBookingManagementPageMobile> createState() => _AdminBookingManagementPageMobileState();
+  State<AdminBookingManagementPageMobile> createState() =>
+      _AdminBookingManagementPageMobileState();
 }
 
-class _AdminBookingManagementPageMobileState extends State<AdminBookingManagementPageMobile> {
+class _AdminBookingManagementPageMobileState
+    extends State<AdminBookingManagementPageMobile> {
   final AdminBookingController _controller = AdminBookingController();
 
   @override
@@ -41,15 +43,19 @@ class _AdminBookingManagementPageMobileState extends State<AdminBookingManagemen
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Prenotazione confermata')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Prenotazione confermata')));
     } catch (e) {
       if (!mounted) {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Errore: ${e.toString().replaceAll('Exception: ', '')}')),
+        SnackBar(
+          content: Text(
+            'Errore: ${e.toString().replaceAll('Exception: ', '')}',
+          ),
+        ),
       );
     }
   }
@@ -59,7 +65,9 @@ class _AdminBookingManagementPageMobileState extends State<AdminBookingManagemen
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Annulla prenotazione'),
-        content: const Text('Vuoi annullare questa prenotazione e liberare gli slot?'),
+        content: const Text(
+          'Vuoi annullare questa prenotazione e liberare gli slot?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -82,15 +90,19 @@ class _AdminBookingManagementPageMobileState extends State<AdminBookingManagemen
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Prenotazione annullata')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Prenotazione annullata')));
     } catch (e) {
       if (!mounted) {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Errore: ${e.toString().replaceAll('Exception: ', '')}')),
+        SnackBar(
+          content: Text(
+            'Errore: ${e.toString().replaceAll('Exception: ', '')}',
+          ),
+        ),
       );
     }
   }
@@ -140,7 +152,10 @@ class _AdminBookingManagementPageMobileState extends State<AdminBookingManagemen
                     Expanded(
                       child: Text(
                         '${booking.data} ${booking.oraInizio} - ${booking.oraFine}',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
                       ),
                     ),
                     Chip(
@@ -153,22 +168,29 @@ class _AdminBookingManagementPageMobileState extends State<AdminBookingManagemen
                 Text('Richiedente: ${booking.userId}'),
                 Text(item.groupLabel),
                 Text('Partecipanti: ${booking.numeroUtenti}'),
-                if (booking.attrezzatura.isNotEmpty) Text('Attrezzatura: ${booking.attrezzatura}'),
+                if (booking.attrezzatura.isNotEmpty)
+                  Text('Attrezzatura: ${booking.attrezzatura}'),
                 const SizedBox(height: 12),
                 Wrap(
                   spacing: 12,
                   runSpacing: 12,
                   children: [
                     OutlinedButton(
-                      onPressed: _controller.isSubmitting ? null : () => _cancelBooking(item.id),
+                      onPressed: _controller.isSubmitting
+                          ? null
+                          : () => _cancelBooking(item.id),
                       child: const Text('Annulla'),
                     ),
                     OutlinedButton(
-                      onPressed: _controller.isSubmitting ? null : () => _rescheduleBooking(item),
+                      onPressed: _controller.isSubmitting
+                          ? null
+                          : () => _rescheduleBooking(item),
                       child: const Text('Riprogramma'),
                     ),
                     ElevatedButton(
-                      onPressed: _controller.isSubmitting ? null : () => _confirmBooking(item.id),
+                      onPressed: _controller.isSubmitting
+                          ? null
+                          : () => _confirmBooking(item.id),
                       child: const Text('Conferma'),
                     ),
                   ],

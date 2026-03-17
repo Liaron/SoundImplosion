@@ -92,8 +92,15 @@ class _CustomMultiMonthPickerState extends State<CustomMultiMonthPicker> {
 
   Widget _buildMonthView(DateTime monthDate) {
     final title = DateFormat('MMMM yyyy').format(monthDate);
-    final daysInMonth = DateUtils.getDaysInMonth(monthDate.year, monthDate.month);
-    final firstDayWeekday = DateTime(monthDate.year, monthDate.month, 1).weekday; // 1=Mon, 7=Sun
+    final daysInMonth = DateUtils.getDaysInMonth(
+      monthDate.year,
+      monthDate.month,
+    );
+    final firstDayWeekday = DateTime(
+      monthDate.year,
+      monthDate.month,
+      1,
+    ).weekday; // 1=Mon, 7=Sun
 
     return Padding(
       padding: const EdgeInsets.all(8.0),
@@ -123,8 +130,12 @@ class _CustomMultiMonthPickerState extends State<CustomMultiMonthPicker> {
               final day = index - (firstDayWeekday - 1) + 1;
               final date = DateTime(monthDate.year, monthDate.month, day);
 
-              final bool hasJam = widget.jamDates.any((d) => _isSameDay(d, date));
-              final bool isSelected = _currentSelection.any((d) => _isSameDay(d, date));
+              final bool hasJam = widget.jamDates.any(
+                (d) => _isSameDay(d, date),
+              );
+              final bool isSelected = _currentSelection.any(
+                (d) => _isSameDay(d, date),
+              );
 
               return GestureDetector(
                 onTap: hasJam ? () => _toggleDate(date) : null,
@@ -133,16 +144,20 @@ class _CustomMultiMonthPickerState extends State<CustomMultiMonthPicker> {
                     color: isSelected
                         ? Colors.green[900] // Dark green for selected
                         : hasJam
-                            ? Colors.green[300] // Light green for available
-                            : Colors.grey[300], // Grey for unavailable
+                        ? Colors.green[300] // Light green for available
+                        : Colors.grey[300], // Grey for unavailable
                     shape: BoxShape.circle,
-                    border: isSelected ? Border.all(color: Colors.black, width: 2) : null,
+                    border: isSelected
+                        ? Border.all(color: Colors.black, width: 2)
+                        : null,
                   ),
                   alignment: Alignment.center,
                   child: Text(
                     "$day",
                     style: TextStyle(
-                      color: hasJam || isSelected ? Colors.black : Colors.grey[600],
+                      color: hasJam || isSelected
+                          ? Colors.black
+                          : Colors.grey[600],
                       fontWeight: hasJam ? FontWeight.bold : FontWeight.normal,
                     ),
                   ),

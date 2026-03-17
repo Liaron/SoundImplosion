@@ -62,16 +62,22 @@ class _OrganizeJamPageMobileState extends State<OrganizeJamPageMobile> {
   }
 
   Future<void> _selectDateFromCalendar(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
     final now = DateTime.now();
     final lastDate = now.add(const Duration(days: 30));
 
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: _controller.selectedDate ?? _controller.availableDates.firstOrNull ?? now,
+      initialDate:
+          _controller.selectedDate ??
+          _controller.availableDates.firstOrNull ??
+          now,
       firstDate: now,
       lastDate: lastDate,
       selectableDayPredicate: (DateTime day) {
-        return _controller.availableDates.any((available) => _isSameDay(available, day));
+        return _controller.availableDates.any(
+          (available) => _isSameDay(available, day),
+        );
       },
     );
 
@@ -82,7 +88,7 @@ class _OrganizeJamPageMobileState extends State<OrganizeJamPageMobile> {
         if (!mounted) {
           return;
         }
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           SnackBar(content: Text('Errore caricamento orari: $e')),
         );
       }
@@ -98,7 +104,9 @@ class _OrganizeJamPageMobileState extends State<OrganizeJamPageMobile> {
 
     final validationError = _controller.validateSelection();
     if (validationError != null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(validationError)));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(validationError)));
       return;
     }
 
@@ -135,7 +143,7 @@ class _OrganizeJamPageMobileState extends State<OrganizeJamPageMobile> {
             content: Text(
               _isEditing
                   ? 'Le modifiche alla tua Jam Session sono state salvate.'
-              : 'La tua Jam Session è stata inviata per approvazione.',
+                  : 'La tua Jam Session è stata inviata per approvazione.',
             ),
             actions: [
               TextButton(
@@ -166,8 +174,15 @@ class _OrganizeJamPageMobileState extends State<OrganizeJamPageMobile> {
           loadingDialogShown = false;
         }
         await _controller.refreshAvailableSlots();
+        if (!mounted) {
+          return;
+        }
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Errore: ${e.toString().replaceAll("Exception: ", "")}')),
+          SnackBar(
+            content: Text(
+              'Errore: ${e.toString().replaceAll("Exception: ", "")}',
+            ),
+          ),
         );
       }
     }
@@ -192,7 +207,9 @@ class _OrganizeJamPageMobileState extends State<OrganizeJamPageMobile> {
                       child: Center(child: CircularProgressIndicator()),
                     )
                   : InkWell(
-                      onTap: _controller.availableDates.isEmpty ? null : () => _selectDateFromCalendar(context),
+                      onTap: _controller.availableDates.isEmpty
+                          ? null
+                          : () => _selectDateFromCalendar(context),
                       child: InputDecorator(
                         decoration: const InputDecoration(
                           labelText: 'Seleziona Giorno',
@@ -201,20 +218,31 @@ class _OrganizeJamPageMobileState extends State<OrganizeJamPageMobile> {
                         ),
                         child: Text(
                           _controller.selectedDate == null
-                              ? (_controller.availableDates.isEmpty ? 'Nessuna data disponibile' : 'Tocca per scegliere')
-                              : DateFormat('EEEE d MMMM yyyy').format(_controller.selectedDate!),
-                          style: TextStyle(color: _controller.selectedDate == null ? Colors.grey : Colors.black),
+                              ? (_controller.availableDates.isEmpty
+                                    ? 'Nessuna data disponibile'
+                                    : 'Tocca per scegliere')
+                              : DateFormat(
+                                  'EEEE d MMMM yyyy',
+                                ).format(_controller.selectedDate!),
+                          style: TextStyle(
+                            color: _controller.selectedDate == null
+                                ? Colors.grey
+                                : Colors.black,
+                          ),
                         ),
                       ),
                     ),
               const SizedBox(height: 24),
 
               if (showJamForm) ...[
-                const Text("Seleziona Orari", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                const Text(
+                  "Seleziona Orari",
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
                 const SizedBox(height: 8),
-                _controller.isLoadingSlots 
-                  ? const Center(child: CircularProgressIndicator())
-                  : _controller.availableSlots.isEmpty 
+                _controller.isLoadingSlots
+                    ? const Center(child: CircularProgressIndicator())
+                    : _controller.availableSlots.isEmpty
                     ? const Text("Nessuna disponibilità.")
                     : Wrap(
                         spacing: 8.0,
@@ -227,14 +255,18 @@ class _OrganizeJamPageMobileState extends State<OrganizeJamPageMobile> {
                           );
                         }).toList(),
                       ),
-                 const SizedBox(height: 8),
-                 if (_controller.selectedRangeLabel != null)
-                   Text('Intervallo: ${_controller.selectedRangeLabel!}',
-                     style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                if (_controller.selectedRangeLabel != null)
+                  Text(
+                    'Intervallo: ${_controller.selectedRangeLabel!}',
+                    style: const TextStyle(
+                      color: Colors.green,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 const SizedBox(height: 24),
 
                 // 2. Campi Specifici Jam
-                
                 Row(
                   children: [
                     Expanded(
@@ -247,8 +279,12 @@ class _OrganizeJamPageMobileState extends State<OrganizeJamPageMobile> {
                         ),
                         keyboardType: TextInputType.number,
                         validator: (value) {
-                          if (value == null || value.isEmpty) return 'Obbligatorio';
-                          if (int.tryParse(value) == null) return 'Inserisci un numero';
+                          if (value == null || value.isEmpty) {
+                            return 'Obbligatorio';
+                          }
+                          if (int.tryParse(value) == null) {
+                            return 'Inserisci un numero';
+                          }
                           return null;
                         },
                       ),
@@ -264,9 +300,13 @@ class _OrganizeJamPageMobileState extends State<OrganizeJamPageMobile> {
                         ),
                         keyboardType: TextInputType.number,
                         validator: (value) {
-                          if (value == null || value.isEmpty) return 'Obbligatorio';
+                          if (value == null || value.isEmpty) {
+                            return 'Obbligatorio';
+                          }
                           final n = int.tryParse(value);
-                          if (n == null || n < 1 || n > 20) return 'Tra 1 e 20';
+                          if (n == null || n < 1 || n > 20) {
+                            return 'Tra 1 e 20';
+                          }
                           return null;
                         },
                       ),
@@ -284,7 +324,9 @@ class _OrganizeJamPageMobileState extends State<OrganizeJamPageMobile> {
                     prefixIcon: Icon(Icons.description),
                   ),
                   maxLines: 3,
-                  validator: (value) => value == null || value.isEmpty ? 'Inserisci una descrizione' : null,
+                  validator: (value) => value == null || value.isEmpty
+                      ? 'Inserisci una descrizione'
+                      : null,
                 ),
                 const SizedBox(height: 16),
 
@@ -303,7 +345,10 @@ class _OrganizeJamPageMobileState extends State<OrganizeJamPageMobile> {
                         items: _controller.userGroups.map((group) {
                           return DropdownMenuItem(
                             value: group['id'],
-                            child: Text(group['name'] ?? '', overflow: TextOverflow.ellipsis),
+                            child: Text(
+                              group['name'] ?? '',
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           );
                         }).toList(),
                         onChanged: _controller.setSelectedGroup,
@@ -322,7 +367,8 @@ class _OrganizeJamPageMobileState extends State<OrganizeJamPageMobile> {
                           return DropdownMenuItem(value: opt, child: Text(opt));
                         }).toList(),
                         onChanged: _controller.setSelectedPayment,
-                        validator: (value) => value == null ? 'Obbligatorio' : null,
+                        validator: (value) =>
+                            value == null ? 'Obbligatorio' : null,
                       ),
                     ),
                   ],
@@ -346,12 +392,15 @@ class _OrganizeJamPageMobileState extends State<OrganizeJamPageMobile> {
                     backgroundColor: Colors.grey[850],
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
-                  child: _controller.isLoading 
-                    ? const CircularProgressIndicator(color: Colors.white) 
-                    : Text(
-                        _isEditing ? 'SALVA MODIFICHE' : 'PUBBLICA JAM',
-                        style: const TextStyle(fontSize: 16, color: Colors.white),
-                      ),
+                  child: _controller.isLoading
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : Text(
+                          _isEditing ? 'SALVA MODIFICHE' : 'PUBBLICA JAM',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            color: Colors.white,
+                          ),
+                        ),
                 ),
               ],
             ],

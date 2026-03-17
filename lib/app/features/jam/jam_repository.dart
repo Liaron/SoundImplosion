@@ -67,7 +67,10 @@ class JamListItem {
       return rawValue.keys.map((key) => key.toString()).toSet();
     }
     if (rawValue is List) {
-      return rawValue.where((item) => item != null).map((item) => item.toString()).toSet();
+      return rawValue
+          .where((item) => item != null)
+          .map((item) => item.toString())
+          .toSet();
     }
     return <String>{};
   }
@@ -109,28 +112,41 @@ abstract class JamRepository {
 }
 
 class FirebaseJamRepository implements JamRepository {
-  FirebaseJamRepository({
-    DatabaseService? databaseService,
-    FirebaseAuth? auth,
-  })  : _databaseService = databaseService ?? DatabaseService(),
-        _auth = auth ?? FirebaseAuth.instance;
+  FirebaseJamRepository({DatabaseService? databaseService, FirebaseAuth? auth})
+    : _databaseService = databaseService ?? DatabaseService(),
+      _auth = auth ?? FirebaseAuth.instance;
 
   final DatabaseService _databaseService;
   final FirebaseAuth _auth;
 
   static const int _slotDurationMinutes = 75;
 
+  Map<String, dynamic>? _mapFromRawValue(dynamic rawValue) {
+    if (rawValue is! Map) {
+      return null;
+    }
+
+    return Map<String, dynamic>.from(rawValue);
+  }
+
   @override
   Future<List<DateTime>> loadAvailableDates() async {
     final now = DateTime.now();
-    final candidateDates = List.generate(30, (index) => now.add(Duration(days: index)));
+    final candidateDates = List.generate(
+      30,
+      (index) => now.add(Duration(days: index)),
+    );
 
-    final results = await Future.wait(candidateDates.map((date) async {
-      final dateStr = DateFormat('yyyy-MM-dd').format(date);
-      final freeSlots = await _databaseService.getFreeSlotsForDate(dateStr);
-      final hasBookableSlot = freeSlots.any((slot) => _isSlotAtLeast24HoursAway(slot, date));
-      return hasBookableSlot ? date : null;
-    }));
+    final results = await Future.wait(
+      candidateDates.map((date) async {
+        final dateStr = DateFormat('yyyy-MM-dd').format(date);
+        final freeSlots = await _databaseService.getFreeSlotsForDate(dateStr);
+        final hasBookableSlot = freeSlots.any(
+          (slot) => _isSlotAtLeast24HoursAway(slot, date),
+        );
+        return hasBookableSlot ? date : null;
+      }),
+    );
 
     return results.whereType<DateTime>().toList();
   }
@@ -139,7 +155,9 @@ class FirebaseJamRepository implements JamRepository {
   Future<List<String>> loadAvailableSlots(DateTime date) async {
     final dateStr = DateFormat('yyyy-MM-dd').format(date);
     final freeSlots = await _databaseService.getFreeSlotsForDate(dateStr);
-    return freeSlots.where((slot) => _isSlotAtLeast24HoursAway(slot, date)).toList();
+    return freeSlots
+        .where((slot) => _isSlotAtLeast24HoursAway(slot, date))
+        .toList();
   }
 
   @override
@@ -241,29 +259,29 @@ class FirebaseJamRepository implements JamRepository {
     List<JamListItem> ownJams = const [];
 
     void emitMerged() {
-      final merged = <String, JamListItem>{
-        for (final jam in publishedJams) jam.id: jam,
-        for (final jam in ownJams) jam.id: jam,
-      }.values.toList()
-        ..sort((a, b) => '${b.jam.data} ${b.jam.oraInizio}'.compareTo('${a.jam.data} ${a.jam.oraInizio}'));
+      final merged =
+          <String, JamListItem>{
+            for (final jam in publishedJams) jam.id: jam,
+            for (final jam in ownJams) jam.id: jam,
+          }.values.toList()..sort(
+            (a, b) => '${b.jam.data} ${b.jam.oraInizio}'.compareTo(
+              '${a.jam.data} ${a.jam.oraInizio}',
+            ),
+          );
       controller.add(merged);
     }
 
-    final publishedSubscription = _databaseService.getPublishedJamsStream().listen(
-      (event) {
-        publishedJams = _parseJamCollection(event.snapshot.value);
-        emitMerged();
-      },
-      onError: controller.addError,
-    );
+    final publishedSubscription = _databaseService
+        .getPublishedJamsStream()
+        .listen((event) {
+          publishedJams = _parseJamCollection(event.snapshot.value);
+          emitMerged();
+        }, onError: controller.addError);
 
-    final ownSubscription = _databaseService.getOwnJamsStream().listen(
-      (event) {
-        ownJams = _parseJamCollection(event.snapshot.value);
-        emitMerged();
-      },
-      onError: controller.addError,
-    );
+    final ownSubscription = _databaseService.getOwnJamsStream().listen((event) {
+      ownJams = _parseJamCollection(event.snapshot.value);
+      emitMerged();
+    }, onError: controller.addError);
 
     controller.onCancel = () async {
       await publishedSubscription.cancel();
@@ -276,7 +294,9 @@ class FirebaseJamRepository implements JamRepository {
   @override
   Future<List<JamListItem>> loadPublishedJamsOnce() async {
     final jams = await _databaseService.getPublishedJamsOnce();
-    return jams.map((jam) => JamListItem.fromMap(jam['key'].toString(), jam)).toList();
+    return jams
+        .map((jam) => JamListItem.fromMap(jam['key'].toString(), jam))
+        .toList();
   }
 
   @override
@@ -314,7 +334,10 @@ class FirebaseJamRepository implements JamRepository {
 
     if (rawData is Map) {
       for (final entry in rawData.entries) {
-        final jamData = Map<String, dynamic>.from(entry.value as Map);
+        final jamData = _mapFromRawValue(entry.value);
+        if (jamData == null) {
+          continue;
+        }
         jams.add(JamListItem.fromMap(entry.key.toString(), jamData));
       }
     } else if (rawData is List) {
@@ -324,12 +347,19 @@ class FirebaseJamRepository implements JamRepository {
           continue;
         }
 
-        final jamData = Map<String, dynamic>.from(item as Map);
+        final jamData = _mapFromRawValue(item);
+        if (jamData == null) {
+          continue;
+        }
         jams.add(JamListItem.fromMap(index.toString(), jamData));
       }
     }
 
-    jams.sort((a, b) => '${b.jam.data} ${b.jam.oraInizio}'.compareTo('${a.jam.data} ${a.jam.oraInizio}'));
+    jams.sort(
+      (a, b) => '${b.jam.data} ${b.jam.oraInizio}'.compareTo(
+        '${a.jam.data} ${a.jam.oraInizio}',
+      ),
+    );
     return jams;
   }
 

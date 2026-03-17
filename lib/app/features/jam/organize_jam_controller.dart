@@ -3,7 +3,7 @@ import 'package:soundimplosion/app/features/jam/jam_repository.dart';
 
 class OrganizeJamController extends ChangeNotifier {
   OrganizeJamController({JamRepository? repository})
-      : _repository = repository ?? FirebaseJamRepository();
+    : _repository = repository ?? FirebaseJamRepository();
 
   final JamRepository _repository;
 
@@ -45,18 +45,12 @@ class OrganizeJamController extends ChangeNotifier {
 
     if (initialJam != null) {
       _hydrateFromExistingJam(initialJam);
-      await Future.wait([
-        loadAvailableDates(),
-        loadUserGroups(),
-      ]);
+      await Future.wait([loadAvailableDates(), loadUserGroups()]);
       await refreshAvailableSlots();
       return;
     }
 
-    await Future.wait([
-      loadAvailableDates(),
-      loadUserGroups(),
-    ]);
+    await Future.wait([loadAvailableDates(), loadUserGroups()]);
   }
 
   Future<void> loadAvailableDates() async {
@@ -65,10 +59,13 @@ class OrganizeJamController extends ChangeNotifier {
 
     try {
       availableDates = await _repository.loadAvailableDates();
-      if (_originalDate != null && !_containsDay(availableDates, _originalDate!)) {
-        availableDates = [...availableDates, _originalDate!]..sort((a, b) => a.compareTo(b));
+      if (_originalDate != null &&
+          !_containsDay(availableDates, _originalDate!)) {
+        availableDates = [...availableDates, _originalDate!]
+          ..sort((a, b) => a.compareTo(b));
       }
-      if (selectedDate != null && !_containsDay(availableDates, selectedDate!)) {
+      if (selectedDate != null &&
+          !_containsDay(availableDates, selectedDate!)) {
         selectedDate = null;
         availableSlots = [];
         _selectedSlots.clear();
@@ -83,13 +80,12 @@ class OrganizeJamController extends ChangeNotifier {
     userGroups = await _repository.loadUserGroups();
 
     final currentGroupId = selectedGroupId;
-    if (currentGroupId != null && currentGroupId.isNotEmpty && !userGroups.any((group) => group['id'] == currentGroupId)) {
+    if (currentGroupId != null &&
+        currentGroupId.isNotEmpty &&
+        !userGroups.any((group) => group['id'] == currentGroupId)) {
       userGroups = [
         ...userGroups,
-        {
-          'id': currentGroupId,
-          'name': 'Gruppo corrente',
-        },
+        {'id': currentGroupId, 'name': 'Gruppo corrente'},
       ];
     }
 
@@ -115,7 +111,8 @@ class OrganizeJamController extends ChangeNotifier {
       final loadedSlots = await _repository.loadAvailableSlots(currentDate);
       final mergedSlots = {...loadedSlots};
 
-      if (_originalDate != null && _containsDay([_originalDate!], currentDate)) {
+      if (_originalDate != null &&
+          _containsDay([_originalDate!], currentDate)) {
         mergedSlots.addAll(_originalSelectedSlots);
       }
 
@@ -228,7 +225,10 @@ class OrganizeJamController extends ChangeNotifier {
     _originalDate = selectedDate;
     selectedPayment = jam.jam.pagamento.isEmpty ? null : jam.jam.pagamento;
     selectedGroupId = jam.jam.groupId;
-    _originalSelectedSlots = _buildSlotRange(jam.jam.oraInizio, jam.jam.oraFine);
+    _originalSelectedSlots = _buildSlotRange(
+      jam.jam.oraInizio,
+      jam.jam.oraFine,
+    );
   }
 
   List<String> _buildSlotRange(String startTime, String endTime) {

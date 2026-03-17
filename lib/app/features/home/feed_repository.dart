@@ -49,9 +49,17 @@ abstract class FeedRepository {
 
 class FirebaseFeedRepository implements FeedRepository {
   FirebaseFeedRepository({DatabaseService? databaseService})
-      : _databaseService = databaseService ?? DatabaseService();
+    : _databaseService = databaseService ?? DatabaseService();
 
   final DatabaseService _databaseService;
+
+  Map<String, dynamic>? _mapFromRawValue(dynamic rawValue) {
+    if (rawValue is! Map) {
+      return null;
+    }
+
+    return Map<String, dynamic>.from(rawValue);
+  }
 
   @override
   Stream<List<HomeFeedItem>> watchFeedItems() {
@@ -61,7 +69,10 @@ class FirebaseFeedRepository implements FeedRepository {
 
       if (rawData is Map) {
         for (final entry in rawData.entries) {
-          final itemData = Map<String, dynamic>.from(entry.value as Map);
+          final itemData = _mapFromRawValue(entry.value);
+          if (itemData == null) {
+            continue;
+          }
           feedItems.add(HomeFeedItem.fromMap(entry.key.toString(), itemData));
         }
       } else if (rawData is List) {
@@ -70,7 +81,10 @@ class FirebaseFeedRepository implements FeedRepository {
           if (item == null) {
             continue;
           }
-          final itemData = Map<String, dynamic>.from(item as Map);
+          final itemData = _mapFromRawValue(item);
+          if (itemData == null) {
+            continue;
+          }
           feedItems.add(HomeFeedItem.fromMap(index.toString(), itemData));
         }
       }

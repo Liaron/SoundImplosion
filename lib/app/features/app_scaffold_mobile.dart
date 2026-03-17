@@ -10,7 +10,6 @@ import 'package:soundimplosion/app/features/contact_us/contact_us_page_mobile.da
 import 'package:soundimplosion/common/variables.dart';
 import 'package:soundimplosion/services/firebase_auth.dart';
 
-
 // Widget segnaposto per le pagine non ancora create.
 class PlaceholderPage extends StatelessWidget {
   final String title;
@@ -18,15 +17,13 @@ class PlaceholderPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Text('Pagina: $title'),
-    );
+    return Center(child: Text('Pagina: $title'));
   }
 }
 
 class AppScaffoldMobile extends StatefulWidget {
   const AppScaffoldMobile({
-    super.key, 
+    super.key,
     this.initialIndex = 0,
     this.initialJamToOpen, // Parametro opzionale per aprire una jam specifica
   });
@@ -39,10 +36,8 @@ class AppScaffoldMobile extends StatefulWidget {
 }
 
 class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
-
   final AuthService _authService = AuthService();
   final AppScaffoldController _controller = AppScaffoldController();
-  final TextEditingController _nicknameController = TextEditingController();
 
   Future<void> _signOut() async {
     await _authService.signOut();
@@ -57,10 +52,11 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
     'Home',
     'Prenotazioni',
     'Jam Session',
+    'Gruppi',
+    'Admin',
     'Profilo',
     'Contattaci',
     'Impostazioni',
-    'LogOut'
   ];
 
   void _navigateToPage(int index) {
@@ -71,36 +67,22 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
     });
   }
 
-  Future<void> _openAdminPanel() async {
-    Navigator.pop(context);
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => const AdminManagementPageMobile(),
-      ),
-    );
-  }
-
-  Future<void> _openGroupsPage() async {
-    Navigator.pop(context);
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => const GroupsPageMobile(),
-      ),
-    );
-  }
-
   @override
   void initState() {
     super.initState();
     _controller.addListener(_handleControllerChanged);
-    
+
     _widgetOptions = <Widget>[
       const HomePageMobile(), // 0
       const BookingsScaffoldMobile(), // 1
-      JamSessionPageMobile(initialJamToOpen: widget.initialJamToOpen), // 2 - Passiamo il parametro
-      const ProfileDetailsPageMobile(), // 3
-      const ContactUsPageMobile(), // 4
-      const PlaceholderPage(title: 'Impostazioni'),
+      JamSessionPageMobile(
+        initialJamToOpen: widget.initialJamToOpen,
+      ), // 2 - Passiamo il parametro
+      const GroupsPageMobile(embedded: true), // 3
+      const AdminManagementPageMobile(embedded: true), // 4
+      const ProfileDetailsPageMobile(), // 5
+      const ContactUsPageMobile(), // 6
+      const PlaceholderPage(title: 'Impostazioni'), // 7
     ];
 
     final maxIndex = _widgetOptions.length - 1;
@@ -109,7 +91,7 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
         ? 0
         : (incoming > maxIndex ? maxIndex : incoming);
     _currentPageTitle = _pageTitles[_selectedIndex];
-    
+
     _controller.initialize();
   }
 
@@ -117,7 +99,6 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
   void dispose() {
     _controller.removeListener(_handleControllerChanged);
     _controller.dispose();
-    _nicknameController.dispose();
     super.dispose();
   }
 
@@ -127,35 +108,55 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
     }
   }
 
-  Future<void> _saveInitialProfile() async {
-    if (_nicknameController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Inserisci un nickname valido")),
-      );
-      return;
-    }
-
+  Future<void> _sendVerificationEmail() async {
     try {
-      await _controller.saveInitialProfile(_nicknameController.text);
-    } catch (e) {
-      debugPrint("Errore salvataggio profilo iniziale: $e");
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Errore salvataggio: $e")),
-        );
+      await _controller.sendVerificationEmail();
+      if (!mounted) {
+        return;
       }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Email di verifica inviata. Controlla la tua casella.'),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Invio email fallito: $e')));
+    }
+  }
+
+  Future<void> _refreshEmailVerification() async {
+    try {
+      await _controller.refreshEmailVerification();
+      if (!mounted || !_controller.isEmailVerified) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Email verificata correttamente.')),
+      );
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Verifica non aggiornata: $e')));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     if (_controller.isLoadingProfile) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    if (!_controller.isProfileConfigured) {
+    if (!_controller.isEmailVerified) {
+      final email =
+          _authService.currentUser?.email ?? _controller.user?.email ?? '';
       return Scaffold(
         appBar: AppBar(title: const Text("Benvenuto su SoundImplosion")),
         body: Padding(
@@ -164,36 +165,46 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Text(
-                "Configura il tuo profilo",
+                "Verifica la tua email",
                 style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
-              const Text(
-                "Per continuare, scegli un Nickname unico che ti rappresenti nella community.",
+              Text(
+                email.isEmpty
+                    ? "Apri l'email ricevuta e conferma il tuo account per continuare."
+                    : "Abbiamo inviato un link di verifica a $email. Aprilo e poi torna qui.",
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 32),
-              TextField(
-                controller: _nicknameController,
-                decoration: const InputDecoration(
-                  labelText: "Nickname",
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.person),
-                ),
-              ),
-              const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _saveInitialProfile,
+                child: ElevatedButton.icon(
+                  onPressed: _sendVerificationEmail,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Theme.of(context).primaryColor,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
-                  child: const Text("SALVA E CONTINUA"),
+                  icon: const Icon(Icons.mark_email_read_outlined),
+                  label: const Text("INVIA DI NUOVO EMAIL"),
                 ),
               ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _refreshEmailVerification,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).primaryColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  icon: const Icon(Icons.verified_user_outlined),
+                  label: const Text("HO GIA VERIFICATO"),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextButton(onPressed: _signOut, child: const Text('Esci')),
             ],
           ),
         ),
@@ -201,9 +212,7 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_currentPageTitle),
-      ),
+      appBar: AppBar(title: Text(_currentPageTitle)),
       body: _widgetOptions.elementAt(_selectedIndex),
       drawer: Drawer(
         child: Column(
@@ -234,30 +243,30 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
             ListTile(
               leading: const Icon(Icons.groups),
               title: const Text('Gruppi'),
-              onTap: _openGroupsPage,
+              onTap: () => _navigateToPage(3),
             ),
             if (_controller.isAdmin)
               ListTile(
                 leading: const Icon(Icons.admin_panel_settings),
                 title: const Text('Admin'),
-                onTap: _openAdminPanel,
+                onTap: () => _navigateToPage(4),
               ),
-            const Spacer(), 
+            const Spacer(),
             const Divider(),
             ListTile(
               leading: const Icon(Icons.person),
               title: const Text('Profilo'),
-              onTap: () => _navigateToPage(3),
+              onTap: () => _navigateToPage(5),
             ),
             ListTile(
               leading: const Icon(Icons.contact_mail),
               title: const Text('Contattaci'),
-              onTap: () => _navigateToPage(4),
+              onTap: () => _navigateToPage(6),
             ),
             ListTile(
               leading: const Icon(Icons.settings),
               title: const Text('Impostazioni'),
-              onTap: () => _navigateToPage(5),
+              onTap: () => _navigateToPage(7),
             ),
             const Divider(),
             ListTile(
@@ -270,10 +279,7 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
               child: Text(
                 'SoundImplosion v${AppVariables.appVersion}',
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Colors.grey,
-                  fontSize: 11.0,
-                ),
+                style: const TextStyle(color: Colors.grey, fontSize: 11.0),
               ),
             ),
           ],

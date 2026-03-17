@@ -23,7 +23,10 @@ void main() {
     controller.toggleSlot('13:45');
     controller.setSelectedPayment('Offerto');
 
-    expect(controller.validateSelection(), 'Gli orari selezionati devono essere consecutivi.');
+    expect(
+      controller.validateSelection(),
+      'Gli orari selezionati devono essere consecutivi.',
+    );
 
     controller.toggleSlot('13:45');
     controller.toggleSlot('11:15');
@@ -128,7 +131,10 @@ void main() {
       streamItems: [jamOne, jamTwo],
       publishedItems: [jamOne],
     );
-    final controller = FindJamController(repository: repository, currentUserId: 'user-1');
+    final controller = FindJamController(
+      repository: repository,
+      currentUserId: 'user-1',
+    );
 
     await controller.initialize();
     await Future<void>.delayed(Duration.zero);
@@ -170,7 +176,10 @@ void main() {
       ),
     );
     final repository = FakeJamRepository(jamById: {'jam-1': jam});
-    final controller = FindJamController(repository: repository, currentUserId: 'user-1');
+    final controller = FindJamController(
+      repository: repository,
+      currentUserId: 'user-1',
+    );
 
     final loadedJam = await controller.loadJamById('jam-1');
 
@@ -182,7 +191,10 @@ void main() {
 
   test('FindJamController joins jam through repository', () async {
     final repository = FakeJamRepository();
-    final controller = FindJamController(repository: repository, currentUserId: 'user-1');
+    final controller = FindJamController(
+      repository: repository,
+      currentUserId: 'user-1',
+    );
 
     await controller.joinJam('jam-42');
 
@@ -191,59 +203,67 @@ void main() {
     controller.dispose();
   });
 
-  test('FindJamController keeps pending jams visible only in Mie Jam filter', () async {
-    final pendingOwnJam = JamListItem(
-      id: 'jam-pending',
-      jam: Jam(
+  test(
+    'FindJamController keeps pending jams visible only in Mie Jam filter',
+    () async {
+      final pendingOwnJam = JamListItem(
         id: 'jam-pending',
-        creatorId: 'user-1',
-        data: '2026-03-22',
-        oraInizio: '10:00',
-        oraFine: '12:30',
-        personePresenti: 1,
-        personeRichieste: 3,
-        descrizione: 'Pending jam',
-        pagamento: 'Offerto',
-        attrezzatura: '',
-        stato: JamStatus.inElaborazione,
-      ),
-    );
-    final publishedJam = JamListItem(
-      id: 'jam-published',
-      jam: Jam(
+        jam: Jam(
+          id: 'jam-pending',
+          creatorId: 'user-1',
+          data: '2026-03-22',
+          oraInizio: '10:00',
+          oraFine: '12:30',
+          personePresenti: 1,
+          personeRichieste: 3,
+          descrizione: 'Pending jam',
+          pagamento: 'Offerto',
+          attrezzatura: '',
+          stato: JamStatus.inElaborazione,
+        ),
+      );
+      final publishedJam = JamListItem(
         id: 'jam-published',
-        creatorId: 'user-2',
-        data: '2026-03-23',
-        oraInizio: '14:00',
-        oraFine: '16:30',
-        personePresenti: 2,
-        personeRichieste: 2,
-        descrizione: 'Published jam',
-        pagamento: 'Diviso',
-        attrezzatura: '',
-        stato: JamStatus.pubblicata,
-      ),
-    );
-    final controller = FindJamController(
-      repository: FakeJamRepository(streamItems: [pendingOwnJam, publishedJam]),
-      currentUserId: 'user-1',
-    );
+        jam: Jam(
+          id: 'jam-published',
+          creatorId: 'user-2',
+          data: '2026-03-23',
+          oraInizio: '14:00',
+          oraFine: '16:30',
+          personePresenti: 2,
+          personeRichieste: 2,
+          descrizione: 'Published jam',
+          pagamento: 'Diviso',
+          attrezzatura: '',
+          stato: JamStatus.pubblicata,
+        ),
+      );
+      final controller = FindJamController(
+        repository: FakeJamRepository(
+          streamItems: [pendingOwnJam, publishedJam],
+        ),
+        currentUserId: 'user-1',
+      );
 
-    await controller.initialize();
-    await Future<void>.delayed(Duration.zero);
+      await controller.initialize();
+      await Future<void>.delayed(Duration.zero);
 
-    expect(controller.filteredJams.map((jam) => jam.id), ['jam-published']);
+      expect(controller.filteredJams.map((jam) => jam.id), ['jam-published']);
 
-    controller.setShowMyJams(true);
+      controller.setShowMyJams(true);
 
-    expect(controller.filteredJams.map((jam) => jam.id), ['jam-pending']);
+      expect(controller.filteredJams.map((jam) => jam.id), ['jam-pending']);
 
-    controller.dispose();
-  });
+      controller.dispose();
+    },
+  );
 
   test('FindJamController leaves jam through repository', () async {
     final repository = FakeJamRepository();
-    final controller = FindJamController(repository: repository, currentUserId: 'user-1');
+    final controller = FindJamController(
+      repository: repository,
+      currentUserId: 'user-1',
+    );
 
     await controller.leaveJam('jam-42');
 
@@ -285,7 +305,8 @@ class FakeJamRepository implements JamRepository {
     }
 
     for (int index = 0; index < slots.length - 1; index++) {
-      if (_timeToMinutes(slots[index + 1]) - _timeToMinutes(slots[index]) != 75) {
+      if (_timeToMinutes(slots[index + 1]) - _timeToMinutes(slots[index]) !=
+          75) {
         return false;
       }
     }

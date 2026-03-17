@@ -8,7 +8,8 @@ import 'package:intl/intl.dart';
 class DatabaseService {
   final DatabaseReference _dbRef = FirebaseDatabase.instanceFor(
     app: Firebase.app(),
-    databaseURL: 'https://liaron-soundimplosion-default-rtdb.europe-west1.firebasedatabase.app',
+    databaseURL:
+        'https://liaron-soundimplosion-default-rtdb.europe-west1.firebasedatabase.app',
   ).ref();
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -33,25 +34,331 @@ class DatabaseService {
 
   // --- Gestione Utenti ---
 
-  Future<void> saveUser(AppUser user) async {
-    final existingSnapshot = await _dbRef.child('users').child(user.uid).get();
-    final updates = <String, dynamic>{
-      '/users/${user.uid}': user.toMap(),
-      '/user_search_index/${user.nickname.toLowerCase()}/${user.uid}': {
-        'nickname': user.nickname,
-      },
-    };
+  Map<String, dynamic> _asStringKeyedMap(dynamic rawValue) {
+    if (rawValue is Map) {
+      return Map<String, dynamic>.from(rawValue);
+    }
+    return <String, dynamic>{};
+  }
 
-    if (existingSnapshot.exists && existingSnapshot.value != null) {
-      final existingData = Map<String, dynamic>.from(existingSnapshot.value as Map);
-      final previousNickname = existingData['nickname']?.toString();
-      final previousLowercase = previousNickname?.toLowerCase();
-      if (previousLowercase != null && previousLowercase.isNotEmpty && previousLowercase != user.nickname.toLowerCase()) {
-        updates['/user_search_index/$previousLowercase/${user.uid}'] = null;
+  @visibleForTesting
+  static Set<String> extractIndexedUserIds(dynamic rawValue) {
+    if (rawValue == null) {
+      return const <String>{};
+    }
+
+    if (rawValue is String) {
+      final trimmedValue = rawValue.trim();
+      return trimmedValue.isEmpty ? const <String>{} : <String>{trimmedValue};
+    }
+
+    if (rawValue is! Map) {
+      return const <String>{};
+    }
+
+    final data = Map<String, dynamic>.from(rawValue);
+    final looksLikeSinglePayload =
+        data.containsKey('uid') ||
+        data.containsKey('nickname') ||
+        data.containsKey('username');
+    if (looksLikeSinglePayload) {
+      final uid = data['uid']?.toString().trim() ?? '';
+      return uid.isEmpty ? const <String>{} : <String>{uid};
+    }
+
+    final userIds = <String>{};
+    for (final key in data.keys) {
+      final uid = key.toString().trim();
+      if (uid.isNotEmpty) {
+        userIds.add(uid);
+      }
+    }
+    return userIds;
+  }
+
+  bool _isLegacySingleIndexEntry(dynamic rawValue, String uid) {
+    if (rawValue is String) {
+      return rawValue.trim() == uid;
+    }
+
+    if (rawValue is! Map) {
+      return false;
+    }
+
+    final data = Map<String, dynamic>.from(rawValue);
+    if (!(data.containsKey('uid') ||
+        data.containsKey('nickname') ||
+        data.containsKey('username'))) {
+      return false;
+    }
+
+    return data['uid']?.toString().trim() == uid;
+  }
+
+  String _normalizeNickname(String nickname) => nickname.trim().toLowerCase();
+  String _normalizeEmail(String email) => email.trim().toLowerCase();
+  String _emailKey(String email) => _normalizeEmail(email).replaceAll('.', ',');
+
+  @visibleForTesting
+  static String sanitizeUsernameSeed(String value) {
+    final lowercased = value.trim().toLowerCase();
+    final collapsed = lowercased.replaceAll(RegExp(r'\s+'), '');
+    final sanitized = collapsed.replaceAll(RegExp(r'[^a-z0-9_]'), '');
+    return sanitized;
+  }
+
+  Future<String> generateAvailableUsername({
+    required String? preferredName,
+    required String? email,
+    String? excludingUid,
+  }) async {
+    final emailLocalPart = email?.split('@').first;
+    final baseSeed = sanitizeUsernameSeed(
+      preferredName?.trim().isNotEmpty == true
+          ? preferredName!
+          : (emailLocalPart?.trim().isNotEmpty == true
+                ? emailLocalPart!
+                : 'user'),
+    );
+    final baseUsername = baseSeed.isEmpty ? 'user' : baseSeed;
+
+    var counter = 0;
+    while (true) {
+      final candidate = counter == 0 ? baseUsername : '$baseUsername$counter';
+      if (await isNicknameAvailable(candidate, excludingUid: excludingUid)) {
+        return candidate;
+      }
+      counter += 1;
+    }
+  }
+
+  Future<bool> isEmailAvailable(String email, {String? excludingUid}) async {
+    final normalizedEmail = _normalizeEmail(email);
+    final emailKey = _emailKey(email);
+    if (normalizedEmail.isEmpty) {
+      return false;
+    }
+
+    final claimSnapshot = await _dbRef
+        .child('email_claims')
+        .child(emailKey)
+        .get();
+    final claimedBy = claimSnapshot.value?.toString().trim() ?? '';
+    if (claimedBy.isEmpty) {
+      return true;
+    }
+
+    return claimedBy == excludingUid;
+  }
+
+  Future<RegistrationAvailability> checkRegistrationAvailability({
+    required String nickname,
+    required String email,
+    String? excludingUid,
+  }) async {
+    final results = await Future.wait([
+      isNicknameAvailable(nickname, excludingUid: excludingUid),
+      isEmailAvailable(email, excludingUid: excludingUid),
+    ]);
+
+    return RegistrationAvailability(
+      nicknameAvailable: results[0],
+      emailAvailable: results[1],
+    );
+  }
+
+  Future<bool> isNicknameAvailable(
+    String nickname, {
+    String? excludingUid,
+  }) async {
+    final normalizedNickname = _normalizeNickname(nickname);
+    if (normalizedNickname.isEmpty) {
+      return false;
+    }
+
+    final claimSnapshot = await _dbRef
+        .child('nickname_claims')
+        .child(normalizedNickname)
+        .get();
+    final claimedBy = claimSnapshot.value?.toString();
+    if (claimedBy != null &&
+        claimedBy.isNotEmpty &&
+        claimedBy != excludingUid) {
+      return false;
+    }
+
+    final searchSnapshot = await _dbRef
+        .child('user_search_index')
+        .child(normalizedNickname)
+        .get();
+    if (!searchSnapshot.exists || searchSnapshot.value == null) {
+      return true;
+    }
+
+    final indexedUserIds = extractIndexedUserIds(searchSnapshot.value);
+    for (final candidateUid in indexedUserIds) {
+      if (candidateUid != excludingUid) {
+        return false;
       }
     }
 
-    await _dbRef.update(updates);
+    return true;
+  }
+
+  Future<void> saveUser(AppUser user) async {
+    final trimmedNickname = user.nickname.trim();
+    final trimmedEmail = user.email?.trim() ?? '';
+    if (trimmedNickname.isEmpty) {
+      throw Exception('Inserisci uno username valido');
+    }
+    if (trimmedEmail.isEmpty) {
+      throw Exception('Inserisci una email valida');
+    }
+
+    final normalizedNickname = _normalizeNickname(trimmedNickname);
+    final normalizedEmail = _normalizeEmail(trimmedEmail);
+    final emailKey = _emailKey(trimmedEmail);
+    final existingSnapshot = await _dbRef.child('users').child(user.uid).get();
+    final availability = await checkRegistrationAvailability(
+      nickname: trimmedNickname,
+      email: trimmedEmail,
+      excludingUid: user.uid,
+    );
+    if (!availability.isAvailable) {
+      throw Exception(availability.errorMessage);
+    }
+
+    final sanitizedUser = user.copyWith(
+      nickname: trimmedNickname,
+      email: trimmedEmail,
+    );
+    final claimRef = _dbRef.child('nickname_claims').child(normalizedNickname);
+    debugPrint('DB saveUser:nicknameClaim:start nickname=$normalizedNickname');
+    final claimResult = await claimRef.runTransaction((Object? currentData) {
+      final claimedBy = currentData?.toString().trim() ?? '';
+      if (claimedBy.isNotEmpty && claimedBy != user.uid) {
+        return Transaction.abort();
+      }
+
+      return Transaction.success(user.uid);
+    }, applyLocally: false);
+
+    if (!claimResult.committed) {
+      throw Exception('Username gia utilizzato');
+    }
+    debugPrint('DB saveUser:nicknameClaim:done');
+
+    final emailClaimRef = _dbRef.child('email_claims').child(emailKey);
+    debugPrint('DB saveUser:emailClaim:start email=$normalizedEmail');
+    final emailClaimResult = await emailClaimRef.runTransaction((
+      Object? currentData,
+    ) {
+      final claimedBy = currentData?.toString().trim() ?? '';
+      if (claimedBy.isNotEmpty && claimedBy != user.uid) {
+        return Transaction.abort();
+      }
+
+      return Transaction.success(user.uid);
+    }, applyLocally: false);
+
+    if (!emailClaimResult.committed) {
+      final nicknameClaimSnapshot = await claimRef.get();
+      if (nicknameClaimSnapshot.value?.toString().trim() == user.uid) {
+        await claimRef.remove();
+      }
+      throw Exception('Email gia utilizzata');
+    }
+    debugPrint('DB saveUser:emailClaim:done');
+
+    final currentIndexRef = _dbRef
+        .child('user_search_index')
+        .child(normalizedNickname);
+    final currentIndexSnapshot = await currentIndexRef.get();
+    if (_isLegacySingleIndexEntry(currentIndexSnapshot.value, user.uid)) {
+      await currentIndexRef.remove();
+    }
+
+    String? previousLowercase;
+    String? previousEmailLowercase;
+    if (existingSnapshot.exists && existingSnapshot.value != null) {
+      final existingData = _asStringKeyedMap(existingSnapshot.value);
+      final previousNickname =
+          existingData['username']?.toString() ??
+          existingData['nickname']?.toString();
+      previousLowercase = previousNickname?.toLowerCase();
+      previousEmailLowercase = existingData['email']?.toString().toLowerCase();
+    }
+
+    try {
+      debugPrint('DB saveUser:userWrite:start uid=${user.uid}');
+      await _dbRef.child('users').child(user.uid).set(sanitizedUser.toMap());
+      debugPrint('DB saveUser:userWrite:done');
+      debugPrint('DB saveUser:nicknameIndexWrite:start');
+      await currentIndexRef.child(user.uid).set({'username': trimmedNickname});
+      debugPrint('DB saveUser:nicknameIndexWrite:done');
+      debugPrint('DB saveUser:emailIndexWrite:start');
+      await _dbRef
+          .child('user_email_index')
+          .child(emailKey)
+          .child(user.uid)
+          .set(true);
+      debugPrint('DB saveUser:emailIndexWrite:done');
+
+      if (previousLowercase != null &&
+          previousLowercase.isNotEmpty &&
+          previousLowercase != normalizedNickname) {
+        final previousIndexRef = _dbRef
+            .child('user_search_index')
+            .child(previousLowercase);
+        final previousIndexSnapshot = await previousIndexRef.get();
+        if (_isLegacySingleIndexEntry(previousIndexSnapshot.value, user.uid)) {
+          await previousIndexRef.remove();
+        } else {
+          await previousIndexRef.child(user.uid).remove();
+        }
+
+        final previousClaimRef = _dbRef
+            .child('nickname_claims')
+            .child(previousLowercase);
+        final previousClaimSnapshot = await previousClaimRef.get();
+        if (previousClaimSnapshot.value?.toString().trim() == user.uid) {
+          await previousClaimRef.remove();
+        }
+      }
+
+      if (previousEmailLowercase != null &&
+          previousEmailLowercase.isNotEmpty &&
+          previousEmailLowercase != normalizedEmail) {
+        final previousEmailKey = _emailKey(previousEmailLowercase);
+        await _dbRef
+            .child('user_email_index')
+            .child(previousEmailKey)
+            .child(user.uid)
+            .remove();
+
+        final previousEmailClaimRef = _dbRef
+            .child('email_claims')
+            .child(previousEmailKey);
+        final previousEmailClaimSnapshot = await previousEmailClaimRef.get();
+        if (previousEmailClaimSnapshot.value?.toString().trim() == user.uid) {
+          await previousEmailClaimRef.remove();
+        }
+      }
+    } on FirebaseException catch (error) {
+      debugPrint(
+        'DB saveUser:firebaseException ${error.code} ${error.message}',
+      );
+      final claimSnapshot = await claimRef.get();
+      if (claimSnapshot.value?.toString().trim() == user.uid) {
+        await claimRef.remove();
+      }
+      final emailClaimSnapshot = await emailClaimRef.get();
+      if (emailClaimSnapshot.value?.toString().trim() == user.uid) {
+        await emailClaimRef.remove();
+      }
+
+      throw Exception(error.message ?? 'Errore durante il salvataggio utente');
+    }
   }
 
   Future<List<Map<String, String>>> getUserGroups() async {
@@ -59,28 +366,40 @@ class DatabaseService {
     if (user == null) return [];
 
     try {
-      final snapshot = await _dbRef.child('users').child(user.uid).child('gruppi').get();
-      
+      final snapshot = await _dbRef
+          .child('users')
+          .child(user.uid)
+          .child('gruppi')
+          .get();
+
       if (snapshot.exists && snapshot.value != null) {
         final groupsList = <Map<String, String>>[];
         List<String> groupsIds = [];
 
         if (snapshot.value is Map) {
-          groupsIds = (snapshot.value as Map).keys.map((e) => e.toString()).toList();
+          groupsIds = (snapshot.value as Map).keys
+              .map((e) => e.toString())
+              .toList();
         } else if (snapshot.value is List) {
-           // Fallback in case it was stored as list somehow
-           groupsIds = (snapshot.value as List).where((e) => e != null).map((e) => e.toString()).toList();
+          // Fallback in case it was stored as list somehow
+          groupsIds = (snapshot.value as List)
+              .where((e) => e != null)
+              .map((e) => e.toString())
+              .toList();
         }
 
         for (var groupId in groupsIds) {
-           final groupSnapshot = await _dbRef.child('groups_info').child(groupId).get();
-           if (groupSnapshot.exists) {
-             final groupData = groupSnapshot.value as Map;
-             groupsList.add({
-               'id': groupId,
-               'name': groupData['name'] ?? 'Gruppo sconosciuto',
-             });
-           }
+          final groupSnapshot = await _dbRef
+              .child('groups_info')
+              .child(groupId)
+              .get();
+          if (groupSnapshot.exists && groupSnapshot.value is Map) {
+            final groupData = _asStringKeyedMap(groupSnapshot.value);
+            groupsList.add({
+              'id': groupId,
+              'name': groupData['name']?.toString() ?? 'Gruppo sconosciuto',
+            });
+          }
         }
         return groupsList;
       }
@@ -143,10 +462,10 @@ class DatabaseService {
 
   Future<List<String>> getFreeSlotsForDate(String dateStr) async {
     final slotsRef = _dbRef.child('slots').child(dateStr);
-    
+
     try {
       final snapshot = await slotsRef.get();
-      
+
       if (!snapshot.exists) {
         debugPrint("Slot non esistenti per $dateStr. Generazione in corso...");
         await _generateSlotsForDate(dateStr);
@@ -171,18 +490,17 @@ class DatabaseService {
           }
         }
       } else if (rawData is List) {
-         for (final item in rawData) {
-           if (item != null) {
-             final data = item as Map;
-             if (data['status'] == 'libero') {
-               slotList.add(data['time'] as String);
-             }
-           }
-         }
+        for (final item in rawData) {
+          if (item != null) {
+            final data = item as Map;
+            if (data['status'] == 'libero') {
+              slotList.add(data['time'] as String);
+            }
+          }
+        }
       }
-      
-      return slotList;
 
+      return slotList;
     } catch (e) {
       debugPrint("Errore getFreeSlotsForDate: $e");
       return [];
@@ -192,23 +510,20 @@ class DatabaseService {
   Future<void> _generateSlotsForDate(String dateStr) async {
     final times = _generateStandardTimes();
     final Map<String, dynamic> slotsUpdate = {};
-    
+
     for (int i = 0; i < times.length; i++) {
       final time = times[i];
-      final key = time.replaceAll(":", "_"); 
-      
-      slotsUpdate[key] = {
-        'time': time,
-        'status': 'libero',
-      };
+      final key = time.replaceAll(":", "_");
+
+      slotsUpdate[key] = {'time': time, 'status': 'libero'};
     }
-    
+
     await _dbRef.child('slots').child(dateStr).set(slotsUpdate);
   }
 
   List<String> _generateStandardTimes() {
     final slots = <String>[];
-    var time = DateTime(2022, 1, 1, 10, 0); 
+    var time = DateTime(2022, 1, 1, 10, 0);
     for (int i = 0; i < 11; i++) {
       slots.add(DateFormat('HH:mm').format(time));
       time = time.add(const Duration(minutes: 75));
@@ -218,26 +533,32 @@ class DatabaseService {
 
   // --- CREAZIONE PRENOTAZIONE CON UPDATE SLOT ---
 
-  Future<void> createBooking(Booking booking, List<String> selectedSlotTimes) async {
+  Future<void> createBooking(
+    Booking booking,
+    List<String> selectedSlotTimes,
+  ) async {
     debugPrint("Inizio creazione prenotazione...");
-    
+
     final newBookingKey = _dbRef.child('bookings').push().key;
-    if (newBookingKey == null) throw Exception("Impossibile generare ID prenotazione");
-    
+    if (newBookingKey == null) {
+      throw Exception("Impossibile generare ID prenotazione");
+    }
+
     final Map<String, dynamic> updates = {};
     final bookingPath = '/bookings/$newBookingKey';
     final userBookingPath = '/user_bookings/${booking.userId}/$newBookingKey';
-    
+
     updates[bookingPath] = booking.toMap();
     updates[userBookingPath] = booking.toMap();
     if (booking.groupId != null && booking.groupId!.isNotEmpty) {
-      updates['/group_bookings/${booking.groupId}/$newBookingKey'] = booking.toMap();
+      updates['/group_bookings/${booking.groupId}/$newBookingKey'] = booking
+          .toMap();
     }
 
     for (final time in selectedSlotTimes) {
       final key = time.replaceAll(":", "_");
       final slotPath = '/slots/${booking.data}/$key';
-      
+
       updates['$slotPath/status'] = 'occupato';
       updates['$slotPath/booked_by'] = booking.userId;
       updates['$slotPath/booking_id'] = newBookingKey;
@@ -256,32 +577,48 @@ class DatabaseService {
     }
   }
 
-  // --- ELIMINAZIONE PRENOTAZIONE ---
-
-  Future<void> deleteBooking(String bookingId) async {
-    final user = _auth.currentUser;
-    if (user == null) {
-      throw Exception("Utente non loggato");
+  Future<Set<String>> _getGroupMemberIds(String groupId) async {
+    if (groupId.isEmpty) {
+      return <String>{};
     }
 
-    debugPrint("Inizio cancellazione prenotazione: $bookingId");
-
-    final bookingSnapshot = await _dbRef.child('bookings').child(bookingId).get();
-    if (!bookingSnapshot.exists || bookingSnapshot.value == null) {
-      return;
+    final groupSnapshot = await _dbRef
+        .child('groups_info')
+        .child(groupId)
+        .get();
+    if (!groupSnapshot.exists || groupSnapshot.value == null) {
+      return <String>{};
     }
 
-    final bookingData = Map<String, dynamic>.from(bookingSnapshot.value as Map);
-    final bookingOwnerId = bookingData['user_id'] as String?;
-    final bookingDate = bookingData['data'] as String?;
-    final groupId = bookingData['group_id'] as String?;
+    final groupData = Map<String, dynamic>.from(groupSnapshot.value as Map);
+    return <String>{
+      ..._extractIds(groupData['members']),
+      ..._extractIds(groupData['membri']),
+      ..._extractIds(groupData['users']),
+      ..._extractIds(groupData['user_ids']),
+      ..._extractIds(groupData['member_nicknames']),
+    };
+  }
 
-    if (bookingOwnerId == null || bookingDate == null) {
-      throw Exception("Prenotazione non valida o incompleta");
+  Future<Map<String, dynamic>> _buildBookingDeletionUpdates(
+    String bookingId, {
+    Map<String, dynamic>? bookingDataOverride,
+    Set<String>? notificationMemberIds,
+  }) async {
+    final bookingData =
+        bookingDataOverride ?? await _loadBookingData(bookingId);
+    if (bookingData == null) {
+      return <String, dynamic>{};
     }
 
-    if (bookingOwnerId != user.uid) {
-      throw Exception("Puoi eliminare solo le tue prenotazioni.");
+    final bookingOwnerId = bookingData['user_id']?.toString();
+    final bookingDate = bookingData['data']?.toString();
+    final groupId = bookingData['group_id']?.toString();
+    if (bookingOwnerId == null ||
+        bookingOwnerId.isEmpty ||
+        bookingDate == null ||
+        bookingDate.isEmpty) {
+      throw Exception('Prenotazione non valida o incompleta');
     }
 
     final updates = <String, dynamic>{
@@ -291,6 +628,13 @@ class DatabaseService {
 
     if (groupId != null && groupId.isNotEmpty) {
       updates['/group_bookings/$groupId/$bookingId'] = null;
+      updates['/group_booking_notifications/$groupId/$bookingId'] = null;
+
+      final memberIds =
+          notificationMemberIds ?? await _getGroupMemberIds(groupId);
+      for (final memberId in memberIds) {
+        updates['/user_notifications/$memberId/$bookingId'] = null;
+      }
     }
 
     final slotsToFree = await _findSlotsByBookingId(bookingDate, bookingId);
@@ -301,9 +645,54 @@ class DatabaseService {
       updates['/slots/$bookingDate/$key/is_jam'] = null;
     }
 
-    if (groupId != null && groupId.isNotEmpty) {
-      updates['/group_booking_notifications/$groupId/$bookingId'] = null;
+    return updates;
+  }
+
+  Future<Map<String, dynamic>?> _loadBookingData(String bookingId) async {
+    final bookingSnapshot = await _dbRef
+        .child('bookings')
+        .child(bookingId)
+        .get();
+    if (!bookingSnapshot.exists || bookingSnapshot.value == null) {
+      return null;
     }
+
+    return Map<String, dynamic>.from(bookingSnapshot.value as Map);
+  }
+
+  // --- ELIMINAZIONE PRENOTAZIONE ---
+
+  Future<void> deleteBooking(String bookingId) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception("Utente non loggato");
+    }
+
+    debugPrint("Inizio cancellazione prenotazione: $bookingId");
+
+    final bookingSnapshot = await _dbRef
+        .child('bookings')
+        .child(bookingId)
+        .get();
+    if (!bookingSnapshot.exists || bookingSnapshot.value == null) {
+      return;
+    }
+
+    final bookingData = Map<String, dynamic>.from(bookingSnapshot.value as Map);
+    final bookingOwnerId = bookingData['user_id'] as String?;
+
+    if (bookingOwnerId == null) {
+      throw Exception("Prenotazione non valida o incompleta");
+    }
+
+    if (bookingOwnerId != user.uid) {
+      throw Exception("Puoi eliminare solo le tue prenotazioni.");
+    }
+
+    final updates = await _buildBookingDeletionUpdates(
+      bookingId,
+      bookingDataOverride: bookingData,
+    );
 
     await _dbRef.update(updates);
     debugPrint("Prenotazione $bookingId eliminata, slot liberati.");
@@ -322,7 +711,10 @@ class DatabaseService {
       throw Exception('Utente non loggato');
     }
 
-    final bookingSnapshot = await _dbRef.child('bookings').child(bookingId).get();
+    final bookingSnapshot = await _dbRef
+        .child('bookings')
+        .child(bookingId)
+        .get();
     if (!bookingSnapshot.exists || bookingSnapshot.value == null) {
       throw Exception('Prenotazione non trovata');
     }
@@ -347,10 +739,14 @@ class DatabaseService {
       throw Exception('Disponibilita non trovata');
     }
 
-    final targetSlots = Map<String, dynamic>.from(targetSlotsSnapshot.value as Map);
+    final targetSlots = Map<String, dynamic>.from(
+      targetSlotsSnapshot.value as Map,
+    );
     for (final time in orderedSlots) {
       final slotKey = time.replaceAll(':', '_');
-      final slotData = Map<String, dynamic>.from((targetSlots[slotKey] as Map?) ?? const {});
+      final slotData = Map<String, dynamic>.from(
+        (targetSlots[slotKey] as Map?) ?? const {},
+      );
       final status = slotData['status']?.toString();
       final bookingIdOnSlot = slotData['booking_id']?.toString();
       if (status != 'libero' && bookingIdOnSlot != bookingId) {
@@ -367,7 +763,9 @@ class DatabaseService {
     final nextStatus = scheduleChanged
         ? BookingStatus.inElaborazione.name
         : bookingData['stato']?.toString() ?? BookingStatus.inElaborazione.name;
-    final oldSlots = previousDate.isEmpty ? <String, dynamic>{} : await _findSlotsByBookingId(previousDate, bookingId);
+    final oldSlots = previousDate.isEmpty
+        ? <String, dynamic>{}
+        : await _findSlotsByBookingId(previousDate, bookingId);
     final updates = <String, dynamic>{
       '/bookings/$bookingId/data': date,
       '/bookings/$bookingId/ora_inizio': orderedSlots.first,
@@ -377,25 +775,32 @@ class DatabaseService {
       '/bookings/$bookingId/attrezzatura': trimmedEquipment,
       '/bookings/$bookingId/stato': nextStatus,
       '/user_bookings/$bookingOwnerId/$bookingId/data': date,
-      '/user_bookings/$bookingOwnerId/$bookingId/ora_inizio': orderedSlots.first,
+      '/user_bookings/$bookingOwnerId/$bookingId/ora_inizio':
+          orderedSlots.first,
       '/user_bookings/$bookingOwnerId/$bookingId/ora_fine': newEndTime,
       '/user_bookings/$bookingOwnerId/$bookingId/group_id': groupId,
       '/user_bookings/$bookingOwnerId/$bookingId/numero_utenti': peopleCount,
-      '/user_bookings/$bookingOwnerId/$bookingId/attrezzatura': trimmedEquipment,
+      '/user_bookings/$bookingOwnerId/$bookingId/attrezzatura':
+          trimmedEquipment,
       '/user_bookings/$bookingOwnerId/$bookingId/stato': nextStatus,
     };
 
-    if (previousGroupId != null && previousGroupId.isNotEmpty && previousGroupId != groupId) {
+    if (previousGroupId != null &&
+        previousGroupId.isNotEmpty &&
+        previousGroupId != groupId) {
       updates['/group_bookings/$previousGroupId/$bookingId'] = null;
     }
 
     if (groupId != null && groupId.isNotEmpty) {
       updates['/group_bookings/$groupId/$bookingId/data'] = date;
-      updates['/group_bookings/$groupId/$bookingId/ora_inizio'] = orderedSlots.first;
+      updates['/group_bookings/$groupId/$bookingId/ora_inizio'] =
+          orderedSlots.first;
       updates['/group_bookings/$groupId/$bookingId/ora_fine'] = newEndTime;
       updates['/group_bookings/$groupId/$bookingId/group_id'] = groupId;
-      updates['/group_bookings/$groupId/$bookingId/numero_utenti'] = peopleCount;
-      updates['/group_bookings/$groupId/$bookingId/attrezzatura'] = trimmedEquipment;
+      updates['/group_bookings/$groupId/$bookingId/numero_utenti'] =
+          peopleCount;
+      updates['/group_bookings/$groupId/$bookingId/attrezzatura'] =
+          trimmedEquipment;
       updates['/group_bookings/$groupId/$bookingId/user_id'] = bookingOwnerId;
       updates['/group_bookings/$groupId/$bookingId/stato'] = nextStatus;
     }
@@ -418,9 +823,16 @@ class DatabaseService {
     await _dbRef.update(updates);
   }
 
-  Future<void> _notifyGroupMembers(String groupId, String bookingId, Booking booking) async {
+  Future<void> _notifyGroupMembers(
+    String groupId,
+    String bookingId,
+    Booking booking,
+  ) async {
     try {
-      final groupSnapshot = await _dbRef.child('groups_info').child(groupId).get();
+      final groupSnapshot = await _dbRef
+          .child('groups_info')
+          .child(groupId)
+          .get();
 
       final notificationPayload = {
         'type': 'booking_created',
@@ -447,7 +859,8 @@ class DatabaseService {
         }..remove(booking.userId);
 
         for (final memberId in memberIds) {
-          updates['/user_notifications/$memberId/$bookingId'] = notificationPayload;
+          updates['/user_notifications/$memberId/$bookingId'] =
+              notificationPayload;
         }
       }
 
@@ -457,7 +870,10 @@ class DatabaseService {
     }
   }
 
-  Future<Map<String, dynamic>> _findSlotsByBookingId(String dateStr, String bookingId) async {
+  Future<Map<String, dynamic>> _findSlotsByBookingId(
+    String dateStr,
+    String bookingId,
+  ) async {
     try {
       final slotsSnapshot = await _dbRef
           .child('slots')
@@ -466,7 +882,9 @@ class DatabaseService {
           .equalTo(bookingId)
           .get();
 
-      if (slotsSnapshot.exists && slotsSnapshot.value != null && slotsSnapshot.value is Map) {
+      if (slotsSnapshot.exists &&
+          slotsSnapshot.value != null &&
+          slotsSnapshot.value is Map) {
         return Map<String, dynamic>.from(slotsSnapshot.value as Map);
       }
     } catch (e) {
@@ -499,7 +917,10 @@ class DatabaseService {
     }
 
     if (rawValue is List) {
-      return rawValue.where((item) => item != null).map((item) => item.toString()).toSet();
+      return rawValue
+          .where((item) => item != null)
+          .map((item) => item.toString())
+          .toSet();
     }
 
     return <String>{};
@@ -534,7 +955,8 @@ class DatabaseService {
     };
 
     if (groupId != null && groupId.isNotEmpty) {
-      updates['/group_bookings/$groupId/$bookingId/stato'] = BookingStatus.confermata.name;
+      updates['/group_bookings/$groupId/$bookingId/stato'] =
+          BookingStatus.confermata.name;
     }
 
     await _dbRef.update(updates);
@@ -558,7 +980,8 @@ class DatabaseService {
     };
 
     if (groupId != null && groupId.isNotEmpty) {
-      updates['/group_bookings/$groupId/$bookingId/stato'] = BookingStatus.annullata.name;
+      updates['/group_bookings/$groupId/$bookingId/stato'] =
+          BookingStatus.annullata.name;
     }
 
     if (date.isNotEmpty) {
@@ -576,12 +999,12 @@ class DatabaseService {
 
   Future<void> createJam(Jam jam, List<String> selectedSlotTimes) async {
     debugPrint("Inizio creazione JAM...");
-    
+
     final newJamKey = _dbRef.child('jams').push().key;
     if (newJamKey == null) throw Exception("Impossibile generare ID Jam");
 
     final Map<String, dynamic> updates = {};
-    
+
     // 1. Salva la Jam
     final jamPath = '/jams/$newJamKey';
     updates[jamPath] = jam.toMap();
@@ -590,10 +1013,10 @@ class DatabaseService {
     for (final time in selectedSlotTimes) {
       final key = time.replaceAll(":", "_");
       final slotPath = '/slots/${jam.data}/$key';
-      
-      updates['$slotPath/status'] = 'occupato'; 
+
+      updates['$slotPath/status'] = 'occupato';
       updates['$slotPath/booked_by'] = jam.creatorId;
-      updates['$slotPath/booking_id'] = newJamKey; 
+      updates['$slotPath/booking_id'] = newJamKey;
       updates['$slotPath/is_jam'] = true;
     }
 
@@ -611,7 +1034,11 @@ class DatabaseService {
   }
 
   Stream<DatabaseEvent> getPublishedJamsStream() {
-    return _dbRef.child('jams').orderByChild('stato').equalTo(JamStatus.pubblicata.name).onValue;
+    return _dbRef
+        .child('jams')
+        .orderByChild('stato')
+        .equalTo(JamStatus.pubblicata.name)
+        .onValue;
   }
 
   Stream<DatabaseEvent> getOwnJamsStream() {
@@ -620,11 +1047,19 @@ class DatabaseService {
       return Stream.error('Utente non loggato');
     }
 
-    return _dbRef.child('jams').orderByChild('creator_id').equalTo(user.uid).onValue;
+    return _dbRef
+        .child('jams')
+        .orderByChild('creator_id')
+        .equalTo(user.uid)
+        .onValue;
   }
 
   Stream<DatabaseEvent> getPendingJamsStream() {
-    return _dbRef.child('jams').orderByChild('stato').equalTo(JamStatus.inElaborazione.name).onValue;
+    return _dbRef
+        .child('jams')
+        .orderByChild('stato')
+        .equalTo(JamStatus.inElaborazione.name)
+        .onValue;
   }
 
   Future<void> approveJam(String jamId) async {
@@ -640,7 +1075,11 @@ class DatabaseService {
       '/jams/$jamId/stato': JamStatus.pubblicata.name,
     };
 
-    final feedSnapshot = await _dbRef.child('feed').orderByChild('jam_id').equalTo(jamId).get();
+    final feedSnapshot = await _dbRef
+        .child('feed')
+        .orderByChild('jam_id')
+        .equalTo(jamId)
+        .get();
     if (feedSnapshot.exists && feedSnapshot.value != null) {
       final feedData = Map<String, dynamic>.from(feedSnapshot.value as Map);
       for (final entry in feedData.entries) {
@@ -698,7 +1137,11 @@ class DatabaseService {
       updates['/user_joined_jams/$participantId/$jamId'] = null;
     }
 
-    final feedSnapshot = await _dbRef.child('feed').orderByChild('jam_id').equalTo(jamId).get();
+    final feedSnapshot = await _dbRef
+        .child('feed')
+        .orderByChild('jam_id')
+        .equalTo(jamId)
+        .get();
     if (feedSnapshot.exists && feedSnapshot.value != null) {
       final feedData = Map<String, dynamic>.from(feedSnapshot.value as Map);
       for (final entry in feedData.entries) {
@@ -738,8 +1181,7 @@ class DatabaseService {
           }
         }
       }
-    return jams;
-
+      return jams;
     } catch (e) {
       debugPrint("Errore getPublishedJamsOnce: $e");
       return [];
@@ -823,7 +1265,9 @@ class DatabaseService {
     final currentPresent = _parseInt(jamData['persone_presenti']);
     final currentRequired = _parseInt(jamData['persone_richieste']);
     await _dbRef.update({
-      '/jams/$jamId/persone_presenti': currentPresent > 0 ? currentPresent - 1 : 0,
+      '/jams/$jamId/persone_presenti': currentPresent > 0
+          ? currentPresent - 1
+          : 0,
       '/jams/$jamId/persone_richieste': currentRequired + 1,
       '/jams/$jamId/participants/${user.uid}': null,
       '/user_joined_jams/${user.uid}/$jamId': null,
@@ -870,10 +1314,14 @@ class DatabaseService {
       throw Exception('Disponibilita non trovata');
     }
 
-    final targetSlots = Map<String, dynamic>.from(targetSlotsSnapshot.value as Map);
+    final targetSlots = Map<String, dynamic>.from(
+      targetSlotsSnapshot.value as Map,
+    );
     for (final time in orderedSlots) {
       final slotKey = time.replaceAll(':', '_');
-      final slotData = Map<String, dynamic>.from((targetSlots[slotKey] as Map?) ?? const {});
+      final slotData = Map<String, dynamic>.from(
+        (targetSlots[slotKey] as Map?) ?? const {},
+      );
       final status = slotData['status']?.toString();
       final bookingIdOnSlot = slotData['booking_id']?.toString();
       if (status != 'libero' && bookingIdOnSlot != jamId) {
@@ -891,7 +1339,9 @@ class DatabaseService {
     final nextStatus = scheduleChanged
         ? JamStatus.inElaborazione.name
         : jamData['stato']?.toString() ?? JamStatus.inElaborazione.name;
-    final oldSlots = previousDate.isEmpty ? <String, dynamic>{} : await _findSlotsByBookingId(previousDate, jamId);
+    final oldSlots = previousDate.isEmpty
+        ? <String, dynamic>{}
+        : await _findSlotsByBookingId(previousDate, jamId);
     final updates = <String, dynamic>{
       '/jams/$jamId/data': date,
       '/jams/$jamId/ora_inizio': orderedSlots.first,
@@ -920,7 +1370,11 @@ class DatabaseService {
       updates['/slots/$date/$slotKey/is_jam'] = true;
     }
 
-    final feedSnapshot = await _dbRef.child('feed').orderByChild('jam_id').equalTo(jamId).get();
+    final feedSnapshot = await _dbRef
+        .child('feed')
+        .orderByChild('jam_id')
+        .equalTo(jamId)
+        .get();
     if (feedSnapshot.exists && feedSnapshot.value != null) {
       final feedData = Map<String, dynamic>.from(feedSnapshot.value as Map);
       for (final entry in feedData.entries) {
@@ -950,7 +1404,11 @@ class DatabaseService {
       return false;
     }
 
-    final roleSnapshot = await _dbRef.child('users').child(user.uid).child('role').get();
+    final roleSnapshot = await _dbRef
+        .child('users')
+        .child(user.uid)
+        .child('role')
+        .get();
     return roleSnapshot.value?.toString() == 'admin';
   }
 
@@ -960,26 +1418,64 @@ class DatabaseService {
     }
   }
 
-  Future<List<Map<String, dynamic>>> searchUsersByNickname(String nickname) async {
+  Future<List<Map<String, dynamic>>> searchUsersByNickname(
+    String nickname,
+  ) async {
     final trimmedNickname = nickname.trim();
     if (trimmedNickname.isEmpty) {
       return [];
     }
 
     final lowercaseNickname = trimmedNickname.toLowerCase();
-    final snapshot = await _dbRef.child('user_search_index').child(lowercaseNickname).get();
+    final snapshot = await _dbRef
+        .child('user_search_index')
+        .child(lowercaseNickname)
+        .get();
     if (!snapshot.exists || snapshot.value == null) {
       return [];
     }
 
     final results = <Map<String, dynamic>>[];
-    if (snapshot.value is Map) {
-      final data = Map<String, dynamic>.from(snapshot.value as Map);
+    final rawValue = snapshot.value;
+    if (rawValue is String) {
+      final uid = rawValue.trim();
+      if (uid.isNotEmpty) {
+        results.add({'uid': uid, 'nickname': trimmedNickname});
+      }
+    } else if (rawValue is Map) {
+      final data = Map<String, dynamic>.from(rawValue);
+      final looksLikeSinglePayload =
+          data.containsKey('uid') ||
+          data.containsKey('nickname') ||
+          data.containsKey('username');
+
+      if (looksLikeSinglePayload) {
+        final resolvedUid = data['uid']?.toString() ?? '';
+        if (resolvedUid.isNotEmpty) {
+          results.add({
+            'uid': resolvedUid,
+            'nickname':
+                data['username']?.toString() ??
+                data['nickname']?.toString() ??
+                trimmedNickname,
+          });
+        }
+        return results;
+      }
+
       for (final entry in data.entries) {
-        final payload = Map<String, dynamic>.from(entry.value as Map);
+        final rawPayload = entry.value;
+        final payload = rawPayload is Map
+            ? Map<String, dynamic>.from(rawPayload)
+            : <String, dynamic>{
+                'username': rawPayload?.toString() ?? trimmedNickname,
+              };
         results.add({
-          'uid': entry.key,
-          'nickname': payload['nickname']?.toString() ?? trimmedNickname,
+          'uid': entry.key.toString(),
+          'nickname':
+              payload['username']?.toString() ??
+              payload['nickname']?.toString() ??
+              trimmedNickname,
         });
       }
     }
@@ -987,13 +1483,14 @@ class DatabaseService {
     return results;
   }
 
-  Future<void> createGroup(String name) async {
+  Future<void> createGroup(String name, {String description = ''}) async {
     final user = _auth.currentUser;
     if (user == null) {
       throw Exception('Utente non loggato');
     }
 
     final trimmedName = name.trim();
+    final trimmedDescription = description.trim();
     if (trimmedName.isEmpty) {
       throw Exception('Inserisci un nome gruppo');
     }
@@ -1002,7 +1499,10 @@ class DatabaseService {
     final userData = userSnapshot.exists && userSnapshot.value != null
         ? Map<String, dynamic>.from(userSnapshot.value as Map)
         : <String, dynamic>{};
-    final nickname = userData['nickname']?.toString() ?? user.uid;
+    final nickname =
+        userData['username']?.toString() ??
+        userData['nickname']?.toString() ??
+        user.uid;
 
     final groupId = _dbRef.child('groups_info').push().key;
     if (groupId == null) {
@@ -1012,17 +1512,151 @@ class DatabaseService {
     await _dbRef.update({
       '/groups_info/$groupId': {
         'name': trimmedName,
+        'description': trimmedDescription,
         'owner_id': user.uid,
         'created_at': ServerValue.timestamp,
-        'members': {
-          user.uid: true,
-        },
-        'member_nicknames': {
-          user.uid: nickname,
-        },
+        'members': {user.uid: true},
+        'member_nicknames': {user.uid: nickname},
       },
       '/users/${user.uid}/gruppi/$groupId': true,
     });
+  }
+
+  Future<void> removeUserFromGroup({
+    required String groupId,
+    required String targetUserId,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception('Utente non loggato');
+    }
+
+    final groupSnapshot = await _dbRef
+        .child('groups_info')
+        .child(groupId)
+        .get();
+    if (!groupSnapshot.exists || groupSnapshot.value == null) {
+      throw Exception('Gruppo non trovato');
+    }
+
+    final groupData = Map<String, dynamic>.from(groupSnapshot.value as Map);
+    final ownerId = groupData['owner_id']?.toString() ?? '';
+    final isAdmin = await _isCurrentUserAdmin();
+    if (ownerId != user.uid && !isAdmin) {
+      throw Exception('Solo il proprietario del gruppo puo rimuovere membri');
+    }
+
+    if (targetUserId == ownerId) {
+      throw Exception('Il proprietario non puo essere rimosso dal gruppo');
+    }
+
+    final members = _extractIds(groupData['members']);
+    if (!members.contains(targetUserId)) {
+      throw Exception('Utente non presente nel gruppo');
+    }
+
+    await _dbRef.update({
+      '/groups_info/$groupId/members/$targetUserId': null,
+      '/groups_info/$groupId/member_nicknames/$targetUserId': null,
+      '/users/$targetUserId/gruppi/$groupId': null,
+    });
+  }
+
+  Future<void> leaveGroup(String groupId) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception('Utente non loggato');
+    }
+
+    final groupSnapshot = await _dbRef
+        .child('groups_info')
+        .child(groupId)
+        .get();
+    if (!groupSnapshot.exists || groupSnapshot.value == null) {
+      throw Exception('Gruppo non trovato');
+    }
+
+    final groupData = Map<String, dynamic>.from(groupSnapshot.value as Map);
+    final ownerId = groupData['owner_id']?.toString() ?? '';
+    if (ownerId == user.uid) {
+      throw Exception('Il proprietario non puo uscire dal proprio gruppo');
+    }
+
+    final members = _extractIds(groupData['members']);
+    if (!members.contains(user.uid)) {
+      throw Exception('Non fai parte di questo gruppo');
+    }
+
+    await _dbRef.update({
+      '/groups_info/$groupId/members/${user.uid}': null,
+      '/groups_info/$groupId/member_nicknames/${user.uid}': null,
+      '/users/${user.uid}/gruppi/$groupId': null,
+    });
+  }
+
+  Future<void> deleteGroup(String groupId) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception('Utente non loggato');
+    }
+
+    final groupSnapshot = await _dbRef
+        .child('groups_info')
+        .child(groupId)
+        .get();
+    if (!groupSnapshot.exists || groupSnapshot.value == null) {
+      throw Exception('Gruppo non trovato');
+    }
+
+    final groupData = Map<String, dynamic>.from(groupSnapshot.value as Map);
+    final ownerId = groupData['owner_id']?.toString() ?? '';
+    final isAdmin = await _isCurrentUserAdmin();
+    if (ownerId != user.uid && !isAdmin) {
+      throw Exception(
+        'Solo il proprietario o un admin puo eliminare il gruppo',
+      );
+    }
+
+    final memberIds = <String>{
+      ..._extractIds(groupData['members']),
+      ..._extractIds(groupData['member_nicknames']),
+    };
+
+    final groupBookingsSnapshot = await _dbRef
+        .child('group_bookings')
+        .child(groupId)
+        .get();
+
+    final updates = <String, dynamic>{
+      '/groups_info/$groupId': null,
+      '/group_bookings/$groupId': null,
+      '/group_booking_notifications/$groupId': null,
+    };
+
+    if (groupBookingsSnapshot.exists && groupBookingsSnapshot.value is Map) {
+      final rawBookings = Map<String, dynamic>.from(
+        groupBookingsSnapshot.value as Map,
+      );
+      for (final entry in rawBookings.entries) {
+        final rawBooking = entry.value;
+        if (rawBooking is! Map) {
+          continue;
+        }
+
+        final bookingUpdates = await _buildBookingDeletionUpdates(
+          entry.key.toString(),
+          bookingDataOverride: Map<String, dynamic>.from(rawBooking),
+          notificationMemberIds: memberIds,
+        );
+        updates.addAll(bookingUpdates);
+      }
+    }
+
+    for (final memberId in memberIds) {
+      updates['/users/$memberId/gruppi/$groupId'] = null;
+    }
+
+    await _dbRef.update(updates);
   }
 
   Future<void> inviteUserToGroup({
@@ -1034,7 +1668,10 @@ class DatabaseService {
       throw Exception('Utente non loggato');
     }
 
-    final groupSnapshot = await _dbRef.child('groups_info').child(groupId).get();
+    final groupSnapshot = await _dbRef
+        .child('groups_info')
+        .child(groupId)
+        .get();
     if (!groupSnapshot.exists || groupSnapshot.value == null) {
       throw Exception('Gruppo non trovato');
     }
@@ -1052,7 +1689,8 @@ class DatabaseService {
 
     final targetUser = matches.first;
     final targetUid = targetUser['uid']?.toString() ?? '';
-    final targetNickname = targetUser['nickname']?.toString() ?? nickname.trim();
+    final targetNickname =
+        targetUser['nickname']?.toString() ?? nickname.trim();
     if (targetUid.isEmpty) {
       throw Exception('Utente non valido');
     }
@@ -1085,7 +1723,7 @@ class DatabaseService {
   Future<void> deleteJam(String jamId) async {
     final user = _auth.currentUser;
     if (user == null) return;
-    
+
     debugPrint("Inizio cancellazione JAM: $jamId");
 
     try {
@@ -1097,6 +1735,7 @@ class DatabaseService {
       final data = Map<String, dynamic>.from(snapshot.value as Map);
       final dateStr = data['data'] as String;
       final creatorId = data['creator_id'] as String;
+      final participantIds = _extractIds(data['participants']);
       final isAdmin = await _isCurrentUserAdmin();
 
       if (creatorId != user.uid && !isAdmin) {
@@ -1107,7 +1746,11 @@ class DatabaseService {
 
       // 1. Trova e rimuovi il post dal feed
       try {
-        final feedSnapshot = await _dbRef.child('feed').orderByChild('jam_id').equalTo(jamId).get();
+        final feedSnapshot = await _dbRef
+            .child('feed')
+            .orderByChild('jam_id')
+            .equalTo(jamId)
+            .get();
         if (feedSnapshot.exists && feedSnapshot.value != null) {
           final feedData = Map<String, dynamic>.from(feedSnapshot.value as Map);
           feedData.forEach((key, value) {
@@ -1118,7 +1761,9 @@ class DatabaseService {
         debugPrint("Query feed fallita ($e). Tento fallback...");
         final allFeedSnapshot = await _dbRef.child('feed').get();
         if (allFeedSnapshot.exists && allFeedSnapshot.value != null) {
-          final allFeed = Map<String, dynamic>.from(allFeedSnapshot.value as Map);
+          final allFeed = Map<String, dynamic>.from(
+            allFeedSnapshot.value as Map,
+          );
           allFeed.forEach((key, value) {
             final feedItem = Map<String, dynamic>.from(value as Map);
             if (feedItem['jam_id'] == jamId) {
@@ -1131,35 +1776,45 @@ class DatabaseService {
       // 2. Trova e libera gli slot
       Map<String, dynamic> slotsToFree = {};
       try {
-        final slotsSnapshot = await _dbRef.child('slots').child(dateStr).orderByChild('booking_id').equalTo(jamId).get();
+        final slotsSnapshot = await _dbRef
+            .child('slots')
+            .child(dateStr)
+            .orderByChild('booking_id')
+            .equalTo(jamId)
+            .get();
         if (slotsSnapshot.exists && slotsSnapshot.value != null) {
           if (slotsSnapshot.value is Map) {
-             slotsToFree = Map<String, dynamic>.from(slotsSnapshot.value as Map);
+            slotsToFree = Map<String, dynamic>.from(slotsSnapshot.value as Map);
           } else if (slotsSnapshot.value is List) {
-             // Handle potential list return (though unlikely with string keys)
-             final list = slotsSnapshot.value as List;
-             for (int i=0; i < list.length; i++) {
-               if (list[i] != null) {
-                 // Try to recover original key if possible, but here we likely only have value
-                 // Ideally we shouldn't get here for slots with "HH_mm" keys.
-                 // But if we do, we can't reliably reconstruct the key unless it's inside the value.
-                 // The code below iterates over slotsToFree keys.
-                 // If we can't get the key, we can't update.
-                 // So we assume Map.
-               }
-             }
+            // Handle potential list return (though unlikely with string keys)
+            final list = slotsSnapshot.value as List;
+            for (int i = 0; i < list.length; i++) {
+              if (list[i] != null) {
+                // Try to recover original key if possible, but here we likely only have value
+                // Ideally we shouldn't get here for slots with "HH_mm" keys.
+                // But if we do, we can't reliably reconstruct the key unless it's inside the value.
+                // The code below iterates over slotsToFree keys.
+                // If we can't get the key, we can't update.
+                // So we assume Map.
+              }
+            }
           }
         }
       } catch (e) {
-        final allSlotsSnapshot = await _dbRef.child('slots').child(dateStr).get();
+        final allSlotsSnapshot = await _dbRef
+            .child('slots')
+            .child(dateStr)
+            .get();
         if (allSlotsSnapshot.exists && allSlotsSnapshot.value != null) {
-           final allSlots = Map<String, dynamic>.from(allSlotsSnapshot.value as Map);
-           allSlots.forEach((key, value) {
-             final slotData = Map<String, dynamic>.from(value as Map);
-             if (slotData['booking_id'] == jamId) {
-               slotsToFree[key] = slotData;
-             }
-           });
+          final allSlots = Map<String, dynamic>.from(
+            allSlotsSnapshot.value as Map,
+          );
+          allSlots.forEach((key, value) {
+            final slotData = Map<String, dynamic>.from(value as Map);
+            if (slotData['booking_id'] == jamId) {
+              slotsToFree[key] = slotData;
+            }
+          });
         }
       }
       slotsToFree.forEach((key, value) {
@@ -1169,12 +1824,15 @@ class DatabaseService {
         updates['/slots/$dateStr/$key/is_jam'] = null;
       });
 
+      for (final participantId in participantIds) {
+        updates['/user_joined_jams/$participantId/$jamId'] = null;
+      }
+
       // 3. Rimuovi la Jam
       updates['/jams/$jamId'] = null;
 
       await _dbRef.update(updates);
       debugPrint("Jam $jamId e post feed eliminati, slot liberati.");
-
     } catch (e) {
       debugPrint("Errore durante eliminazione jam: $e");
       rethrow;
@@ -1187,4 +1845,147 @@ class DatabaseService {
     return _dbRef.child('feed').orderByChild('timestamp').onValue;
   }
 
+  Future<void> deleteCurrentUserProfileData() async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception('Utente non loggato');
+    }
+
+    final uid = user.uid;
+    final userSnapshot = await _dbRef.child('users').child(uid).get();
+    final userData = userSnapshot.exists && userSnapshot.value != null
+        ? Map<String, dynamic>.from(userSnapshot.value as Map)
+        : <String, dynamic>{};
+    final nickname =
+        userData['username']?.toString() ??
+        userData['nickname']?.toString() ??
+        '';
+    final email = userData['email']?.toString() ?? '';
+    final normalizedNickname = nickname.isEmpty
+        ? ''
+        : _normalizeNickname(nickname);
+    final normalizedEmail = email.isEmpty ? '' : _normalizeEmail(email);
+    final emailKey = email.isEmpty ? '' : _emailKey(email);
+
+    final ownedGroupsSnapshot = await _dbRef
+        .child('groups_info')
+        .orderByChild('owner_id')
+        .equalTo(uid)
+        .get();
+    final ownedGroupIds = <String>[];
+    if (ownedGroupsSnapshot.exists && ownedGroupsSnapshot.value is Map) {
+      final rawGroups = Map<String, dynamic>.from(
+        ownedGroupsSnapshot.value as Map,
+      );
+      ownedGroupIds.addAll(rawGroups.keys.map((key) => key.toString()));
+    }
+
+    for (final groupId in ownedGroupIds) {
+      await deleteGroup(groupId);
+    }
+
+    final membershipSnapshot = await _dbRef
+        .child('users')
+        .child(uid)
+        .child('gruppi')
+        .get();
+    if (membershipSnapshot.exists && membershipSnapshot.value is Map) {
+      final rawMemberships = Map<String, dynamic>.from(
+        membershipSnapshot.value as Map,
+      );
+      for (final groupId in rawMemberships.keys.map((key) => key.toString())) {
+        if (ownedGroupIds.contains(groupId)) {
+          continue;
+        }
+
+        await _dbRef.update({
+          '/groups_info/$groupId/members/$uid': null,
+          '/groups_info/$groupId/member_nicknames/$uid': null,
+          '/users/$uid/gruppi/$groupId': null,
+        });
+      }
+    }
+
+    final userBookingsSnapshot = await _dbRef
+        .child('user_bookings')
+        .child(uid)
+        .get();
+    if (userBookingsSnapshot.exists && userBookingsSnapshot.value is Map) {
+      final rawBookings = Map<String, dynamic>.from(
+        userBookingsSnapshot.value as Map,
+      );
+      for (final bookingId in rawBookings.keys.map((key) => key.toString())) {
+        await deleteBooking(bookingId);
+      }
+    }
+
+    final ownedJamsSnapshot = await _dbRef
+        .child('jams')
+        .orderByChild('creator_id')
+        .equalTo(uid)
+        .get();
+    if (ownedJamsSnapshot.exists && ownedJamsSnapshot.value is Map) {
+      final rawJams = Map<String, dynamic>.from(ownedJamsSnapshot.value as Map);
+      for (final jamId in rawJams.keys.map((key) => key.toString())) {
+        await deleteJam(jamId);
+      }
+    }
+
+    final joinedJamsSnapshot = await _dbRef
+        .child('user_joined_jams')
+        .child(uid)
+        .get();
+    if (joinedJamsSnapshot.exists && joinedJamsSnapshot.value is Map) {
+      final rawJoinedJams = Map<String, dynamic>.from(
+        joinedJamsSnapshot.value as Map,
+      );
+      for (final jamId in rawJoinedJams.keys.map((key) => key.toString())) {
+        try {
+          await leaveJam(jamId);
+        } catch (_) {
+          // Ignore stale relations during account cleanup.
+        }
+      }
+    }
+
+    final updates = <String, dynamic>{
+      '/users/$uid': null,
+      '/user_bookings/$uid': null,
+      '/user_joined_jams/$uid': null,
+      '/user_notifications/$uid': null,
+    };
+
+    if (normalizedNickname.isNotEmpty) {
+      updates['/user_search_index/$normalizedNickname/$uid'] = null;
+      updates['/nickname_claims/$normalizedNickname'] = null;
+    }
+    if (normalizedEmail.isNotEmpty) {
+      updates['/user_email_index/$emailKey/$uid'] = null;
+      updates['/email_claims/$emailKey'] = null;
+    }
+
+    await _dbRef.update(updates);
+  }
+}
+
+class RegistrationAvailability {
+  const RegistrationAvailability({
+    required this.nicknameAvailable,
+    required this.emailAvailable,
+  });
+
+  final bool nicknameAvailable;
+  final bool emailAvailable;
+
+  bool get isAvailable => nicknameAvailable && emailAvailable;
+
+  String get errorMessage {
+    if (!nicknameAvailable && !emailAvailable) {
+      return 'Email e username gia utilizzati';
+    }
+    if (!nicknameAvailable) {
+      return 'Username gia utilizzato';
+    }
+    return 'Email gia utilizzata';
+  }
 }

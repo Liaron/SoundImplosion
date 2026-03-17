@@ -3,7 +3,7 @@ import 'package:soundimplosion/app/features/book/booking_repository.dart';
 
 class BookNowController extends ChangeNotifier {
   BookNowController({BookingRepository? repository})
-      : _repository = repository ?? FirebaseBookingRepository();
+    : _repository = repository ?? FirebaseBookingRepository();
 
   final BookingRepository _repository;
 
@@ -48,18 +48,12 @@ class BookNowController extends ChangeNotifier {
 
     if (initialBooking != null) {
       _hydrateFromExistingBooking(initialBooking);
-      await Future.wait([
-        loadAvailableDates(),
-        loadUserGroups(),
-      ]);
+      await Future.wait([loadAvailableDates(), loadUserGroups()]);
       await refreshAvailableSlots();
       return;
     }
 
-    await Future.wait([
-      loadAvailableDates(),
-      loadUserGroups(),
-    ]);
+    await Future.wait([loadAvailableDates(), loadUserGroups()]);
   }
 
   Future<void> loadAvailableDates() async {
@@ -69,11 +63,14 @@ class BookNowController extends ChangeNotifier {
     try {
       availableDates = await _repository.loadAvailableDates();
 
-      if (_originalDate != null && !_containsDay(availableDates, _originalDate!)) {
-        availableDates = [...availableDates, _originalDate!]..sort((a, b) => a.compareTo(b));
+      if (_originalDate != null &&
+          !_containsDay(availableDates, _originalDate!)) {
+        availableDates = [...availableDates, _originalDate!]
+          ..sort((a, b) => a.compareTo(b));
       }
 
-      if (selectedDate != null && !_containsDay(availableDates, selectedDate!)) {
+      if (selectedDate != null &&
+          !_containsDay(availableDates, selectedDate!)) {
         selectedDate = null;
         _selectedSlots.clear();
         availableSlots = [];
@@ -88,13 +85,12 @@ class BookNowController extends ChangeNotifier {
     userGroups = await _repository.loadUserGroups();
 
     final currentGroupId = selectedGroupId;
-    if (currentGroupId != null && currentGroupId.isNotEmpty && !userGroups.any((group) => group['id'] == currentGroupId)) {
+    if (currentGroupId != null &&
+        currentGroupId.isNotEmpty &&
+        !userGroups.any((group) => group['id'] == currentGroupId)) {
       userGroups = [
         ...userGroups,
-        {
-          'id': currentGroupId,
-          'name': 'Gruppo corrente',
-        },
+        {'id': currentGroupId, 'name': 'Gruppo corrente'},
       ];
     }
 
@@ -120,7 +116,8 @@ class BookNowController extends ChangeNotifier {
       final loadedSlots = await _repository.loadAvailableSlots(currentDate);
       final mergedSlots = {...loadedSlots};
 
-      if (_originalDate != null && _containsDay([_originalDate!], currentDate)) {
+      if (_originalDate != null &&
+          _containsDay([_originalDate!], currentDate)) {
         mergedSlots.addAll(_originalSelectedSlots);
       }
 

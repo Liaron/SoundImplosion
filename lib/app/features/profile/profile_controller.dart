@@ -4,7 +4,7 @@ import 'package:soundimplosion/models/models.dart';
 
 class ProfileController extends ChangeNotifier {
   ProfileController({ProfileRepository? repository})
-      : _repository = repository ?? FirebaseProfileRepository();
+    : _repository = repository ?? FirebaseProfileRepository();
 
   final ProfileRepository _repository;
 
@@ -43,21 +43,16 @@ class ProfileController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> addInstrument({
-    required String name,
-    required int level,
-  }) async {
+  Future<void> addInstrument({required String name, required int level}) async {
     final currentUser = user;
     final trimmedName = name.trim();
     if (currentUser == null || trimmedName.isEmpty) {
       return;
     }
 
-    final updatedInstruments = List<Map<String, dynamic>>.from(currentUser.strumentiList)
-      ..add({
-        'nome': trimmedName,
-        'livello': level,
-      });
+    final updatedInstruments = List<Map<String, dynamic>>.from(
+      currentUser.strumentiList,
+    )..add({'nome': trimmedName, 'livello': level});
 
     final updatedUser = currentUser.copyWith(strumentiList: updatedInstruments);
     await _repository.saveProfile(updatedUser);
@@ -67,16 +62,36 @@ class ProfileController extends ChangeNotifier {
 
   Future<void> removeInstrument(int index) async {
     final currentUser = user;
-    if (currentUser == null || index < 0 || index >= currentUser.strumentiList.length) {
+    if (currentUser == null ||
+        index < 0 ||
+        index >= currentUser.strumentiList.length) {
       return;
     }
 
-    final updatedInstruments = List<Map<String, dynamic>>.from(currentUser.strumentiList)
-      ..removeAt(index);
+    final updatedInstruments = List<Map<String, dynamic>>.from(
+      currentUser.strumentiList,
+    )..removeAt(index);
 
     final updatedUser = currentUser.copyWith(strumentiList: updatedInstruments);
     await _repository.saveProfile(updatedUser);
     user = updatedUser;
     notifyListeners();
+  }
+
+  Future<void> deleteProfile() async {
+    isLoading = true;
+    errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _repository.deleteProfile();
+      user = null;
+    } catch (e) {
+      errorMessage = e.toString().replaceAll('Exception: ', '');
+      rethrow;
+    } finally {
+      isLoading = false;
+      notifyListeners();
+    }
   }
 }

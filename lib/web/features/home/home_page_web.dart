@@ -8,14 +8,9 @@ class HomePageWeb extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(title),
-      ),
+      appBar: AppBar(title: Text(title)),
       body: const Center(
-        child: Text(
-          'Home - Web',
-          style: TextStyle(fontSize: 32),
-        ),
+        child: Text('Home - Web', style: TextStyle(fontSize: 32)),
       ),
     );
   }

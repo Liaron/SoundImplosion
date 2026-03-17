@@ -6,12 +6,14 @@ class GroupListItem {
   const GroupListItem({
     required this.id,
     required this.name,
+    required this.description,
     required this.ownerId,
     required this.memberNicknames,
   });
 
   final String id;
   final String name;
+  final String description;
   final String ownerId;
   final Map<String, String> memberNicknames;
 
@@ -19,18 +21,28 @@ class GroupListItem {
 
   List<String> get memberNames => memberNicknames.values.toList()..sort();
 
+  int get memberCount => memberNicknames.length;
+
+  List<MapEntry<String, String>> get sortedMembers {
+    final members = memberNicknames.entries.toList()
+      ..sort((left, right) => left.value.compareTo(right.value));
+    return members;
+  }
+
   factory GroupListItem.fromMap(String id, Map<String, dynamic> map) {
     final nicknames = <String, String>{};
     final rawNicknames = map['member_nicknames'];
     if (rawNicknames is Map) {
       for (final entry in rawNicknames.entries) {
-        nicknames[entry.key.toString()] = entry.value?.toString() ?? entry.key.toString();
+        nicknames[entry.key.toString()] =
+            entry.value?.toString() ?? entry.key.toString();
       }
     }
 
     return GroupListItem(
       id: id,
       name: map['name']?.toString() ?? 'Gruppo senza nome',
+      description: map['description']?.toString() ?? '',
       ownerId: map['owner_id']?.toString() ?? '',
       memberNicknames: nicknames,
     );
@@ -39,16 +51,33 @@ class GroupListItem {
 
 abstract class GroupsRepository {
   Stream<List<GroupListItem>> watchUserGroups();
-  Future<void> createGroup(String name);
-  Future<void> inviteUserToGroup({required String groupId, required String nickname});
+  Future<void> createGroup(String name, {String description = ''});
+  Future<void> inviteUserToGroup({
+    required String groupId,
+    required String nickname,
+  });
+  Future<void> removeUserFromGroup({
+    required String groupId,
+    required String targetUserId,
+  });
+  Future<void> leaveGroup(String groupId);
+  Future<void> deleteGroup(String groupId);
   Future<bool> isCurrentUserAdmin();
 }
 
 class FirebaseGroupsRepository implements GroupsRepository {
   FirebaseGroupsRepository({DatabaseService? databaseService})
-      : _databaseService = databaseService ?? DatabaseService();
+    : _databaseService = databaseService ?? DatabaseService();
 
   final DatabaseService _databaseService;
+
+  GroupListItem? _groupFromRawValue(String id, dynamic rawValue) {
+    if (rawValue is! Map) {
+      return null;
+    }
+
+    return GroupListItem.fromMap(id, Map<String, dynamic>.from(rawValue));
+  }
 
   @override
   Stream<List<GroupListItem>> watchUserGroups() {
@@ -59,72 +88,78 @@ class FirebaseGroupsRepository implements GroupsRepository {
     final List<StreamSubscription<dynamic>> groupSubscriptions = [];
 
     void emit() {
-      final items = groups.values.toList()..sort((a, b) => a.name.compareTo(b.name));
+      final items = groups.values.toList()
+        ..sort((a, b) => a.name.compareTo(b.name));
       controller.add(items);
     }
 
     () async {
       final isAdmin = await _databaseService.isCurrentUserAdmin();
       if (isAdmin) {
-        allGroupsSubscription = _databaseService.getAllGroupsStream().listen(
-          (event) {
-            groups.clear();
-            final value = event.snapshot.value;
-            if (value is Map) {
-              for (final entry in value.entries) {
-                groups[entry.key.toString()] = GroupListItem.fromMap(
-                  entry.key.toString(),
-                  Map<String, dynamic>.from(entry.value as Map),
-                );
+        allGroupsSubscription = _databaseService.getAllGroupsStream().listen((
+          event,
+        ) {
+          groups.clear();
+          final value = event.snapshot.value;
+          if (value is Map) {
+            for (final entry in value.entries) {
+              final group = _groupFromRawValue(
+                entry.key.toString(),
+                entry.value,
+              );
+              if (group != null) {
+                groups[entry.key.toString()] = group;
               }
             }
-            emit();
-          },
-          onError: controller.addError,
-        );
+          }
+          emit();
+        }, onError: controller.addError);
         return;
       }
 
-      groupIdsSubscription = _databaseService.getUserGroupIdsStream().listen(
-        (event) async {
-          for (final subscription in groupSubscriptions) {
-            await subscription.cancel();
-          }
-          groupSubscriptions.clear();
-          groups.clear();
+      groupIdsSubscription = _databaseService.getUserGroupIdsStream().listen((
+        event,
+      ) async {
+        for (final subscription in groupSubscriptions) {
+          await subscription.cancel();
+        }
+        groupSubscriptions.clear();
+        groups.clear();
 
-          final rawData = event.snapshot.value;
-          final groupIds = <String>[];
-          if (rawData is Map) {
-            groupIds.addAll(rawData.keys.map((key) => key.toString()));
-          } else if (rawData is List) {
-            for (int index = 0; index < rawData.length; index++) {
-              if (rawData[index] != null) {
-                groupIds.add(index.toString());
-              }
+        final rawData = event.snapshot.value;
+        final groupIds = <String>[];
+        if (rawData is Map) {
+          groupIds.addAll(rawData.keys.map((key) => key.toString()));
+        } else if (rawData is List) {
+          for (int index = 0; index < rawData.length; index++) {
+            if (rawData[index] != null) {
+              groupIds.add(index.toString());
             }
           }
+        }
 
-          for (final groupId in groupIds) {
-            final subscription = _databaseService.getGroupInfoStream(groupId).listen(
-              (groupEvent) {
+        for (final groupId in groupIds) {
+          final subscription = _databaseService
+              .getGroupInfoStream(groupId)
+              .listen((groupEvent) {
                 final value = groupEvent.snapshot.value;
                 if (value == null) {
                   groups.remove(groupId);
                 } else {
-                  groups[groupId] = GroupListItem.fromMap(groupId, Map<String, dynamic>.from(value as Map));
+                  final group = _groupFromRawValue(groupId, value);
+                  if (group == null) {
+                    groups.remove(groupId);
+                  } else {
+                    groups[groupId] = group;
+                  }
                 }
                 emit();
-              },
-              onError: controller.addError,
-            );
-            groupSubscriptions.add(subscription);
-          }
+              }, onError: controller.addError);
+          groupSubscriptions.add(subscription);
+        }
 
-          emit();
-        },
-        onError: controller.addError,
-      );
+        emit();
+      }, onError: controller.addError);
     }();
 
     controller.onCancel = () async {
@@ -139,13 +174,40 @@ class FirebaseGroupsRepository implements GroupsRepository {
   }
 
   @override
-  Future<void> createGroup(String name) {
-    return _databaseService.createGroup(name);
+  Future<void> createGroup(String name, {String description = ''}) {
+    return _databaseService.createGroup(name, description: description);
   }
 
   @override
-  Future<void> inviteUserToGroup({required String groupId, required String nickname}) {
-    return _databaseService.inviteUserToGroup(groupId: groupId, nickname: nickname);
+  Future<void> inviteUserToGroup({
+    required String groupId,
+    required String nickname,
+  }) {
+    return _databaseService.inviteUserToGroup(
+      groupId: groupId,
+      nickname: nickname,
+    );
+  }
+
+  @override
+  Future<void> removeUserFromGroup({
+    required String groupId,
+    required String targetUserId,
+  }) {
+    return _databaseService.removeUserFromGroup(
+      groupId: groupId,
+      targetUserId: targetUserId,
+    );
+  }
+
+  @override
+  Future<void> leaveGroup(String groupId) {
+    return _databaseService.leaveGroup(groupId);
+  }
+
+  @override
+  Future<void> deleteGroup(String groupId) {
+    return _databaseService.deleteGroup(groupId);
   }
 
   @override

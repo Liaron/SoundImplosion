@@ -9,10 +9,12 @@ class AdminJamManagementPageMobile extends StatefulWidget {
   final bool embedded;
 
   @override
-  State<AdminJamManagementPageMobile> createState() => _AdminJamManagementPageMobileState();
+  State<AdminJamManagementPageMobile> createState() =>
+      _AdminJamManagementPageMobileState();
 }
 
-class _AdminJamManagementPageMobileState extends State<AdminJamManagementPageMobile> {
+class _AdminJamManagementPageMobileState
+    extends State<AdminJamManagementPageMobile> {
   final AdminJamController _controller = AdminJamController();
 
   @override
@@ -49,7 +51,11 @@ class _AdminJamManagementPageMobileState extends State<AdminJamManagementPageMob
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Errore: ${e.toString().replaceAll('Exception: ', '')}')),
+        SnackBar(
+          content: Text(
+            'Errore: ${e.toString().replaceAll('Exception: ', '')}',
+          ),
+        ),
       );
     }
   }
@@ -59,7 +65,9 @@ class _AdminJamManagementPageMobileState extends State<AdminJamManagementPageMob
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Rifiuta jam'),
-        content: const Text('Vuoi rifiutare questa jam e liberare gli slot riservati?'),
+        content: const Text(
+          'Vuoi rifiutare questa jam e liberare gli slot riservati?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -82,15 +90,19 @@ class _AdminJamManagementPageMobileState extends State<AdminJamManagementPageMob
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Jam rifiutata')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Jam rifiutata')));
     } catch (e) {
       if (!mounted) {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Errore: ${e.toString().replaceAll('Exception: ', '')}')),
+        SnackBar(
+          content: Text(
+            'Errore: ${e.toString().replaceAll('Exception: ', '')}',
+          ),
+        ),
       );
     }
   }
@@ -103,9 +115,9 @@ class _AdminJamManagementPageMobileState extends State<AdminJamManagementPageMob
     );
 
     if (result == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Jam riprogrammata')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Jam riprogrammata')));
     }
   }
 
@@ -148,9 +160,7 @@ class _AdminJamManagementPageMobileState extends State<AdminJamManagementPageMob
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Admin Jam'),
-      ),
+      appBar: AppBar(title: const Text('Admin Jam')),
       body: body,
     );
   }
@@ -185,8 +195,13 @@ class _PendingJamCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    jam.descrizione.isEmpty ? 'Jam senza descrizione' : jam.descrizione,
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    jam.descrizione.isEmpty
+                        ? 'Jam senza descrizione'
+                        : jam.descrizione,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
                 Chip(
@@ -200,8 +215,11 @@ class _PendingJamCard extends StatelessWidget {
             Text('Orario: ${item.timeRangeLabel}'),
             Text('Creatore: ${jam.creatorNickname ?? jam.creatorId}'),
             Text('Pagamento: ${item.paymentLabel}'),
-            Text('Partecipanti: ${jam.personePresenti} presenti, ${jam.personeRichieste} richiesti'),
-            if (jam.attrezzatura.isNotEmpty) Text('Attrezzatura: ${jam.attrezzatura}'),
+            Text(
+              'Partecipanti: ${jam.personePresenti} presenti, ${jam.personeRichieste} richiesti',
+            ),
+            if (jam.attrezzatura.isNotEmpty)
+              Text('Attrezzatura: ${jam.attrezzatura}'),
             const SizedBox(height: 12),
             Wrap(
               spacing: 12,

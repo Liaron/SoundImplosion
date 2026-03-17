@@ -5,10 +5,6 @@ class MyGroupsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(
-        child: Text('Pagina I Miei Gruppi'),
-      ),
-    );
+    return const Scaffold(body: Center(child: Text('Pagina I Miei Gruppi')));
   }
 }

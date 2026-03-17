@@ -1,15 +1,45 @@
 import 'package:flutter/foundation.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:soundimplosion/app/features/profile/profile_repository.dart';
 import 'package:soundimplosion/models/models.dart';
 
 class AppScaffoldController extends ChangeNotifier {
-  AppScaffoldController({ProfileRepository? profileRepository})
-      : _profileRepository = profileRepository ?? FirebaseProfileRepository();
+  AppScaffoldController({
+    ProfileRepository? profileRepository,
+    bool Function()? currentEmailVerified,
+    Future<bool> Function()? refreshEmailVerification,
+    Future<void> Function()? sendVerificationEmail,
+  }) : _profileRepository = profileRepository ?? FirebaseProfileRepository(),
+       _currentEmailVerified =
+           currentEmailVerified ??
+           (() => FirebaseAuth.instance.currentUser?.emailVerified ?? false),
+       _refreshEmailVerification =
+           refreshEmailVerification ??
+           (() async {
+             final currentUser = FirebaseAuth.instance.currentUser;
+             if (currentUser == null) {
+               return false;
+             }
+             await currentUser.reload();
+             return FirebaseAuth.instance.currentUser?.emailVerified ?? false;
+           }),
+       _sendVerificationEmail =
+           sendVerificationEmail ??
+           (() async {
+             final currentUser = FirebaseAuth.instance.currentUser;
+             if (currentUser == null) {
+               throw Exception('Utente non loggato');
+             }
+             await currentUser.sendEmailVerification();
+           });
 
   final ProfileRepository _profileRepository;
+  final bool Function() _currentEmailVerified;
+  final Future<bool> Function() _refreshEmailVerification;
+  final Future<void> Function() _sendVerificationEmail;
 
   bool isLoadingProfile = true;
-  bool isProfileConfigured = false;
+  bool isEmailVerified = false;
   AppUser? user;
 
   bool get isAdmin => user?.isAdmin ?? false;
@@ -19,47 +49,37 @@ class AppScaffoldController extends ChangeNotifier {
     notifyListeners();
 
     try {
+      isEmailVerified = _currentEmailVerified();
       var loadedUser = await _profileRepository.loadProfile();
       if (loadedUser == null) {
-        isProfileConfigured = false;
+        user = null;
         isLoadingProfile = false;
         notifyListeners();
         return;
       }
 
-      if (loadedUser.nickname == loadedUser.uid) {
-        user = loadedUser;
-        isProfileConfigured = false;
-      } else {
-        user = loadedUser;
-        isProfileConfigured = true;
-      }
+      user = loadedUser;
     } catch (_) {
-      isProfileConfigured = false;
+      user = null;
     } finally {
       isLoadingProfile = false;
       notifyListeners();
     }
   }
 
-  Future<void> saveInitialProfile(String nickname) async {
-    final currentUser = user;
-    final trimmedNickname = nickname.trim();
-    if (currentUser == null || trimmedNickname.isEmpty) {
-      return;
-    }
-
+  Future<void> refreshEmailVerification() async {
     isLoadingProfile = true;
     notifyListeners();
 
     try {
-      final updatedUser = currentUser.copyWith(nickname: trimmedNickname);
-      await _profileRepository.saveProfile(updatedUser);
-      user = updatedUser;
-      isProfileConfigured = true;
+      isEmailVerified = await _refreshEmailVerification();
     } finally {
       isLoadingProfile = false;
       notifyListeners();
     }
+  }
+
+  Future<void> sendVerificationEmail() {
+    return _sendVerificationEmail();
   }
 }

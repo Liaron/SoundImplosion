@@ -6,8 +6,8 @@ import 'package:soundimplosion/app/features/groups/groups_repository.dart';
 
 class GroupsController extends ChangeNotifier {
   GroupsController({GroupsRepository? repository, FirebaseAuth? auth})
-      : _repository = repository ?? FirebaseGroupsRepository(),
-        _auth = auth ?? FirebaseAuth.instance;
+    : _repository = repository ?? FirebaseGroupsRepository(),
+      _auth = auth ?? FirebaseAuth.instance;
 
   final GroupsRepository _repository;
   final FirebaseAuth _auth;
@@ -44,22 +44,64 @@ class GroupsController extends ChangeNotifier {
     );
   }
 
-  Future<void> createGroup(String name) async {
+  Future<void> createGroup(String name, {String description = ''}) async {
     isSubmitting = true;
     notifyListeners();
     try {
-      await _repository.createGroup(name);
+      await _repository.createGroup(name, description: description);
     } finally {
       isSubmitting = false;
       notifyListeners();
     }
   }
 
-  Future<void> inviteUserToGroup({required String groupId, required String nickname}) async {
+  Future<void> inviteUserToGroup({
+    required String groupId,
+    required String nickname,
+  }) async {
     isSubmitting = true;
     notifyListeners();
     try {
       await _repository.inviteUserToGroup(groupId: groupId, nickname: nickname);
+    } finally {
+      isSubmitting = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> removeUserFromGroup({
+    required String groupId,
+    required String targetUserId,
+  }) async {
+    isSubmitting = true;
+    notifyListeners();
+    try {
+      await _repository.removeUserFromGroup(
+        groupId: groupId,
+        targetUserId: targetUserId,
+      );
+    } finally {
+      isSubmitting = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> leaveGroup(String groupId) async {
+    isSubmitting = true;
+    notifyListeners();
+    try {
+      await _repository.leaveGroup(groupId);
+    } finally {
+      isSubmitting = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> deleteGroup(String groupId) async {
+    isSubmitting = true;
+    notifyListeners();
+    try {
+      await _repository.deleteGroup(groupId);
     } finally {
       isSubmitting = false;
       notifyListeners();

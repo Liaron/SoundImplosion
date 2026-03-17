@@ -1,6 +1,7 @@
 {
   "project_info": {
     "project_number": "287016865087",
+    "firebase_url": "https://liaron-soundimplosion-default-rtdb.europe-west1.firebasedatabase.app",
     "project_id": "liaron-soundimplosion",
     "storage_bucket": "liaron-soundimplosion.firebasestorage.app"
   },
@@ -12,7 +13,20 @@
           "package_name": "it.sinnodel.soundimplosion"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "287016865087-849aatbpn5in6h9murhn9j3enu9ntpin.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "it.sinnodel.soundimplosion",
+            "certificate_hash": "23fa1b4057e0235b3ddc9e853e93d10de16e3d7e"
+          }
+        },
+        {
+          "client_id": "287016865087-hnlkv64na9absaj0vnff0ikjh5pqhi4h.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDMiYmcHhnSNdspTVmYHB6-UZ_foo8bKbs"
@@ -20,7 +34,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "287016865087-hnlkv64na9absaj0vnff0ikjh5pqhi4h.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "287016865087-jc6oi0lvn3s8537r4pfrnscfsm91tgme.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "it.sinnodel.soundimplosion"
+              }
+            }
+          ]
         }
       }
     }

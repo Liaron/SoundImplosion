@@ -5,7 +5,8 @@ class ProfileDetailsPageMobile extends StatefulWidget {
   const ProfileDetailsPageMobile({super.key});
 
   @override
-  State<ProfileDetailsPageMobile> createState() => _ProfileDetailsPageMobileState();
+  State<ProfileDetailsPageMobile> createState() =>
+      _ProfileDetailsPageMobileState();
 }
 
 class _ProfileDetailsPageMobileState extends State<ProfileDetailsPageMobile> {
@@ -36,19 +37,35 @@ class _ProfileDetailsPageMobileState extends State<ProfileDetailsPageMobile> {
     final controller = TextEditingController(text: currentUser?.nickname);
     await showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Modifica Nickname"),
+      builder: (dialogContext) => AlertDialog(
+        title: const Text("Modifica Username"),
         content: TextField(
           controller: controller,
-          decoration: const InputDecoration(labelText: "Nuovo Nickname"),
+          decoration: const InputDecoration(labelText: "Nuovo Username"),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Annulla")),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text("Annulla"),
+          ),
           TextButton(
             onPressed: () async {
               if (controller.text.isNotEmpty && currentUser != null) {
-                await _controller.updateNickname(controller.text);
-                if (mounted) Navigator.pop(context);
+                try {
+                  await _controller.updateNickname(controller.text);
+                  if (dialogContext.mounted) {
+                    Navigator.pop(dialogContext);
+                  }
+                } catch (e) {
+                  if (!dialogContext.mounted) {
+                    return;
+                  }
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
+                    SnackBar(
+                      content: Text(e.toString().replaceAll('Exception: ', '')),
+                    ),
+                  );
+                }
               }
             },
             child: const Text("Salva"),
@@ -64,8 +81,8 @@ class _ProfileDetailsPageMobileState extends State<ProfileDetailsPageMobile> {
 
     await showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setStateDialog) {
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setStateDialog) {
           return AlertDialog(
             title: const Text("Aggiungi Strumento"),
             content: Column(
@@ -73,7 +90,9 @@ class _ProfileDetailsPageMobileState extends State<ProfileDetailsPageMobile> {
               children: [
                 TextField(
                   controller: nameController,
-                  decoration: const InputDecoration(labelText: "Nome Strumento (es. Chitarra)"),
+                  decoration: const InputDecoration(
+                    labelText: "Nome Strumento (es. Chitarra)",
+                  ),
                 ),
                 const SizedBox(height: 16),
                 Text("Livello Abilità: ${level.toInt()}"),
@@ -88,22 +107,28 @@ class _ProfileDetailsPageMobileState extends State<ProfileDetailsPageMobile> {
               ],
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(context), child: const Text("Annulla")),
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text("Annulla"),
+              ),
               TextButton(
                 onPressed: () async {
-                  if (nameController.text.isNotEmpty && _controller.user != null) {
+                  if (nameController.text.isNotEmpty &&
+                      _controller.user != null) {
                     await _controller.addInstrument(
                       name: nameController.text,
                       level: level.toInt(),
                     );
-                    if (mounted) Navigator.pop(context);
+                    if (dialogContext.mounted) {
+                      Navigator.pop(dialogContext);
+                    }
                   }
                 },
                 child: const Text("Aggiungi"),
               ),
             ],
           );
-        }
+        },
       ),
     );
   }
@@ -112,10 +137,52 @@ class _ProfileDetailsPageMobileState extends State<ProfileDetailsPageMobile> {
     await _controller.removeInstrument(index);
   }
 
+  Future<void> _deleteProfile() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Elimina profilo'),
+        content: const Text(
+          'Il profilo verra eliminato insieme a prenotazioni, jam, partecipazioni e riferimenti collegati. Vuoi continuare?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Annulla'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Elimina', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    try {
+      await _controller.deleteProfile();
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+      );
+    }
+  }
+
   // Placeholder per gestione foto (senza Storage vero e proprio per ora)
   Future<void> _manageProfilePhoto() async {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Funzionalità foto in arrivo (richiede Firebase Storage)")),
+      const SnackBar(
+        content: Text(
+          "Funzionalità foto in arrivo (richiede Firebase Storage)",
+        ),
+      ),
     );
   }
 
@@ -127,7 +194,9 @@ class _ProfileDetailsPageMobileState extends State<ProfileDetailsPageMobile> {
 
     final user = _controller.user;
     if (user == null) {
-      return Center(child: Text(_controller.errorMessage ?? 'Errore caricamento profilo'));
+      return Center(
+        child: Text(_controller.errorMessage ?? 'Errore caricamento profilo'),
+      );
     }
 
     return Scaffold(
@@ -142,13 +211,18 @@ class _ProfileDetailsPageMobileState extends State<ProfileDetailsPageMobile> {
                   CircleAvatar(
                     radius: 60,
                     backgroundColor: Colors.grey[300],
-                    backgroundImage: user.profileImageUrl != null 
-                        ? NetworkImage(user.profileImageUrl!) 
+                    backgroundImage: user.profileImageUrl != null
+                        ? NetworkImage(user.profileImageUrl!)
                         : null,
                     child: user.profileImageUrl == null
                         ? Text(
-                            user.nickname.isNotEmpty ? user.nickname[0].toUpperCase() : '?',
-                            style: const TextStyle(fontSize: 40, color: Colors.black54),
+                            user.nickname.isNotEmpty
+                                ? user.nickname[0].toUpperCase()
+                                : '?',
+                            style: const TextStyle(
+                              fontSize: 40,
+                              color: Colors.black54,
+                            ),
                           )
                         : null,
                   ),
@@ -159,7 +233,11 @@ class _ProfileDetailsPageMobileState extends State<ProfileDetailsPageMobile> {
                       backgroundColor: Colors.grey[850],
                       radius: 20,
                       child: IconButton(
-                        icon: const Icon(Icons.camera_alt, color: Colors.white, size: 20),
+                        icon: const Icon(
+                          Icons.camera_alt,
+                          color: Colors.white,
+                          size: 20,
+                        ),
                         onPressed: _manageProfilePhoto,
                       ),
                     ),
@@ -169,13 +247,16 @@ class _ProfileDetailsPageMobileState extends State<ProfileDetailsPageMobile> {
             ),
             const SizedBox(height: 24),
 
-            // 2. Nickname
+            // 2. Username
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
                   user.nickname,
-                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 IconButton(
                   icon: const Icon(Icons.edit, size: 20),
@@ -202,7 +283,10 @@ class _ProfileDetailsPageMobileState extends State<ProfileDetailsPageMobile> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.grey[850],
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                     ),
                   ),
                 ],
@@ -213,7 +297,10 @@ class _ProfileDetailsPageMobileState extends State<ProfileDetailsPageMobile> {
             user.strumentiList.isEmpty
                 ? const Padding(
                     padding: EdgeInsets.symmetric(vertical: 20),
-                    child: Text("Nessuno strumento aggiunto.", style: TextStyle(color: Colors.grey)),
+                    child: Text(
+                      "Nessuno strumento aggiunto.",
+                      style: TextStyle(color: Colors.grey),
+                    ),
                   )
                 : ListView.builder(
                     shrinkWrap: true,
@@ -235,6 +322,21 @@ class _ProfileDetailsPageMobileState extends State<ProfileDetailsPageMobile> {
                       );
                     },
                   ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _controller.isLoading ? null : _deleteProfile,
+                icon: const Icon(Icons.delete_forever, color: Colors.red),
+                label: const Text(
+                  'Elimina profilo',
+                  style: TextStyle(color: Colors.red),
+                ),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Colors.red),
+                ),
+              ),
+            ),
           ],
         ),
       ),

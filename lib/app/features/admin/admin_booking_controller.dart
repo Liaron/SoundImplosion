@@ -6,7 +6,7 @@ import 'package:soundimplosion/app/features/book/booking_repository.dart';
 
 class AdminBookingController extends ChangeNotifier {
   AdminBookingController({AdminBookingRepository? repository})
-      : _repository = repository ?? FirebaseAdminBookingRepository();
+    : _repository = repository ?? FirebaseAdminBookingRepository();
 
   final AdminBookingRepository _repository;
 

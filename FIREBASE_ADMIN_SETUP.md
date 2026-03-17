@@ -85,3 +85,22 @@ I nuovi utenti vengono indicizzati automaticamente.
 Gli utenti esistenti verranno trovati dal search index dopo che il loro profilo sara aggiornato almeno una volta con la versione nuova dell'app.
 
 Per una sicurezza completa servirebbe spostare booking, approvazioni e gestione slot in Cloud Functions o altro backend trusted.
+
+**7. Cleanup Automatico Utenti Eliminati**
+
+Il progetto ora include una Cloud Function in `functions/index.js` che ascolta l'eliminazione di un utente da Firebase Authentication e pulisce i record principali nel Realtime Database.
+
+Questo copre due casi:
+
+1. un utente elimina il proprio account dall'app
+2. un admin elimina un utente da Firebase Authentication o da backend trusted
+
+Deploy:
+
+1. entra nella cartella `functions`
+2. esegui `npm install`
+3. torna alla root del progetto
+4. esegui `firebase deploy --only functions`
+
+Nota:
+la cancellazione admin di un utente in Firebase Authentication non puo essere fatta in modo sicuro dal solo client Flutter standard. Serve Firebase Console, Admin SDK o Cloud Functions.

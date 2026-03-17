@@ -4,10 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:soundimplosion/app/features/jam/jam_repository.dart';
 
 class FindJamController extends ChangeNotifier {
-  FindJamController({
-    JamRepository? repository,
-    this.currentUserId,
-  }) : _repository = repository ?? FirebaseJamRepository();
+  FindJamController({JamRepository? repository, this.currentUserId})
+    : _repository = repository ?? FirebaseJamRepository();
 
   final JamRepository _repository;
   final String? currentUserId;
@@ -38,7 +36,11 @@ class FindJamController extends ChangeNotifier {
         }).toList();
       }
 
-      jams.sort((a, b) => '${b.jam.data} ${b.jam.oraInizio}'.compareTo('${a.jam.data} ${a.jam.oraInizio}'));
+      jams.sort(
+        (a, b) => '${b.jam.data} ${b.jam.oraInizio}'.compareTo(
+          '${a.jam.data} ${a.jam.oraInizio}',
+        ),
+      );
       return jams;
     }
 
@@ -59,7 +61,11 @@ class FindJamController extends ChangeNotifier {
       }).toList();
     }
 
-    jams.sort((a, b) => '${b.jam.data} ${b.jam.oraInizio}'.compareTo('${a.jam.data} ${a.jam.oraInizio}'));
+    jams.sort(
+      (a, b) => '${b.jam.data} ${b.jam.oraInizio}'.compareTo(
+        '${a.jam.data} ${a.jam.oraInizio}',
+      ),
+    );
     return jams;
   }
 

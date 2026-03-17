@@ -58,17 +58,23 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
   // --- Gestione Calendario ---
 
   Future<void> _selectDateFromCalendar(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
     final now = DateTime.now();
     final lastDate = now.add(const Duration(days: 30));
 
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: _controller.selectedDate ?? _controller.availableDates.firstOrNull ?? now,
+      initialDate:
+          _controller.selectedDate ??
+          _controller.availableDates.firstOrNull ??
+          now,
       firstDate: now,
       lastDate: lastDate,
       // Questa funzione abilita solo i giorni presenti in _availableDates
       selectableDayPredicate: (DateTime day) {
-        return _controller.availableDates.any((available) => _isSameDay(available, day));
+        return _controller.availableDates.any(
+          (available) => _isSameDay(available, day),
+        );
       },
     );
 
@@ -79,7 +85,7 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
         if (!mounted) {
           return;
         }
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           SnackBar(content: Text('Errore caricamento orari: $e')),
         );
       }
@@ -95,7 +101,9 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
 
     final validationError = _controller.validateSelection();
     if (validationError != null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(validationError)));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(validationError)));
       return;
     }
 
@@ -126,7 +134,9 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
           context: context,
           barrierDismissible: true,
           builder: (_) => AlertDialog(
-            title: Text(_isEditing ? 'Prenotazione aggiornata' : 'Prenotazione inviata'),
+            title: Text(
+              _isEditing ? 'Prenotazione aggiornata' : 'Prenotazione inviata',
+            ),
             content: Text(
               _isEditing
                   ? 'Le modifiche alla prenotazione sono state salvate.'
@@ -161,8 +171,15 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
           loadingDialogShown = false;
         }
         await _controller.refreshAvailableSlots();
+        if (!mounted) {
+          return;
+        }
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Errore: ${e.toString().replaceAll("Exception: ", "")}')),
+          SnackBar(
+            content: Text(
+              'Errore: ${e.toString().replaceAll("Exception: ", "")}',
+            ),
+          ),
         );
       }
     }
@@ -173,7 +190,9 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
     final showBookingForm = _controller.selectedDate != null;
 
     return Scaffold(
-      appBar: _isEditing ? AppBar(title: const Text('Modifica Prenotazione')) : null,
+      appBar: _isEditing
+          ? AppBar(title: const Text('Modifica Prenotazione'))
+          : null,
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Form(
@@ -196,9 +215,9 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
                       ),
                     )
                   : InkWell(
-                      onTap: _controller.availableDates.isEmpty 
-                        ? null 
-                        : () => _selectDateFromCalendar(context),
+                      onTap: _controller.availableDates.isEmpty
+                          ? null
+                          : () => _selectDateFromCalendar(context),
                       child: InputDecorator(
                         decoration: const InputDecoration(
                           labelText: 'Seleziona Giorno',
@@ -207,13 +226,15 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
                         ),
                         child: Text(
                           _controller.selectedDate == null
-                            ? (_controller.availableDates.isEmpty 
-                                  ? 'Nessuna data disponibile' 
-                                  : 'Tocca per scegliere una data')
-                            : DateFormat('EEEE d MMMM yyyy').format(_controller.selectedDate!),
-                          style: _controller.selectedDate == null 
-                            ? TextStyle(color: Colors.grey[600]) 
-                            : const TextStyle(color: Colors.black),
+                              ? (_controller.availableDates.isEmpty
+                                    ? 'Nessuna data disponibile'
+                                    : 'Tocca per scegliere una data')
+                              : DateFormat(
+                                  'EEEE d MMMM yyyy',
+                                ).format(_controller.selectedDate!),
+                          style: _controller.selectedDate == null
+                              ? TextStyle(color: Colors.grey[600])
+                              : const TextStyle(color: Colors.black),
                         ),
                       ),
                     ),
@@ -222,19 +243,21 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
               if (showBookingForm) ...[
                 // 2. Selezione Orari (Multi-select Chips)
                 const Text(
-                  "Seleziona Orari (slot da 75 min)", 
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)
+                  "Seleziona Orari (slot da 75 min)",
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                 ),
                 const SizedBox(height: 8),
-                _controller.isLoadingSlots 
-                  ? const Center(child: CircularProgressIndicator())
-                  : _controller.availableSlots.isEmpty 
+                _controller.isLoadingSlots
+                    ? const Center(child: CircularProgressIndicator())
+                    : _controller.availableSlots.isEmpty
                     ? const Text("Nessuna disponibilità per questa data.")
                     : Wrap(
                         spacing: 8.0,
                         runSpacing: 4.0,
                         children: _controller.availableSlots.map((slot) {
-                          final isSelected = _controller.selectedSlots.contains(slot);
+                          final isSelected = _controller.selectedSlots.contains(
+                            slot,
+                          );
                           return FilterChip(
                             label: Text(slot),
                             selected: isSelected,
@@ -246,12 +269,15 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
                           );
                         }).toList(),
                       ),
-                 const SizedBox(height: 8),
-                 if (_controller.selectedRangeLabel != null)
-                   Text(
-                     'Intervallo selezionato: ${_controller.selectedRangeLabel!}',
-                     style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
-                   ),
+                const SizedBox(height: 8),
+                if (_controller.selectedRangeLabel != null)
+                  Text(
+                    'Intervallo selezionato: ${_controller.selectedRangeLabel!}',
+                    style: const TextStyle(
+                      color: Colors.green,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
 
                 const SizedBox(height: 24),
 
@@ -310,12 +336,15 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
                     backgroundColor: Colors.grey[850],
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
-                  child: _controller.isLoading 
-                    ? const CircularProgressIndicator(color: Colors.white) 
-                    : Text(
-                        _isEditing ? 'SALVA MODIFICHE' : 'INVIA PRENOTAZIONE',
-                        style: const TextStyle(fontSize: 16, color: Colors.white),
-                      ),
+                  child: _controller.isLoading
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : Text(
+                          _isEditing ? 'SALVA MODIFICHE' : 'INVIA PRENOTAZIONE',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            color: Colors.white,
+                          ),
+                        ),
                 ),
               ],
             ],

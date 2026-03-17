@@ -7,10 +7,7 @@ import 'package:soundimplosion/models/models.dart';
 import 'package:soundimplosion/services/database_service.dart';
 
 class BookingListItem {
-  const BookingListItem({
-    required this.id,
-    required this.booking,
-  });
+  const BookingListItem({required this.id, required this.booking});
 
   final String id;
   final Booking booking;
@@ -69,25 +66,40 @@ class FirebaseBookingRepository implements BookingRepository {
   FirebaseBookingRepository({
     DatabaseService? databaseService,
     FirebaseAuth? auth,
-  })  : _databaseService = databaseService ?? DatabaseService(),
-        _auth = auth ?? FirebaseAuth.instance;
+  }) : _databaseService = databaseService ?? DatabaseService(),
+       _auth = auth ?? FirebaseAuth.instance;
 
   final DatabaseService _databaseService;
   final FirebaseAuth _auth;
 
   static const int _slotDurationMinutes = 75;
 
+  Map<String, dynamic>? _mapFromRawValue(dynamic rawValue) {
+    if (rawValue is! Map) {
+      return null;
+    }
+
+    return Map<String, dynamic>.from(rawValue);
+  }
+
   @override
   Future<List<DateTime>> loadAvailableDates() async {
     final now = DateTime.now();
-    final candidateDates = List.generate(30, (index) => now.add(Duration(days: index)));
+    final candidateDates = List.generate(
+      30,
+      (index) => now.add(Duration(days: index)),
+    );
 
-    final results = await Future.wait(candidateDates.map((date) async {
-      final dateStr = DateFormat('yyyy-MM-dd').format(date);
-      final freeSlots = await _databaseService.getFreeSlotsForDate(dateStr);
-      final hasBookableSlot = freeSlots.any((slot) => _isSlotAtLeast24HoursAway(slot, date));
-      return hasBookableSlot ? date : null;
-    }));
+    final results = await Future.wait(
+      candidateDates.map((date) async {
+        final dateStr = DateFormat('yyyy-MM-dd').format(date);
+        final freeSlots = await _databaseService.getFreeSlotsForDate(dateStr);
+        final hasBookableSlot = freeSlots.any(
+          (slot) => _isSlotAtLeast24HoursAway(slot, date),
+        );
+        return hasBookableSlot ? date : null;
+      }),
+    );
 
     return results.whereType<DateTime>().toList();
   }
@@ -101,7 +113,9 @@ class FirebaseBookingRepository implements BookingRepository {
   Future<List<String>> loadAvailableSlots(DateTime date) async {
     final dateStr = DateFormat('yyyy-MM-dd').format(date);
     final freeSlots = await _databaseService.getFreeSlotsForDate(dateStr);
-    return freeSlots.where((slot) => _isSlotAtLeast24HoursAway(slot, date)).toList();
+    return freeSlots
+        .where((slot) => _isSlotAtLeast24HoursAway(slot, date))
+        .toList();
   }
 
   @override
@@ -179,52 +193,49 @@ class FirebaseBookingRepository implements BookingRepository {
     final List<StreamSubscription<DatabaseEvent>> groupSubscriptions = [];
 
     void emitMerged() {
-      final merged = <String, BookingListItem>{
-        for (final item in ownBookings) item.id: item,
-        for (final bookings in groupBookings.values)
-          for (final item in bookings) item.id: item,
-      }.values.toList()
-        ..sort((a, b) {
-          final left = '${a.booking.data} ${a.booking.oraInizio}';
-          final right = '${b.booking.data} ${b.booking.oraInizio}';
-          return right.compareTo(left);
-        });
+      final merged =
+          <String, BookingListItem>{
+            for (final item in ownBookings) item.id: item,
+            for (final bookings in groupBookings.values)
+              for (final item in bookings) item.id: item,
+          }.values.toList()..sort((a, b) {
+            final left = '${a.booking.data} ${a.booking.oraInizio}';
+            final right = '${b.booking.data} ${b.booking.oraInizio}';
+            return right.compareTo(left);
+          });
 
       controller.add(merged);
     }
 
-    ownSubscription = _databaseService.getBookingsStream().listen(
-      (event) {
-        ownBookings = _parseBookingCollection(event.snapshot.value);
-        emitMerged();
-      },
-      onError: controller.addError,
-    );
+    ownSubscription = _databaseService.getBookingsStream().listen((event) {
+      ownBookings = _parseBookingCollection(event.snapshot.value);
+      emitMerged();
+    }, onError: controller.addError);
 
-    groupIdsSubscription = _databaseService.getUserGroupIdsStream().listen(
-      (event) async {
-        for (final subscription in groupSubscriptions) {
-          await subscription.cancel();
-        }
-        groupSubscriptions.clear();
-        groupBookings.clear();
+    groupIdsSubscription = _databaseService.getUserGroupIdsStream().listen((
+      event,
+    ) async {
+      for (final subscription in groupSubscriptions) {
+        await subscription.cancel();
+      }
+      groupSubscriptions.clear();
+      groupBookings.clear();
 
-        final groupIds = _parseIdCollection(event.snapshot.value);
-        for (final groupId in groupIds) {
-          final subscription = _databaseService.getGroupBookingsStream(groupId).listen(
-            (groupEvent) {
-              groupBookings[groupId] = _parseBookingCollection(groupEvent.snapshot.value);
+      final groupIds = _parseIdCollection(event.snapshot.value);
+      for (final groupId in groupIds) {
+        final subscription = _databaseService
+            .getGroupBookingsStream(groupId)
+            .listen((groupEvent) {
+              groupBookings[groupId] = _parseBookingCollection(
+                groupEvent.snapshot.value,
+              );
               emitMerged();
-            },
-            onError: controller.addError,
-          );
-          groupSubscriptions.add(subscription);
-        }
+            }, onError: controller.addError);
+        groupSubscriptions.add(subscription);
+      }
 
-        emitMerged();
-      },
-      onError: controller.addError,
-    );
+      emitMerged();
+    }, onError: controller.addError);
 
     controller.onCancel = () async {
       await ownSubscription?.cancel();
@@ -290,7 +301,10 @@ class FirebaseBookingRepository implements BookingRepository {
 
     if (rawData is Map) {
       for (final entry in rawData.entries) {
-        final bookingData = Map<String, dynamic>.from(entry.value as Map);
+        final bookingData = _mapFromRawValue(entry.value);
+        if (bookingData == null) {
+          continue;
+        }
         bookings.add(
           BookingListItem(
             id: entry.key.toString(),
@@ -304,7 +318,10 @@ class FirebaseBookingRepository implements BookingRepository {
         if (item == null) {
           continue;
         }
-        final bookingData = Map<String, dynamic>.from(item as Map);
+        final bookingData = _mapFromRawValue(item);
+        if (bookingData == null) {
+          continue;
+        }
         bookings.add(
           BookingListItem(
             id: index.toString(),

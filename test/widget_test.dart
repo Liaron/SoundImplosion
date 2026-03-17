@@ -8,10 +8,7 @@ void main() {
   ) async {
     await tester.pumpWidget(
       const MaterialApp(
-        home: PlatformLayout(
-          mobileBody: Text('mobile'),
-          webBody: Text('web'),
-        ),
+        home: PlatformLayout(mobileBody: Text('mobile'), webBody: Text('web')),
       ),
     );
 

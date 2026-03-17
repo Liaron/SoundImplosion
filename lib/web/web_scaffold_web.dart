@@ -66,9 +66,7 @@ class _WebScaffoldWebState extends State<WebScaffoldWeb> {
           ),
           const VerticalDivider(thickness: 1, width: 1),
           // This is the main content.
-          Expanded(
-            child: _pages[_selectedIndex],
-          ),
+          Expanded(child: _pages[_selectedIndex]),
         ],
       ),
     );

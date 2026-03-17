@@ -5,7 +5,7 @@ import 'package:soundimplosion/app/features/home/feed_repository.dart';
 
 class HomeFeedController extends ChangeNotifier {
   HomeFeedController({FeedRepository? repository})
-      : _repository = repository ?? FirebaseFeedRepository();
+    : _repository = repository ?? FirebaseFeedRepository();
 
   final FeedRepository _repository;
 

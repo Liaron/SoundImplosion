@@ -9,9 +9,17 @@ abstract class AdminJamRepository {
 
 class FirebaseAdminJamRepository implements AdminJamRepository {
   FirebaseAdminJamRepository({DatabaseService? databaseService})
-      : _databaseService = databaseService ?? DatabaseService();
+    : _databaseService = databaseService ?? DatabaseService();
 
   final DatabaseService _databaseService;
+
+  Map<String, dynamic>? _mapFromRawValue(dynamic rawValue) {
+    if (rawValue is! Map) {
+      return null;
+    }
+
+    return Map<String, dynamic>.from(rawValue);
+  }
 
   @override
   Stream<List<JamListItem>> watchPendingJams() {
@@ -21,7 +29,10 @@ class FirebaseAdminJamRepository implements AdminJamRepository {
 
       if (rawData is Map) {
         for (final entry in rawData.entries) {
-          final jamData = Map<String, dynamic>.from(entry.value as Map);
+          final jamData = _mapFromRawValue(entry.value);
+          if (jamData == null) {
+            continue;
+          }
           jams.add(JamListItem.fromMap(entry.key.toString(), jamData));
         }
       } else if (rawData is List) {
@@ -30,12 +41,19 @@ class FirebaseAdminJamRepository implements AdminJamRepository {
           if (item == null) {
             continue;
           }
-          final jamData = Map<String, dynamic>.from(item as Map);
+          final jamData = _mapFromRawValue(item);
+          if (jamData == null) {
+            continue;
+          }
           jams.add(JamListItem.fromMap(index.toString(), jamData));
         }
       }
 
-      jams.sort((a, b) => '${a.jam.data} ${a.jam.oraInizio}'.compareTo('${b.jam.data} ${b.jam.oraInizio}'));
+      jams.sort(
+        (a, b) => '${a.jam.data} ${a.jam.oraInizio}'.compareTo(
+          '${b.jam.data} ${b.jam.oraInizio}',
+        ),
+      );
       return jams;
     });
   }

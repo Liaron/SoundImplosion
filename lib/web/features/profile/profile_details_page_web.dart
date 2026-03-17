@@ -6,9 +6,7 @@ class ProfileDetailsPageWeb extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Profilo - Web'),
-      ),
+      appBar: AppBar(title: const Text('Profilo - Web')),
       body: const Center(
         child: Text(
           'Pagina Dettagli Profilo - Web',

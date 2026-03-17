@@ -7,9 +7,7 @@ import 'package:soundimplosion/services/firebase_auth.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(MyApp());
 }
 
@@ -21,7 +19,6 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -61,20 +58,18 @@ class _MyAppState extends State<MyApp> {
         ),
       ),
       home: StreamBuilder(
-          stream: AuthService().authStateChanges,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.active) {
-              if (snapshot.hasData) {
-                return const AppScaffoldMobile();
-              }
-              return const AuthPageMobile();
+        stream: AuthService().authStateChanges,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.active) {
+            if (snapshot.hasData) {
+              return const AppScaffoldMobile();
             }
-            return const Scaffold(
-              body: Center(
-                child: CircularProgressIndicator(),
-              ),
-            );
+            return const AuthPageMobile();
           }
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        },
       ),
     );
   }

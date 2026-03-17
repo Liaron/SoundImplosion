@@ -17,26 +17,19 @@ class BookingsScaffoldMobile extends StatelessWidget {
             color: colorScheme.primary,
             child: TabBar(
               labelColor: colorScheme.onPrimary,
-              unselectedLabelColor: colorScheme.onPrimary.withValues(alpha: 0.7),
+              unselectedLabelColor: colorScheme.onPrimary.withValues(
+                alpha: 0.7,
+              ),
               indicatorColor: colorScheme.secondary,
               tabs: const <Widget>[
-                Tab(
-                  text: 'Prenotazioni',
-                  icon: Icon(Icons.history),
-                ),
-                Tab(
-                  text: 'Prenota',
-                  icon: Icon(Icons.add_circle_outline),
-                ),
+                Tab(text: 'Prenotazioni', icon: Icon(Icons.history)),
+                Tab(text: 'Prenota', icon: Icon(Icons.add_circle_outline)),
               ],
             ),
           ),
           const Expanded(
             child: TabBarView(
-              children: <Widget>[
-                MyBookingsPageMobile(),
-                BookNowPageMobile(),
-              ],
+              children: <Widget>[MyBookingsPageMobile(), BookNowPageMobile()],
             ),
           ),
         ],

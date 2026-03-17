@@ -35,6 +35,21 @@ void main() {
 
     controller.dispose();
   });
+
+  test('ProfileController deletes profile through repository', () async {
+    final repository = FakeProfileRepository(
+      initialUser: AppUser(uid: 'user-1', nickname: 'Nick'),
+    );
+    final controller = ProfileController(repository: repository);
+
+    await controller.initialize();
+    await controller.deleteProfile();
+
+    expect(repository.deleteProfileCalls, 1);
+    expect(controller.user, isNull);
+
+    controller.dispose();
+  });
 }
 
 class FakeProfileRepository implements ProfileRepository {
@@ -42,6 +57,7 @@ class FakeProfileRepository implements ProfileRepository {
 
   final AppUser? initialUser;
   final List<AppUser> savedUsers = [];
+  int deleteProfileCalls = 0;
 
   @override
   Future<AppUser?> loadProfile() async => initialUser;
@@ -49,5 +65,10 @@ class FakeProfileRepository implements ProfileRepository {
   @override
   Future<void> saveProfile(AppUser user) async {
     savedUsers.add(user);
+  }
+
+  @override
+  Future<void> deleteProfile() async {
+    deleteProfileCalls += 1;
   }
 }

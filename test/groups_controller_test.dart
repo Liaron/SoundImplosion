@@ -10,6 +10,7 @@ void main() {
         const GroupListItem(
           id: 'group-1',
           name: 'Band One',
+          description: 'Desc',
           ownerId: 'user-1',
           memberNicknames: {'user-1': 'Mario'},
         ),
@@ -52,13 +53,25 @@ void main() {
       auth: FakeFirebaseAuth(user: FakeUser(uid: 'user-1')),
     );
 
-    await controller.createGroup('Band Two');
+    await controller.createGroup('Band Two', description: 'New description');
     await controller.inviteUserToGroup(groupId: 'group-1', nickname: 'Luigi');
+    await controller.removeUserFromGroup(
+      groupId: 'group-1',
+      targetUserId: 'user-2',
+    );
+    await controller.leaveGroup('group-1');
+    await controller.deleteGroup('group-1');
 
     expect(repository.createdGroupNames, ['Band Two']);
+    expect(repository.createdGroupDescriptions, ['New description']);
     expect(repository.invites, [
-      {'groupId': 'group-1', 'nickname': 'Luigi'}
+      {'groupId': 'group-1', 'nickname': 'Luigi'},
     ]);
+    expect(repository.removedUsers, [
+      {'groupId': 'group-1', 'targetUserId': 'user-2'},
+    ]);
+    expect(repository.leftGroupIds, ['group-1']);
+    expect(repository.deletedGroupIds, ['group-1']);
 
     controller.dispose();
   });
@@ -70,16 +83,42 @@ class FakeGroupsRepository implements GroupsRepository {
   final List<GroupListItem> items;
   final bool isAdmin;
   final List<String> createdGroupNames = [];
+  final List<String> createdGroupDescriptions = [];
   final List<Map<String, String>> invites = [];
+  final List<Map<String, String>> removedUsers = [];
+  final List<String> leftGroupIds = [];
+  final List<String> deletedGroupIds = [];
 
   @override
-  Future<void> createGroup(String name) async {
+  Future<void> createGroup(String name, {String description = ''}) async {
     createdGroupNames.add(name);
+    createdGroupDescriptions.add(description);
   }
 
   @override
-  Future<void> inviteUserToGroup({required String groupId, required String nickname}) async {
+  Future<void> inviteUserToGroup({
+    required String groupId,
+    required String nickname,
+  }) async {
     invites.add({'groupId': groupId, 'nickname': nickname});
+  }
+
+  @override
+  Future<void> removeUserFromGroup({
+    required String groupId,
+    required String targetUserId,
+  }) async {
+    removedUsers.add({'groupId': groupId, 'targetUserId': targetUserId});
+  }
+
+  @override
+  Future<void> leaveGroup(String groupId) async {
+    leftGroupIds.add(groupId);
+  }
+
+  @override
+  Future<void> deleteGroup(String groupId) async {
+    deletedGroupIds.add(groupId);
   }
 
   @override

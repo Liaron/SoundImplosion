@@ -40,7 +40,11 @@ class _HomePageMobileState extends State<HomePageMobile> {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Dettagli jam non disponibili per questo aggiornamento.')),
+        const SnackBar(
+          content: Text(
+            'Dettagli jam non disponibili per questo aggiornamento.',
+          ),
+        ),
       );
       return;
     }
@@ -71,7 +75,9 @@ class _HomePageMobileState extends State<HomePageMobile> {
           }
 
           if (_controller.error != null) {
-            return Center(child: Text('Errore caricamento feed: ${_controller.error}'));
+            return Center(
+              child: Text('Errore caricamento feed: ${_controller.error}'),
+            );
           }
 
           if (_controller.items.isEmpty) {
@@ -99,7 +105,7 @@ class _HomePageMobileState extends State<HomePageMobile> {
     final startTime = item.startTime ?? 'N/A';
     final description = item.description ?? '';
     // Potremmo recuperare il nickname del creatore, ma per ora teniamolo semplice
-    // final creatorId = item['creator_id']; 
+    // final creatorId = item['creator_id'];
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -111,7 +117,11 @@ class _HomePageMobileState extends State<HomePageMobile> {
           children: [
             Row(
               children: [
-                const Icon(Icons.music_note_rounded, color: Colors.purple, size: 24),
+                const Icon(
+                  Icons.music_note_rounded,
+                  color: Colors.purple,
+                  size: 24,
+                ),
                 const SizedBox(width: 8),
                 const Text(
                   "Nuova Jam Session!",
@@ -122,7 +132,11 @@ class _HomePageMobileState extends State<HomePageMobile> {
             const SizedBox(height: 12),
             Text(
               '"$description"',
-              style: const TextStyle(fontSize: 16, fontStyle: FontStyle.italic, color: Colors.black87),
+              style: const TextStyle(
+                fontSize: 16,
+                fontStyle: FontStyle.italic,
+                color: Colors.black87,
+              ),
             ),
             const SizedBox(height: 8),
             Text(

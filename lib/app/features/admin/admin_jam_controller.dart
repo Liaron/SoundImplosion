@@ -6,7 +6,7 @@ import 'package:soundimplosion/app/features/jam/jam_repository.dart';
 
 class AdminJamController extends ChangeNotifier {
   AdminJamController({AdminJamRepository? repository})
-      : _repository = repository ?? FirebaseAdminJamRepository();
+    : _repository = repository ?? FirebaseAdminJamRepository();
 
   final AdminJamRepository _repository;
 

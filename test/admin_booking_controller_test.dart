@@ -5,33 +5,36 @@ import 'package:soundimplosion/app/features/book/booking_repository.dart';
 import 'package:soundimplosion/models/models.dart';
 
 void main() {
-  test('AdminBookingController loads pending bookings from repository', () async {
-    final repository = FakeAdminBookingRepository(
-      items: [
-        BookingListItem(
-          id: 'booking-1',
-          booking: Booking(
+  test(
+    'AdminBookingController loads pending bookings from repository',
+    () async {
+      final repository = FakeAdminBookingRepository(
+        items: [
+          BookingListItem(
             id: 'booking-1',
-            userId: 'user-1',
-            data: '2026-03-21',
-            oraInizio: '10:00',
-            oraFine: '12:30',
-            numeroUtenti: 3,
-            attrezzatura: 'Mixer',
+            booking: Booking(
+              id: 'booking-1',
+              userId: 'user-1',
+              data: '2026-03-21',
+              oraInizio: '10:00',
+              oraFine: '12:30',
+              numeroUtenti: 3,
+              attrezzatura: 'Mixer',
+            ),
           ),
-        ),
-      ],
-    );
-    final controller = AdminBookingController(repository: repository);
+        ],
+      );
+      final controller = AdminBookingController(repository: repository);
 
-    await controller.initialize();
-    await Future<void>.delayed(Duration.zero);
+      await controller.initialize();
+      await Future<void>.delayed(Duration.zero);
 
-    expect(controller.isLoading, isFalse);
-    expect(controller.pendingBookings, hasLength(1));
+      expect(controller.isLoading, isFalse);
+      expect(controller.pendingBookings, hasLength(1));
 
-    controller.dispose();
-  });
+      controller.dispose();
+    },
+  );
 
   test('AdminBookingController delegates confirm and cancel actions', () async {
     final repository = FakeAdminBookingRepository(items: const []);

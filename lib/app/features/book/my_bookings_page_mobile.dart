@@ -18,7 +18,9 @@ class _MyBookingsPageMobileState extends State<MyBookingsPageMobile> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text("Elimina Prenotazione"),
-        content: const Text("Sei sicuro di voler eliminare questa prenotazione?"),
+        content: const Text(
+          "Sei sicuro di voler eliminare questa prenotazione?",
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
@@ -36,9 +38,9 @@ class _MyBookingsPageMobileState extends State<MyBookingsPageMobile> {
                 }
               } catch (e) {
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Errore: $e')),
-                  );
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text('Errore: $e')));
                 }
               }
             },
@@ -55,7 +57,10 @@ class _MyBookingsPageMobileState extends State<MyBookingsPageMobile> {
         builder: (_) => BookNowPageMobile(
           initialBooking: BookingListItem(
             id: bookingId,
-            booking: Booking.fromMap(bookingId, Map<String, dynamic>.from(data)),
+            booking: Booking.fromMap(
+              bookingId,
+              Map<String, dynamic>.from(data),
+            ),
           ),
         ),
       ),
@@ -83,13 +88,17 @@ class _MyBookingsPageMobileState extends State<MyBookingsPageMobile> {
           }
 
           if (!snapshot.hasData) {
-            return const Center(child: Text('Non ci sono prenotazioni personali o di gruppo.'));
+            return const Center(
+              child: Text('Non ci sono prenotazioni personali o di gruppo.'),
+            );
           }
 
           final bookings = snapshot.data!;
 
           if (bookings.isEmpty) {
-             return const Center(child: Text('Non ci sono prenotazioni personali o di gruppo.'));
+            return const Center(
+              child: Text('Non ci sono prenotazioni personali o di gruppo.'),
+            );
           }
 
           return ListView.builder(
@@ -98,7 +107,9 @@ class _MyBookingsPageMobileState extends State<MyBookingsPageMobile> {
               final item = bookings[index];
               final booking = item.booking;
               final date = booking.data.isEmpty ? 'N/A' : booking.data;
-              final startTime = booking.oraInizio.isEmpty ? 'N/A' : booking.oraInizio;
+              final startTime = booking.oraInizio.isEmpty
+                  ? 'N/A'
+                  : booking.oraInizio;
               final endTime = booking.oraFine.isEmpty ? 'N/A' : booking.oraFine;
               final status = item.statusLabel;
               final people = booking.numeroUtenti;
@@ -123,7 +134,9 @@ class _MyBookingsPageMobileState extends State<MyBookingsPageMobile> {
                       Text(
                         'Stato: $status',
                         style: TextStyle(
-                          color: status == 'confermata' ? Colors.green : Colors.orange,
+                          color: status == 'confermata'
+                              ? Colors.green
+                              : Colors.orange,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -137,24 +150,28 @@ class _MyBookingsPageMobileState extends State<MyBookingsPageMobile> {
                         _deleteBooking(item.id);
                       }
                     },
-                    itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-                      const PopupMenuItem<String>(
-                        value: 'edit',
-                        child: ListTile(
-                          leading: Icon(Icons.edit),
-                          title: Text('Modifica'),
-                          contentPadding: EdgeInsets.zero,
-                        ),
-                      ),
-                      const PopupMenuItem<String>(
-                        value: 'delete',
-                        child: ListTile(
-                          leading: Icon(Icons.delete, color: Colors.red),
-                          title: Text('Elimina', style: TextStyle(color: Colors.red)),
-                          contentPadding: EdgeInsets.zero,
-                        ),
-                      ),
-                    ],
+                    itemBuilder: (BuildContext context) =>
+                        <PopupMenuEntry<String>>[
+                          const PopupMenuItem<String>(
+                            value: 'edit',
+                            child: ListTile(
+                              leading: Icon(Icons.edit),
+                              title: Text('Modifica'),
+                              contentPadding: EdgeInsets.zero,
+                            ),
+                          ),
+                          const PopupMenuItem<String>(
+                            value: 'delete',
+                            child: ListTile(
+                              leading: Icon(Icons.delete, color: Colors.red),
+                              title: Text(
+                                'Elimina',
+                                style: TextStyle(color: Colors.red),
+                              ),
+                              contentPadding: EdgeInsets.zero,
+                            ),
+                          ),
+                        ],
                   ),
                 ),
               );
