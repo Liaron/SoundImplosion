@@ -332,7 +332,7 @@ class _GroupsPageMobileState extends State<GroupsPageMobile> {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Utente aggiunto al gruppo ${group.name}')),
+        SnackBar(content: Text('Invito inviato al gruppo ${group.name}')),
       );
     } catch (e) {
       if (!mounted) {

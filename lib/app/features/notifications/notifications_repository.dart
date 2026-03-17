@@ -9,6 +9,11 @@ class AppNotificationItem {
     required this.title,
     required this.body,
     this.isRead = false,
+    this.groupId,
+    this.groupName,
+    this.inviterUsername,
+    this.username,
+    this.inviteStatus,
   });
 
   final String id;
@@ -17,12 +22,28 @@ class AppNotificationItem {
   final String title;
   final String body;
   final bool isRead;
+  final String? groupId;
+  final String? groupName;
+  final String? inviterUsername;
+  final String? username;
+  final String? inviteStatus;
+
+  bool get isPendingGroupInvite =>
+      type == 'group_invite' &&
+      inviteStatus == 'pending' &&
+      groupId != null &&
+      groupId!.isNotEmpty;
 
   factory AppNotificationItem.fromMap(String id, Map<String, dynamic> map) {
     final type = map['type']?.toString() ?? 'generic';
     final date = map['data']?.toString() ?? '';
     final start = map['ora_inizio']?.toString() ?? '';
     final end = map['ora_fine']?.toString() ?? '';
+    final groupId = map['group_id']?.toString();
+    final groupName = map['group_name']?.toString();
+    final inviterUsername = map['inviter_username']?.toString();
+    final username = map['username']?.toString();
+    final inviteStatus = map['invite_status']?.toString();
 
     String title;
     String body;
@@ -48,6 +69,21 @@ class AppNotificationItem {
         title = 'Jam rifiutata';
         body = 'La tua jam del $date alle $start e stata annullata.';
         break;
+      case 'group_invite':
+        title = 'Invito a un gruppo';
+        body =
+            '${inviterUsername ?? 'Un utente'} ti ha invitato nel gruppo ${groupName ?? 'selezionato'}.';
+        break;
+      case 'group_invite_accepted':
+        title = 'Invito gruppo accettato';
+        body =
+            "${username ?? 'Un utente'} ha accettato l'invito al gruppo ${groupName ?? 'selezionato'}.";
+        break;
+      case 'group_invite_rejected':
+        title = 'Invito gruppo rifiutato';
+        body =
+            "${username ?? 'Un utente'} ha rifiutato l'invito al gruppo ${groupName ?? 'selezionato'}.";
+        break;
       default:
         title = 'Nuova notifica';
         body = map['message']?.toString() ?? 'Hai una nuova notifica.';
@@ -60,6 +96,11 @@ class AppNotificationItem {
       title: title,
       body: body,
       isRead: map['read'] == true,
+      groupId: groupId,
+      groupName: groupName,
+      inviterUsername: inviterUsername,
+      username: username,
+      inviteStatus: inviteStatus,
     );
   }
 
@@ -95,6 +136,8 @@ abstract class NotificationsRepository {
   Stream<List<AppNotificationItem>> watchNotifications();
   Future<void> markAsRead(String notificationId);
   Future<void> markAllAsRead();
+  Future<void> acceptGroupInvite(String groupId);
+  Future<void> rejectGroupInvite(String groupId);
   Future<NotificationPreferences> loadPreferences();
   Future<void> savePreferences(NotificationPreferences preferences);
 }
@@ -120,6 +163,16 @@ class FirebaseNotificationsRepository implements NotificationsRepository {
   @override
   Future<void> markAllAsRead() {
     return _databaseService.markAllUserNotificationsRead();
+  }
+
+  @override
+  Future<void> acceptGroupInvite(String groupId) {
+    return _databaseService.acceptGroupInvite(groupId);
+  }
+
+  @override
+  Future<void> rejectGroupInvite(String groupId) {
+    return _databaseService.rejectGroupInvite(groupId);
   }
 
   @override

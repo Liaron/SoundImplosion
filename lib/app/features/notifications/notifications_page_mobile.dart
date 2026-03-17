@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:soundimplosion/app/features/notifications/notifications_controller.dart';
+import 'package:soundimplosion/app/features/notifications/notifications_repository.dart';
 
 class NotificationsPageMobile extends StatefulWidget {
   const NotificationsPageMobile({super.key});
@@ -12,6 +13,7 @@ class NotificationsPageMobile extends StatefulWidget {
 
 class _NotificationsPageMobileState extends State<NotificationsPageMobile> {
   final NotificationsController _controller = NotificationsController();
+  final Set<String> _processingInvites = <String>{};
 
   @override
   void initState() {
@@ -46,6 +48,57 @@ class _NotificationsPageMobileState extends State<NotificationsPageMobile> {
     await _controller.markAllAsRead();
   }
 
+  Future<void> _respondToInvite(
+    AppNotificationItem notification, {
+    required bool accept,
+  }) async {
+    final groupId = notification.groupId;
+    if (groupId == null || groupId.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _processingInvites.add(notification.id);
+    });
+
+    try {
+      if (accept) {
+        await _controller.acceptGroupInvite(groupId);
+      } else {
+        await _controller.rejectGroupInvite(groupId);
+      }
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            accept
+                ? 'Invito al gruppo accettato'
+                : 'Invito al gruppo rifiutato',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Errore: ${e.toString().replaceAll('Exception: ', '')}',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _processingInvites.remove(notification.id);
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_controller.isLoading) {
@@ -70,6 +123,7 @@ class _NotificationsPageMobileState extends State<NotificationsPageMobile> {
               itemCount: _controller.notifications.length,
               itemBuilder: (context, index) {
                 final notification = _controller.notifications[index];
+                final isProcessing = _processingInvites.contains(notification.id);
                 return Card(
                   color: notification.isRead
                       ? null
@@ -78,7 +132,7 @@ class _NotificationsPageMobileState extends State<NotificationsPageMobile> {
                         ).colorScheme.secondary.withValues(alpha: 0.08),
                   margin: const EdgeInsets.only(bottom: 12),
                   child: ListTile(
-                    onTap: notification.isRead
+                    onTap: notification.isPendingGroupInvite || notification.isRead
                         ? null
                         : () => _controller.markAsRead(notification.id),
                     leading: Icon(
@@ -92,6 +146,36 @@ class _NotificationsPageMobileState extends State<NotificationsPageMobile> {
                       children: [
                         const SizedBox(height: 4),
                         Text(notification.body),
+                        if (notification.isPendingGroupInvite) ...[
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton(
+                                  onPressed: isProcessing
+                                      ? null
+                                      : () => _respondToInvite(
+                                          notification,
+                                          accept: false,
+                                        ),
+                                  child: const Text('Rifiuta'),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: ElevatedButton(
+                                  onPressed: isProcessing
+                                      ? null
+                                      : () => _respondToInvite(
+                                          notification,
+                                          accept: true,
+                                        ),
+                                  child: const Text('Accetta'),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                         if (notification.timestamp > 0) ...[
                           const SizedBox(height: 6),
                           Text(
@@ -101,7 +185,9 @@ class _NotificationsPageMobileState extends State<NotificationsPageMobile> {
                         ],
                       ],
                     ),
-                    trailing: notification.isRead
+                    trailing: notification.isPendingGroupInvite
+                        ? null
+                        : notification.isRead
                         ? null
                         : const Icon(Icons.fiber_new, color: Colors.redAccent),
                   ),

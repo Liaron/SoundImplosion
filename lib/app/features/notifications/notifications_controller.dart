@@ -44,6 +44,14 @@ class NotificationsController extends ChangeNotifier {
     return _repository.markAllAsRead();
   }
 
+  Future<void> acceptGroupInvite(String groupId) {
+    return _repository.acceptGroupInvite(groupId);
+  }
+
+  Future<void> rejectGroupInvite(String groupId) {
+    return _repository.rejectGroupInvite(groupId);
+  }
+
   @override
   void dispose() {
     _subscription?.cancel();
