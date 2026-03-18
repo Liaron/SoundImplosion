@@ -178,6 +178,38 @@ class _ProfileDetailsPageMobileState extends State<ProfileDetailsPageMobile> {
               city.isEmpty ? 'Citta non impostata' : city,
               style: TextStyle(fontSize: 16, color: Colors.grey[700]),
             ),
+            const SizedBox(height: 8),
+            Text(
+              user.skillLevel,
+              style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+            ),
+            if (user.genres.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                alignment: WrapAlignment.center,
+                children: user.genres
+                    .map((genre) => Chip(label: Text(genre)))
+                    .toList(),
+              ),
+            ],
+            if (user.availability.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Disponibilita: ${user.availability.join(', ')}',
+                style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                textAlign: TextAlign.center,
+              ),
+            ],
+            if (user.bio.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Text(
+                user.bio,
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 15, color: Colors.grey[800]),
+              ),
+            ],
             const SizedBox(height: 32),
 
             // 3. Sezione Strumenti

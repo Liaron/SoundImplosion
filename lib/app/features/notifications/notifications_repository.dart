@@ -74,6 +74,7 @@ class AppNotificationItem {
     this.inviterUsername,
     this.username,
     this.inviteStatus,
+    this.expiresAt = 0,
   });
 
   final String id;
@@ -87,6 +88,7 @@ class AppNotificationItem {
   final String? inviterUsername;
   final String? username;
   final String? inviteStatus;
+  final int expiresAt;
 
   NotificationCategory get category {
     switch (type) {
@@ -124,8 +126,11 @@ class AppNotificationItem {
   bool get isPendingGroupInvite =>
       type == 'group_invite' &&
       inviteStatus == 'pending' &&
+      !isExpiredGroupInvite &&
       groupId != null &&
       groupId!.isNotEmpty;
+  bool get isExpiredGroupInvite =>
+      expiresAt > 0 && DateTime.now().millisecondsSinceEpoch > expiresAt;
 
   factory AppNotificationItem.fromMap(String id, Map<String, dynamic> map) {
     final type = map['type']?.toString() ?? 'generic';
@@ -137,6 +142,7 @@ class AppNotificationItem {
     final inviterUsername = map['inviter_username']?.toString();
     final username = map['username']?.toString();
     final inviteStatus = map['invite_status']?.toString();
+    final expiresAt = _parseTimestamp(map['expires_at']);
 
     String title;
     String body;
@@ -164,8 +170,9 @@ class AppNotificationItem {
         break;
       case 'group_invite':
         title = 'Invito a un gruppo';
-        body =
-            '${inviterUsername ?? 'Un utente'} ti ha invitato nel gruppo ${groupName ?? 'selezionato'}.';
+        body = inviteStatus == 'expired'
+            ? 'L\'invito al gruppo ${groupName ?? 'selezionato'} e scaduto.'
+            : '${inviterUsername ?? 'Un utente'} ti ha invitato nel gruppo ${groupName ?? 'selezionato'}.';
         break;
       case 'group_invite_accepted':
         title = 'Invito gruppo accettato';
@@ -194,6 +201,7 @@ class AppNotificationItem {
       inviterUsername: inviterUsername,
       username: username,
       inviteStatus: inviteStatus,
+      expiresAt: expiresAt,
     );
   }
 

@@ -15,38 +15,48 @@ class BookingsScaffoldMobile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final tabBar = TabBar(
+      labelColor: colorScheme.onPrimary,
+      unselectedLabelColor: colorScheme.onPrimary.withValues(
+        alpha: 0.7,
+      ),
+      indicatorColor: colorScheme.secondary,
+      tabs: const <Widget>[
+        Tab(text: 'Prenotazioni', icon: Icon(Icons.history)),
+        Tab(text: 'Prenota', icon: Icon(Icons.add_circle_outline)),
+      ],
+    );
+    final tabBarView = TabBarView(
+      children: <Widget>[
+        MyBookingsPageMobile(
+          initialBookingIdToOpen: initialBookingIdToOpen,
+        ),
+        const BookNowPageMobile(),
+      ],
+    );
 
     return DefaultTabController(
       initialIndex: initialTabIndex,
       length: 2,
-      child: Column(
-        children: <Widget>[
-          Material(
-            color: colorScheme.primary,
-            child: TabBar(
-              labelColor: colorScheme.onPrimary,
-              unselectedLabelColor: colorScheme.onPrimary.withValues(
-                alpha: 0.7,
+      child: Navigator.of(context).canPop()
+          ? Scaffold(
+              appBar: AppBar(
+                title: const Text('Prenotazioni'),
+                bottom: tabBar,
               ),
-              indicatorColor: colorScheme.secondary,
-              tabs: const <Widget>[
-                Tab(text: 'Prenotazioni', icon: Icon(Icons.history)),
-                Tab(text: 'Prenota', icon: Icon(Icons.add_circle_outline)),
-              ],
-            ),
-          ),
-          Expanded(
-            child: TabBarView(
+              body: tabBarView,
+            )
+          : Column(
               children: <Widget>[
-                MyBookingsPageMobile(
-                  initialBookingIdToOpen: initialBookingIdToOpen,
+                Material(
+                  color: colorScheme.primary,
+                  child: tabBar,
                 ),
-                const BookNowPageMobile(),
+                Expanded(
+                  child: tabBarView,
+                ),
               ],
             ),
-          ),
-        ],
-      ),
     );
   }
 }

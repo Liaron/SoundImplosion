@@ -406,12 +406,7 @@ class _NotificationsPageMobileState extends State<NotificationsPageMobile> {
                                 ),
                               ),
                             ],
-                            child: notification.isRead
-                                ? const Icon(Icons.more_vert)
-                                : const Icon(
-                                    Icons.fiber_new,
-                                    color: Colors.redAccent,
-                                  ),
+                            child: const Icon(Icons.more_vert),
                           ),
                   ),
                 );

@@ -337,6 +337,15 @@ class FakeJamRepository implements JamRepository {
   Future<JamListItem?> loadJamById(String jamId) async => jamById[jamId];
 
   @override
+  Future<Map<String, String>> loadParticipantUsernames(
+    Iterable<String> userIds,
+  ) async {
+    return {
+      for (final userId in userIds) userId: 'User $userId',
+    };
+  }
+
+  @override
   Future<void> joinJam(String jamId) async {
     joinedJamIds.add(jamId);
   }

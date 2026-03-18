@@ -9,11 +9,13 @@ class JamListItem {
     required this.id,
     required this.jam,
     this.participantIds = const <String>{},
+    this.participantUsernames = const <String, String>{},
   });
 
   final String id;
   final Jam jam;
   final Set<String> participantIds;
+  final Map<String, String> participantUsernames;
 
   String get dateLabel => jam.data.isEmpty ? 'N/A' : jam.data;
   String get timeRangeLabel => '${jam.oraInizio} - ${jam.oraFine}';
@@ -42,6 +44,19 @@ class JamListItem {
   }
 
   bool get hasOpenSpots => jam.personeRichieste > 0;
+  int get confirmedParticipantsCount => jam.personePresenti;
+  int get remainingSpots => jam.personeRichieste;
+  bool get hasGroup => (jam.groupId?.isNotEmpty ?? false);
+  String get groupLabel => (jam.groupName?.isNotEmpty ?? false)
+      ? jam.groupName!
+      : ((jam.groupId?.isNotEmpty ?? false) ? jam.groupId! : 'Nessun gruppo');
+  List<String> get confirmedParticipantNames {
+    if (participantUsernames.isEmpty) {
+      return participantIds.toList()..sort();
+    }
+    final items = participantUsernames.values.toList()..sort();
+    return items;
+  }
 
   Map<String, dynamic> toMap() {
     return {
@@ -59,6 +74,7 @@ class JamListItem {
       id: id,
       jam: Jam.fromMap(id, map),
       participantIds: _extractParticipantIds(map['participants']),
+      participantUsernames: _extractParticipantUsernames(map['participant_usernames']),
     );
   }
 
@@ -74,6 +90,15 @@ class JamListItem {
     }
     return <String>{};
   }
+
+  static Map<String, String> _extractParticipantUsernames(dynamic rawValue) {
+    if (rawValue is! Map) {
+      return const <String, String>{};
+    }
+    return rawValue.map(
+      (key, value) => MapEntry(key.toString(), value?.toString() ?? key.toString()),
+    );
+  }
 }
 
 abstract class JamRepository {
@@ -81,6 +106,7 @@ abstract class JamRepository {
   Future<List<String>> loadAvailableSlots(DateTime date);
   Future<List<Map<String, String>>> loadUserGroups();
   Future<JamListItem?> loadJamById(String jamId);
+  Future<Map<String, String>> loadParticipantUsernames(Iterable<String> userIds);
   Future<void> joinJam(String jamId);
   Future<void> leaveJam(String jamId);
   Future<void> updateJam({
@@ -186,6 +212,11 @@ class FirebaseJamRepository implements JamRepository {
   }
 
   @override
+  Future<Map<String, String>> loadParticipantUsernames(Iterable<String> userIds) {
+    return _databaseService.getUsernamesByIds(userIds);
+  }
+
+  @override
   Future<void> joinJam(String jamId) {
     return _databaseService.joinJam(jamId);
   }
@@ -247,6 +278,7 @@ class FirebaseJamRepository implements JamRepository {
     final jam = Jam(
       creatorId: user.uid,
       groupId: selectedGroupId,
+      groupName: await _databaseService.resolveGroupName(selectedGroupId),
       data: DateFormat('yyyy-MM-dd').format(selectedDate),
       oraInizio: orderedSlots.first,
       oraFine: calculateEndTime(orderedSlots.last),

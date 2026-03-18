@@ -28,6 +28,46 @@ class AppUser {
 
   bool get isAdmin => role == 'admin';
   String get username => nickname;
+  String get city => _generalPreferences['city']?.toString() ?? '';
+  String get bio => _profilePreferences['bio']?.toString() ?? '';
+  String get skillLevel =>
+      _profilePreferences['skill_level']?.toString() ?? 'Non specificato';
+  List<String> get genres => _stringListFrom(_profilePreferences['genres']);
+  List<String> get availability =>
+      _stringListFrom(_profilePreferences['availability']);
+
+  Map<String, dynamic> get _generalPreferences {
+    final general = preferenze['general'];
+    if (general is Map) {
+      return Map<String, dynamic>.from(general);
+    }
+    return const <String, dynamic>{};
+  }
+
+  Map<String, dynamic> get _profilePreferences {
+    final profile = preferenze['profile'];
+    if (profile is Map) {
+      return Map<String, dynamic>.from(profile);
+    }
+    return const <String, dynamic>{};
+  }
+
+  static List<String> _stringListFrom(dynamic value) {
+    if (value is List) {
+      return value
+          .map((item) => item?.toString().trim() ?? '')
+          .where((item) => item.isNotEmpty)
+          .toList();
+    }
+    if (value is String) {
+      return value
+          .split(',')
+          .map((item) => item.trim())
+          .where((item) => item.isNotEmpty)
+          .toList();
+    }
+    return const <String>[];
+  }
 
   Map<String, dynamic> toMap() {
     return {
@@ -195,6 +235,7 @@ class Jam {
   String? id;
   final String creatorId;
   final String? groupId;
+  final String? groupName;
   final String data;
   final String oraInizio;
   final String oraFine;
@@ -211,6 +252,7 @@ class Jam {
     this.id,
     required this.creatorId,
     this.groupId,
+    this.groupName,
     required this.data,
     required this.oraInizio,
     required this.oraFine,
@@ -228,6 +270,7 @@ class Jam {
       'creator_id': creatorId,
       'creator_nickname': creatorNickname,
       'group_id': groupId,
+      'group_name': groupName,
       'data': data,
       'ora_inizio': oraInizio,
       'ora_fine': oraFine,
@@ -265,6 +308,7 @@ class Jam {
       id: id,
       creatorId: map['creator_id'] as String? ?? '',
       groupId: map['group_id'] as String?,
+      groupName: map['group_name'] as String?,
       data: map['data'] as String? ?? '',
       oraInizio: map['ora_inizio'] as String? ?? '',
       oraFine: map['ora_fine'] as String? ?? '',

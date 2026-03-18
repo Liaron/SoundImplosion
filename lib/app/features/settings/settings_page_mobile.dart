@@ -93,6 +93,15 @@ class _SettingsPageMobileState extends State<SettingsPageMobile> {
     return <String, dynamic>{};
   }
 
+  Map<String, dynamic> _profilePreferences([AppUser? user]) {
+    final currentPreferences = user?.preferenze ?? _user?.preferenze ?? const {};
+    final profile = currentPreferences['profile'];
+    if (profile is Map) {
+      return Map<String, dynamic>.from(profile);
+    }
+    return <String, dynamic>{};
+  }
+
   Future<void> _updateGeneralPreferences({
     String? city,
     ThemeMode? themeMode,
@@ -136,6 +145,37 @@ class _SettingsPageMobileState extends State<SettingsPageMobile> {
     general['accessibility'] = accessibility;
     preferences['general'] = general;
 
+    await _saveProfile(currentUser.copyWith(preferenze: preferences));
+  }
+
+  Future<void> _updateExtendedProfilePreferences({
+    String? bio,
+    List<String>? genres,
+    String? skillLevel,
+    List<String>? availability,
+  }) async {
+    final currentUser = _user;
+    if (currentUser == null) {
+      return;
+    }
+
+    final preferences = Map<String, dynamic>.from(currentUser.preferenze);
+    final profile = _profilePreferences(currentUser);
+
+    if (bio != null) {
+      profile['bio'] = bio;
+    }
+    if (genres != null) {
+      profile['genres'] = genres;
+    }
+    if (skillLevel != null) {
+      profile['skill_level'] = skillLevel;
+    }
+    if (availability != null) {
+      profile['availability'] = availability;
+    }
+
+    preferences['profile'] = profile;
     await _saveProfile(currentUser.copyWith(preferenze: preferences));
   }
 
@@ -427,6 +467,170 @@ class _SettingsPageMobileState extends State<SettingsPageMobile> {
     await _updateGeneralPreferences(city: newCity);
   }
 
+  Future<void> _updateBio() async {
+    final controller = TextEditingController(
+      text: _profilePreferences(_user)['bio']?.toString() ?? '',
+    );
+    final newBio = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Bio'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          minLines: 3,
+          maxLines: 5,
+          decoration: const InputDecoration(labelText: 'Bio'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Annulla'),
+          ),
+          TextButton(
+            onPressed: () =>
+                Navigator.pop(dialogContext, controller.text.trim()),
+            child: const Text('Salva'),
+          ),
+        ],
+      ),
+    );
+
+    if (newBio == null) {
+      return;
+    }
+    await _updateExtendedProfilePreferences(bio: newBio);
+  }
+
+  Future<void> _updateGenres() async {
+    final currentGenres = _profilePreferences(_user)['genres'];
+    final controller = TextEditingController(
+      text: currentGenres is List ? currentGenres.join(', ') : '',
+    );
+    final value = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Generi musicali'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          minLines: 2,
+          maxLines: 3,
+          decoration: const InputDecoration(
+            labelText: 'Generi',
+            hintText: 'Rock, Jazz, Blues',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Annulla'),
+          ),
+          TextButton(
+            onPressed: () =>
+                Navigator.pop(dialogContext, controller.text.trim()),
+            child: const Text('Salva'),
+          ),
+        ],
+      ),
+    );
+
+    if (value == null) {
+      return;
+    }
+    final genres = value
+        .split(',')
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toList();
+    await _updateExtendedProfilePreferences(genres: genres);
+  }
+
+  Future<void> _updateSkillLevel() async {
+    const levels = [
+      'Principiante',
+      'Intermedio',
+      'Avanzato',
+      'Professionista',
+    ];
+    final currentLevel =
+        _profilePreferences(_user)['skill_level']?.toString() ??
+        'Non specificato';
+    final selected = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => SimpleDialog(
+        title: const Text('Livello'),
+        children: levels
+            .map(
+              (level) => SimpleDialogOption(
+                onPressed: () => Navigator.pop(dialogContext, level),
+                child: Row(
+                  children: [
+                    Icon(
+                      level == currentLevel
+                          ? Icons.radio_button_checked
+                          : Icons.radio_button_off,
+                    ),
+                    const SizedBox(width: 12),
+                    Text(level),
+                  ],
+                ),
+              ),
+            )
+            .toList(),
+      ),
+    );
+
+    if (selected == null) {
+      return;
+    }
+    await _updateExtendedProfilePreferences(skillLevel: selected);
+  }
+
+  Future<void> _updateAvailability() async {
+    final raw = _profilePreferences(_user)['availability'];
+    final controller = TextEditingController(
+      text: raw is List ? raw.join(', ') : '',
+    );
+    final value = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Disponibilita'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          minLines: 2,
+          maxLines: 3,
+          decoration: const InputDecoration(
+            labelText: 'Disponibilita',
+            hintText: 'Mattina, Pomeriggio, Sera',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Annulla'),
+          ),
+          TextButton(
+            onPressed: () =>
+                Navigator.pop(dialogContext, controller.text.trim()),
+            child: const Text('Salva'),
+          ),
+        ],
+      ),
+    );
+
+    if (value == null) {
+      return;
+    }
+    final availability = value
+        .split(',')
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toList();
+    await _updateExtendedProfilePreferences(availability: availability);
+  }
+
   Future<void> _sendPasswordReset() async {
     final email = _authService.currentUser?.email ?? _user?.email;
     if (email == null || email.isEmpty) {
@@ -533,6 +737,16 @@ class _SettingsPageMobileState extends State<SettingsPageMobile> {
     final accessibility = _accessibilityPreferences(user);
     final themeService = AppPreferencesService.instance;
     final city = general['city']?.toString() ?? '';
+    final profile = _profilePreferences(user);
+    final bio = profile['bio']?.toString() ?? '';
+    final genres = profile['genres'] is List
+        ? List<String>.from(profile['genres'] as List)
+        : const <String>[];
+    final skillLevel =
+        profile['skill_level']?.toString() ?? 'Non specificato';
+    final availability = profile['availability'] is List
+        ? List<String>.from(profile['availability'] as List)
+        : const <String>[];
     final bookingRemindersEnabled =
         general['booking_reminders_enabled'] as bool? ?? true;
     final bookingReminderMinutes =
@@ -619,6 +833,56 @@ class _SettingsPageMobileState extends State<SettingsPageMobile> {
                       subtitle: Text(city.isEmpty ? 'Non impostata' : city),
                       trailing: TextButton(
                         onPressed: _updateCity,
+                        child: const Text('Modifica'),
+                      ),
+                    ),
+                    const Divider(),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Bio'),
+                      subtitle: Text(
+                        bio.isEmpty ? 'Non impostata' : bio,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      trailing: TextButton(
+                        onPressed: _updateBio,
+                        child: const Text('Modifica'),
+                      ),
+                    ),
+                    const Divider(),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Generi musicali'),
+                      subtitle: Text(
+                        genres.isEmpty ? 'Non impostati' : genres.join(', '),
+                      ),
+                      trailing: TextButton(
+                        onPressed: _updateGenres,
+                        child: const Text('Modifica'),
+                      ),
+                    ),
+                    const Divider(),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Livello'),
+                      subtitle: Text(skillLevel),
+                      trailing: TextButton(
+                        onPressed: _updateSkillLevel,
+                        child: const Text('Modifica'),
+                      ),
+                    ),
+                    const Divider(),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Disponibilita'),
+                      subtitle: Text(
+                        availability.isEmpty
+                            ? 'Non impostata'
+                            : availability.join(', '),
+                      ),
+                      trailing: TextButton(
+                        onPressed: _updateAvailability,
                         child: const Text('Modifica'),
                       ),
                     ),

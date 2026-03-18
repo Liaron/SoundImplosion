@@ -212,6 +212,29 @@ class DatabaseService {
     return true;
   }
 
+  Map<String, dynamic> _buildPublicUserProfileData(AppUser user) {
+    final instruments = user.strumentiList
+        .map((item) => item['nome']?.toString().trim() ?? '')
+        .where((item) => item.isNotEmpty)
+        .toList();
+
+    return {
+      'username': user.nickname.trim(),
+      'username_lowercase': user.nickname.trim().toLowerCase(),
+      'city': user.city,
+      'city_lowercase': user.city.toLowerCase(),
+      'bio': user.bio,
+      'skill_level': user.skillLevel,
+      'genres': user.genres,
+      'genres_search': user.genres.map((genre) => genre.toLowerCase()).toList(),
+      'instruments': instruments,
+      'instruments_search': instruments
+          .map((instrument) => instrument.toLowerCase())
+          .toList(),
+      'availability': user.availability,
+    };
+  }
+
   Future<void> saveUser(AppUser user) async {
     final trimmedNickname = user.nickname.trim();
     final trimmedEmail = user.email?.trim() ?? '';
@@ -300,6 +323,10 @@ class DatabaseService {
       debugPrint('DB saveUser:userWrite:start uid=${user.uid}');
       await _dbRef.child('users').child(user.uid).set(sanitizedUser.toMap());
       debugPrint('DB saveUser:userWrite:done');
+      await _dbRef
+          .child('user_public_profiles')
+          .child(user.uid)
+          .set(_buildPublicUserProfileData(sanitizedUser));
       debugPrint('DB saveUser:nicknameIndexWrite:start');
       await currentIndexRef.child(user.uid).set({'username': trimmedNickname});
       debugPrint('DB saveUser:nicknameIndexWrite:done');
@@ -1224,6 +1251,69 @@ class DatabaseService {
     return <String>{};
   }
 
+  String _currentUsernameFromMap(Map<String, dynamic> userData, String fallback) {
+    return userData['username']?.toString().trim().isNotEmpty == true
+        ? userData['username'].toString().trim()
+        : (userData['nickname']?.toString().trim().isNotEmpty == true
+              ? userData['nickname'].toString().trim()
+              : fallback);
+  }
+
+  Map<String, dynamic> _groupActivityEntry({
+    required String type,
+    required String message,
+  }) {
+    return {
+      'type': type,
+      'message': message,
+      'timestamp': ServerValue.timestamp,
+    };
+  }
+
+  Map<String, dynamic> _groupInviteHistoryEntry({
+    required String status,
+    required String username,
+    required String actorUsername,
+  }) {
+    return {
+      'status': status,
+      'username': username,
+      'actor_username': actorUsername,
+      'timestamp': ServerValue.timestamp,
+    };
+  }
+
+  Future<Map<String, dynamic>> _loadUserData(String uid) async {
+    final snapshot = await _dbRef.child('users').child(uid).get();
+    if (!snapshot.exists || snapshot.value == null || snapshot.value is! Map) {
+      return <String, dynamic>{};
+    }
+    return Map<String, dynamic>.from(snapshot.value as Map);
+  }
+
+  Future<String> _resolveGroupName(String? groupId) async {
+    if (groupId == null || groupId.trim().isEmpty) {
+      return '';
+    }
+    final snapshot = await _dbRef.child('groups_info').child(groupId).child('name').get();
+    return snapshot.value?.toString() ?? '';
+  }
+
+  Future<String> resolveGroupName(String? groupId) => _resolveGroupName(groupId);
+
+  Future<Map<String, String>> getUsernamesByIds(Iterable<String> userIds) async {
+    final result = <String, String>{};
+    for (final rawId in userIds) {
+      final uid = rawId.trim();
+      if (uid.isEmpty) {
+        continue;
+      }
+      final userData = await _loadUserData(uid);
+      result[uid] = _currentUsernameFromMap(userData, uid);
+    }
+    return result;
+  }
+
   int _parseInt(dynamic value) {
     if (value is int) {
       return value;
@@ -1323,7 +1413,18 @@ class DatabaseService {
 
     // 1. Salva la Jam
     final jamPath = '/jams/$newJamKey';
-    updates[jamPath] = jam.toMap();
+    final creatorData = await _loadUserData(jam.creatorId);
+    final creatorUsername = _currentUsernameFromMap(creatorData, jam.creatorId);
+    updates[jamPath] = {
+      ...jam.toMap(),
+      'creator_nickname': (jam.creatorNickname?.trim().isNotEmpty ?? false)
+          ? jam.creatorNickname
+          : creatorUsername,
+      'group_name': jam.groupName?.trim().isNotEmpty == true
+          ? jam.groupName
+          : await _resolveGroupName(jam.groupId),
+      'participant_usernames': const <String, dynamic>{},
+    };
 
     // 2. Aggiorna gli slot come occupati
     for (final time in selectedSlotTimes) {
@@ -1450,6 +1551,7 @@ class DatabaseService {
     final updates = <String, dynamic>{
       '/jams/$jamId/stato': JamStatus.annullata.name,
       '/jams/$jamId/participants': null,
+      '/jams/$jamId/participant_usernames': null,
     };
     if (creatorId.isNotEmpty) {
       updates['/user_notifications/$creatorId/$jamId'] = {
@@ -1572,10 +1674,13 @@ class DatabaseService {
       throw Exception('Questa jam e al completo');
     }
 
+    final userData = await _loadUserData(user.uid);
+    final username = _currentUsernameFromMap(userData, user.uid);
     await _dbRef.update({
       '/jams/$jamId/persone_presenti': currentPresent + 1,
       '/jams/$jamId/persone_richieste': currentRequired - 1,
       '/jams/$jamId/participants/${user.uid}': true,
+      '/jams/$jamId/participant_usernames/${user.uid}': username,
       '/user_joined_jams/${user.uid}/$jamId': true,
     });
   }
@@ -1610,6 +1715,7 @@ class DatabaseService {
           : 0,
       '/jams/$jamId/persone_richieste': currentRequired + 1,
       '/jams/$jamId/participants/${user.uid}': null,
+      '/jams/$jamId/participant_usernames/${user.uid}': null,
       '/user_joined_jams/${user.uid}/$jamId': null,
     });
   }
@@ -1671,6 +1777,7 @@ class DatabaseService {
 
     final trimmedDescription = description.trim();
     final trimmedEquipment = equipment.trim();
+    final groupName = await _resolveGroupName(groupId);
     final newEndTime = _calculateEndTime(orderedSlots.last);
     final scheduleChanged =
         previousDate != date ||
@@ -1687,6 +1794,7 @@ class DatabaseService {
       '/jams/$jamId/ora_inizio': orderedSlots.first,
       '/jams/$jamId/ora_fine': newEndTime,
       '/jams/$jamId/group_id': groupId,
+      '/jams/$jamId/group_name': groupName.isEmpty ? null : groupName,
       '/jams/$jamId/persone_presenti': presentPeople,
       '/jams/$jamId/persone_richieste': requiredPeople,
       '/jams/$jamId/descrizione': trimmedDescription,
@@ -1823,6 +1931,81 @@ class DatabaseService {
     return results;
   }
 
+  Future<List<Map<String, dynamic>>> searchPublicUserProfiles({
+    String usernameQuery = '',
+    String cityQuery = '',
+    String instrumentQuery = '',
+    String genreQuery = '',
+    String? excludingUid,
+  }) async {
+    final usernameFilter = usernameQuery.trim().toLowerCase();
+    final cityFilter = cityQuery.trim().toLowerCase();
+    final instrumentFilter = instrumentQuery.trim().toLowerCase();
+    final genreFilter = genreQuery.trim().toLowerCase();
+    if (usernameFilter.isEmpty &&
+        cityFilter.isEmpty &&
+        instrumentFilter.isEmpty &&
+        genreFilter.isEmpty) {
+      return [];
+    }
+
+    final currentUid = excludingUid ?? _auth.currentUser?.uid;
+    final snapshot = await _dbRef.child('user_public_profiles').get();
+    if (!snapshot.exists || snapshot.value == null || snapshot.value is! Map) {
+      return [];
+    }
+
+    final profiles = <Map<String, dynamic>>[];
+    final rawProfiles = Map<String, dynamic>.from(snapshot.value as Map);
+    for (final entry in rawProfiles.entries) {
+      if (entry.key == currentUid || entry.value is! Map) {
+        continue;
+      }
+
+      final profile = Map<String, dynamic>.from(entry.value as Map);
+      final username = profile['username']?.toString() ?? '';
+      final city = profile['city']?.toString() ?? '';
+      final instrumentsRaw = profile['instruments_search'];
+      final genresRaw = profile['genres_search'];
+      final instruments = instrumentsRaw is List
+          ? instrumentsRaw
+                .map((item) => item?.toString().toLowerCase() ?? '')
+                .where((item) => item.isNotEmpty)
+                .toList()
+          : const <String>[];
+      final genres = genresRaw is List
+          ? genresRaw
+                .map((item) => item?.toString().toLowerCase() ?? '')
+                .where((item) => item.isNotEmpty)
+                .toList()
+          : const <String>[];
+
+      final matchesUsername =
+          usernameFilter.isEmpty || username.toLowerCase().contains(usernameFilter);
+      final matchesCity =
+          cityFilter.isEmpty || city.toLowerCase().contains(cityFilter);
+      final matchesInstrument =
+          instrumentFilter.isEmpty ||
+          instruments.any((item) => item.contains(instrumentFilter));
+      final matchesGenre =
+          genreFilter.isEmpty || genres.any((item) => item.contains(genreFilter));
+
+      if (matchesUsername &&
+          matchesCity &&
+          matchesInstrument &&
+          matchesGenre) {
+        profiles.add({'uid': entry.key, ...profile});
+      }
+    }
+
+    profiles.sort((a, b) {
+      final left = a['username']?.toString() ?? '';
+      final right = b['username']?.toString() ?? '';
+      return left.compareTo(right);
+    });
+    return profiles;
+  }
+
   Future<void> createGroup(String name, {String description = ''}) async {
     final user = _auth.currentUser;
     if (user == null) {
@@ -1835,28 +2018,32 @@ class DatabaseService {
       throw Exception('Inserisci un nome gruppo');
     }
 
-    final userSnapshot = await _dbRef.child('users').child(user.uid).get();
-    final userData = userSnapshot.exists && userSnapshot.value != null
-        ? Map<String, dynamic>.from(userSnapshot.value as Map)
-        : <String, dynamic>{};
-    final nickname =
-        userData['username']?.toString() ??
-        userData['nickname']?.toString() ??
-        user.uid;
+    final userData = await _loadUserData(user.uid);
+    final nickname = _currentUsernameFromMap(userData, user.uid);
 
     final groupId = _dbRef.child('groups_info').push().key;
     if (groupId == null) {
       throw Exception('Impossibile creare il gruppo');
     }
 
+    final activityId = _dbRef.child('groups_info').child(groupId).child('activity').push().key;
+
     await _dbRef.update({
       '/groups_info/$groupId': {
         'name': trimmedName,
         'description': trimmedDescription,
+        'notes': '',
         'owner_id': user.uid,
         'created_at': ServerValue.timestamp,
         'members': {user.uid: true},
         'member_nicknames': {user.uid: nickname},
+        if (activityId != null)
+          'activity': {
+            activityId: _groupActivityEntry(
+              type: 'group_created',
+              message: '$nickname ha creato il gruppo.',
+            ),
+          },
       },
       '/users/${user.uid}/gruppi/$groupId': true,
     });
@@ -1895,11 +2082,24 @@ class DatabaseService {
       throw Exception('Utente non presente nel gruppo');
     }
 
-    await _dbRef.update({
+    final actorData = await _loadUserData(user.uid);
+    final targetData = await _loadUserData(targetUserId);
+    final actorUsername = _currentUsernameFromMap(actorData, user.uid);
+    final targetUsername = _currentUsernameFromMap(targetData, targetUserId);
+    final activityId = _dbRef.child('groups_info').child(groupId).child('activity').push().key;
+
+    final updates = <String, dynamic>{
       '/groups_info/$groupId/members/$targetUserId': null,
       '/groups_info/$groupId/member_nicknames/$targetUserId': null,
       '/users/$targetUserId/gruppi/$groupId': null,
-    });
+    };
+    if (activityId != null) {
+      updates['/groups_info/$groupId/activity/$activityId'] = _groupActivityEntry(
+        type: 'member_removed',
+        message: '$actorUsername ha rimosso $targetUsername dal gruppo.',
+      );
+    }
+    await _dbRef.update(updates);
   }
 
   Future<void> leaveGroup(String groupId) async {
@@ -1927,11 +2127,21 @@ class DatabaseService {
       throw Exception('Non fai parte di questo gruppo');
     }
 
-    await _dbRef.update({
+    final userData = await _loadUserData(user.uid);
+    final username = _currentUsernameFromMap(userData, user.uid);
+    final activityId = _dbRef.child('groups_info').child(groupId).child('activity').push().key;
+    final updates = <String, dynamic>{
       '/groups_info/$groupId/members/${user.uid}': null,
       '/groups_info/$groupId/member_nicknames/${user.uid}': null,
       '/users/${user.uid}/gruppi/$groupId': null,
-    });
+    };
+    if (activityId != null) {
+      updates['/groups_info/$groupId/activity/$activityId'] = _groupActivityEntry(
+        type: 'member_left',
+        message: '$username ha lasciato il gruppo.',
+      );
+    }
+    await _dbRef.update(updates);
   }
 
   Future<void> deleteGroup(String groupId) async {
@@ -2002,6 +2212,93 @@ class DatabaseService {
           null;
     }
 
+    await _dbRef.update(updates);
+  }
+
+  Future<void> revokeGroupInvite({
+    required String groupId,
+    required String targetUserId,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception('Utente non loggato');
+    }
+
+    final groupSnapshot = await _dbRef.child('groups_info').child(groupId).get();
+    if (!groupSnapshot.exists || groupSnapshot.value == null) {
+      throw Exception('Gruppo non trovato');
+    }
+
+    final groupData = Map<String, dynamic>.from(groupSnapshot.value as Map);
+    final ownerId = groupData['owner_id']?.toString() ?? '';
+    final isAdmin = await _isCurrentUserAdmin();
+    if (ownerId != user.uid && !isAdmin) {
+      throw Exception('Solo il proprietario del gruppo puo revocare inviti');
+    }
+
+    final groupName = groupData['name']?.toString() ?? 'Gruppo';
+    final actorData = await _loadUserData(user.uid);
+    final targetData = await _loadUserData(targetUserId);
+    final actorUsername = _currentUsernameFromMap(actorData, user.uid);
+    final targetUsername = _currentUsernameFromMap(targetData, targetUserId);
+    final notificationId = _groupInviteNotificationId(groupId);
+    final activityId = _dbRef.child('groups_info').child(groupId).child('activity').push().key;
+    final historyId = _dbRef.child('groups_info').child(groupId).child('invite_history').push().key;
+    final updates = <String, dynamic>{
+      '/groups_info/$groupId/pending_invites/$targetUserId': null,
+      '/group_invites/$targetUserId/$groupId': null,
+      '/user_notifications/$targetUserId/$notificationId': null,
+    };
+    if (historyId != null) {
+      updates['/groups_info/$groupId/invite_history/$historyId'] =
+          _groupInviteHistoryEntry(
+            status: 'revoked',
+            username: targetUsername,
+            actorUsername: actorUsername,
+          );
+    }
+    if (activityId != null) {
+      updates['/groups_info/$groupId/activity/$activityId'] = _groupActivityEntry(
+        type: 'invite_revoked',
+        message: '$actorUsername ha revocato l\'invito di $targetUsername in $groupName.',
+      );
+    }
+    await _dbRef.update(updates);
+  }
+
+  Future<void> updateGroupNotes({
+    required String groupId,
+    required String notes,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception('Utente non loggato');
+    }
+
+    final groupSnapshot = await _dbRef.child('groups_info').child(groupId).get();
+    if (!groupSnapshot.exists || groupSnapshot.value == null) {
+      throw Exception('Gruppo non trovato');
+    }
+
+    final groupData = Map<String, dynamic>.from(groupSnapshot.value as Map);
+    final ownerId = groupData['owner_id']?.toString() ?? '';
+    final isAdmin = await _isCurrentUserAdmin();
+    if (ownerId != user.uid && !isAdmin) {
+      throw Exception('Solo il proprietario del gruppo puo aggiornare le note');
+    }
+
+    final actorData = await _loadUserData(user.uid);
+    final actorUsername = _currentUsernameFromMap(actorData, user.uid);
+    final activityId = _dbRef.child('groups_info').child(groupId).child('activity').push().key;
+    final updates = <String, dynamic>{
+      '/groups_info/$groupId/notes': notes.trim(),
+    };
+    if (activityId != null) {
+      updates['/groups_info/$groupId/activity/$activityId'] = _groupActivityEntry(
+        type: 'notes_updated',
+        message: '$actorUsername ha aggiornato le note del gruppo.',
+      );
+    }
     await _dbRef.update(updates);
   }
 
@@ -2319,6 +2616,7 @@ class DatabaseService {
 
     final updates = <String, dynamic>{
       '/users/$uid': null,
+      '/user_public_profiles/$uid': null,
       '/user_bookings/$uid': null,
       '/user_joined_jams/$uid': null,
       '/user_notifications/$uid': null,

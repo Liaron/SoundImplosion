@@ -15,9 +15,11 @@ class GroupsController extends ChangeNotifier {
 
   bool isLoading = true;
   bool isSubmitting = false;
+  bool isSearchingProfiles = false;
   bool isAdmin = false;
   Object? error;
   List<GroupListItem> groups = [];
+  List<DiscoveryUserProfile> discoveryResults = [];
 
   String? get currentUserId => _auth.currentUser?.uid;
 
@@ -111,6 +113,63 @@ class GroupsController extends ChangeNotifier {
       isSubmitting = false;
       notifyListeners();
     }
+  }
+
+  Future<void> revokeGroupInvite({
+    required String groupId,
+    required String targetUserId,
+  }) async {
+    isSubmitting = true;
+    notifyListeners();
+    try {
+      await _repository.revokeGroupInvite(
+        groupId: groupId,
+        targetUserId: targetUserId,
+      );
+    } finally {
+      isSubmitting = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> updateGroupNotes({
+    required String groupId,
+    required String notes,
+  }) async {
+    isSubmitting = true;
+    notifyListeners();
+    try {
+      await _repository.updateGroupNotes(groupId: groupId, notes: notes);
+    } finally {
+      isSubmitting = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> searchUserProfiles({
+    String usernameQuery = '',
+    String cityQuery = '',
+    String instrumentQuery = '',
+    String genreQuery = '',
+  }) async {
+    isSearchingProfiles = true;
+    notifyListeners();
+    try {
+      discoveryResults = await _repository.searchUserProfiles(
+        usernameQuery: usernameQuery,
+        cityQuery: cityQuery,
+        instrumentQuery: instrumentQuery,
+        genreQuery: genreQuery,
+      );
+    } finally {
+      isSearchingProfiles = false;
+      notifyListeners();
+    }
+  }
+
+  void clearDiscoveryResults() {
+    discoveryResults = [];
+    notifyListeners();
   }
 
   @override

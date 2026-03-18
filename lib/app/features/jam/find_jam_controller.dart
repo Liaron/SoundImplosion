@@ -119,6 +119,10 @@ class FindJamController extends ChangeNotifier {
     return _repository.loadJamById(jamId);
   }
 
+  Future<Map<String, String>> loadParticipantUsernames(Iterable<String> userIds) {
+    return _repository.loadParticipantUsernames(userIds);
+  }
+
   Future<void> joinJam(String jamId) {
     return _repository.joinJam(jamId);
   }

@@ -88,6 +88,8 @@ class FakeGroupsRepository implements GroupsRepository {
   final List<Map<String, String>> removedUsers = [];
   final List<String> leftGroupIds = [];
   final List<String> deletedGroupIds = [];
+  final List<Map<String, String>> revokedInvites = [];
+  final List<Map<String, String>> updatedNotes = [];
 
   @override
   Future<void> createGroup(String name, {String description = ''}) async {
@@ -119,6 +121,32 @@ class FakeGroupsRepository implements GroupsRepository {
   @override
   Future<void> deleteGroup(String groupId) async {
     deletedGroupIds.add(groupId);
+  }
+
+  @override
+  Future<void> revokeGroupInvite({
+    required String groupId,
+    required String targetUserId,
+  }) async {
+    revokedInvites.add({'groupId': groupId, 'targetUserId': targetUserId});
+  }
+
+  @override
+  Future<void> updateGroupNotes({
+    required String groupId,
+    required String notes,
+  }) async {
+    updatedNotes.add({'groupId': groupId, 'notes': notes});
+  }
+
+  @override
+  Future<List<DiscoveryUserProfile>> searchUserProfiles({
+    String usernameQuery = '',
+    String cityQuery = '',
+    String instrumentQuery = '',
+    String genreQuery = '',
+  }) async {
+    return const [];
   }
 
   @override

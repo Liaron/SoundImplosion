@@ -21,6 +21,29 @@ function groupInviteNotificationId(groupId) {
   return `group_invite_${groupId}`;
 }
 
+const GROUP_INVITE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
+
+function nowPlusInviteExpiry() {
+  return Date.now() + GROUP_INVITE_EXPIRY_MS;
+}
+
+function groupActivityEntry(type, message) {
+  return {
+    type,
+    message,
+    timestamp: admin.database.ServerValue.TIMESTAMP,
+  };
+}
+
+function groupInviteHistoryEntry(status, username, actorUsername) {
+  return {
+    status,
+    username,
+    actor_username: actorUsername,
+    timestamp: admin.database.ServerValue.TIMESTAMP,
+  };
+}
+
 function extractIds(rawValue) {
   if (!rawValue) {
     return [];
@@ -286,6 +309,7 @@ async function buildJamDeletionUpdates(jamId, jamData) {
 async function cleanupUserData(uid) {
   const updates = {
     [`/users/${uid}`]: null,
+    [`/user_public_profiles/${uid}`]: null,
     [`/user_bookings/${uid}`]: null,
     [`/user_joined_jams/${uid}`]: null,
     [`/user_notifications/${uid}`]: null,
@@ -474,9 +498,18 @@ exports.inviteUserToGroup = functions.region("us-central1").https.onCall(async (
       String(targetUser.username || targetUser.nickname || nickname);
   const groupName = String(group.name || "Gruppo");
   const notificationId = groupInviteNotificationId(groupId);
+  const expiresAt = nowPlusInviteExpiry();
+  const activityRef = db.ref(`groups_info/${groupId}/activity`).push();
+  const historyRef = db.ref(`groups_info/${groupId}/invite_history`).push();
 
   await db.ref().update({
-    [`/groups_info/${groupId}/pending_invites/${targetUid}`]: invitedUsername,
+    [`/groups_info/${groupId}/pending_invites/${targetUid}`]: {
+      username: invitedUsername,
+      inviter_uid: callerUid,
+      inviter_username: inviterUsername,
+      invited_at: admin.database.ServerValue.TIMESTAMP,
+      expires_at: expiresAt,
+    },
     [`/group_invites/${targetUid}/${groupId}`]: {
       group_id: groupId,
       group_name: groupName,
@@ -485,7 +518,15 @@ exports.inviteUserToGroup = functions.region("us-central1").https.onCall(async (
       invited_username: invitedUsername,
       status: "pending",
       timestamp: admin.database.ServerValue.TIMESTAMP,
+      expires_at: expiresAt,
     },
+    [`/groups_info/${groupId}/invite_history/${historyRef.key}`]:
+      groupInviteHistoryEntry("pending", invitedUsername, inviterUsername),
+    [`/groups_info/${groupId}/activity/${activityRef.key}`]:
+      groupActivityEntry(
+          "invite_sent",
+          `${inviterUsername} ha invitato ${invitedUsername} nel gruppo.`,
+      ),
     [`/user_notifications/${targetUid}/${notificationId}`]: {
       type: "group_invite",
       group_id: groupId,
@@ -495,6 +536,7 @@ exports.inviteUserToGroup = functions.region("us-central1").https.onCall(async (
       invited_username: invitedUsername,
       invite_status: "pending",
       timestamp: admin.database.ServerValue.TIMESTAMP,
+      expires_at: expiresAt,
       creator_id: callerUid,
       read: false,
     },
@@ -546,6 +588,29 @@ exports.acceptGroupInvite = functions.region("us-central1").https.onCall(async (
   );
   const ownerId = String(group.owner_id || "");
   const notificationId = groupInviteNotificationId(groupId);
+  const expiresAt = Number(invite.expires_at || 0);
+  if (expiresAt && expiresAt < Date.now()) {
+    const expiredHistoryRef = db.ref(`groups_info/${groupId}/invite_history`).push();
+    const expiredActivityRef = db.ref(`groups_info/${groupId}/activity`).push();
+    await db.ref().update({
+      [`/groups_info/${groupId}/pending_invites/${uid}`]: null,
+      [`/group_invites/${uid}/${groupId}/status`]: "expired",
+      [`/user_notifications/${uid}/${notificationId}/invite_status`]: "expired",
+      [`/user_notifications/${uid}/${notificationId}/read`]: true,
+      [`/user_notifications/${uid}/${notificationId}/responded_at`]:
+        admin.database.ServerValue.TIMESTAMP,
+      [`/groups_info/${groupId}/invite_history/${expiredHistoryRef.key}`]:
+        groupInviteHistoryEntry("expired", username, username),
+      [`/groups_info/${groupId}/activity/${expiredActivityRef.key}`]:
+        groupActivityEntry("invite_expired", `L'invito per ${username} e scaduto.`),
+    });
+    throw new functions.https.HttpsError(
+        "deadline-exceeded",
+        "Questo invito e scaduto.",
+    );
+  }
+  const acceptedHistoryRef = db.ref(`groups_info/${groupId}/invite_history`).push();
+  const acceptedActivityRef = db.ref(`groups_info/${groupId}/activity`).push();
 
   const updates = {
     [`/groups_info/${groupId}/members/${uid}`]: true,
@@ -557,6 +622,13 @@ exports.acceptGroupInvite = functions.region("us-central1").https.onCall(async (
     [`/user_notifications/${uid}/${notificationId}/read`]: true,
     [`/user_notifications/${uid}/${notificationId}/responded_at`]:
       admin.database.ServerValue.TIMESTAMP,
+    [`/groups_info/${groupId}/invite_history/${acceptedHistoryRef.key}`]:
+      groupInviteHistoryEntry("accepted", username, username),
+    [`/groups_info/${groupId}/activity/${acceptedActivityRef.key}`]:
+      groupActivityEntry(
+          "invite_accepted",
+          `${username} ha accettato l'invito al gruppo.`,
+      ),
   };
 
   if (ownerId && ownerId !== uid) {
@@ -610,6 +682,29 @@ exports.rejectGroupInvite = functions.region("us-central1").https.onCall(async (
   );
   const ownerId = String(invite.inviter_uid || "");
   const notificationId = groupInviteNotificationId(groupId);
+  const expiresAt = Number(invite.expires_at || 0);
+  if (expiresAt && expiresAt < Date.now()) {
+    const expiredHistoryRef = db.ref(`groups_info/${groupId}/invite_history`).push();
+    const expiredActivityRef = db.ref(`groups_info/${groupId}/activity`).push();
+    await db.ref().update({
+      [`/groups_info/${groupId}/pending_invites/${uid}`]: null,
+      [`/group_invites/${uid}/${groupId}/status`]: "expired",
+      [`/user_notifications/${uid}/${notificationId}/invite_status`]: "expired",
+      [`/user_notifications/${uid}/${notificationId}/read`]: true,
+      [`/user_notifications/${uid}/${notificationId}/responded_at`]:
+        admin.database.ServerValue.TIMESTAMP,
+      [`/groups_info/${groupId}/invite_history/${expiredHistoryRef.key}`]:
+        groupInviteHistoryEntry("expired", username, username),
+      [`/groups_info/${groupId}/activity/${expiredActivityRef.key}`]:
+        groupActivityEntry("invite_expired", `L'invito per ${username} e scaduto.`),
+    });
+    throw new functions.https.HttpsError(
+        "deadline-exceeded",
+        "Questo invito e scaduto.",
+    );
+  }
+  const rejectedHistoryRef = db.ref(`groups_info/${groupId}/invite_history`).push();
+  const rejectedActivityRef = db.ref(`groups_info/${groupId}/activity`).push();
 
   const updates = {
     [`/groups_info/${groupId}/pending_invites/${uid}`]: null,
@@ -618,6 +713,13 @@ exports.rejectGroupInvite = functions.region("us-central1").https.onCall(async (
     [`/user_notifications/${uid}/${notificationId}/read`]: true,
     [`/user_notifications/${uid}/${notificationId}/responded_at`]:
       admin.database.ServerValue.TIMESTAMP,
+    [`/groups_info/${groupId}/invite_history/${rejectedHistoryRef.key}`]:
+      groupInviteHistoryEntry("rejected", username, username),
+    [`/groups_info/${groupId}/activity/${rejectedActivityRef.key}`]:
+      groupActivityEntry(
+          "invite_rejected",
+          `${username} ha rifiutato l'invito al gruppo.`,
+      ),
   };
 
   if (ownerId && ownerId !== uid) {

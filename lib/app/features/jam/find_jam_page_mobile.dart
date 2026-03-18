@@ -96,6 +96,10 @@ class _FindJamPageMobileState extends State<FindJamPageMobile> {
                 ),
                 const SizedBox(height: 16),
               ],
+              if (jam.hasGroup) ...[
+                Text('Gruppo associato: ${jam.groupLabel}'),
+                const SizedBox(height: 8),
+              ],
               Text('Data: ${jam.dateLabel}'),
               Text('Orario: ${jam.timeRangeLabel}'),
               const SizedBox(height: 16),
@@ -105,11 +109,52 @@ class _FindJamPageMobileState extends State<FindJamPageMobile> {
               ),
               Text(jam.jam.descrizione),
               const SizedBox(height: 8),
+              if (jam.jam.attrezzatura.trim().isNotEmpty)
+                Text('Attrezzatura: ${jam.jam.attrezzatura}'),
+              if (jam.jam.attrezzatura.trim().isNotEmpty)
+                const SizedBox(height: 8),
               Text(
-                'Persone: ${jam.jam.personePresenti} presenti, si cercano ${jam.jam.personeRichieste}',
+                'Presenti confermati: ${jam.confirmedParticipantsCount} • Ancora richiesti: ${jam.remainingSpots}',
+              ),
+              Text(
+                isOwnedByCurrentUser
+                    ? 'Stato partecipazione: sei il creatore'
+                    : isJoinedByCurrentUser
+                    ? 'Stato partecipazione: stai partecipando'
+                    : jam.hasOpenSpots
+                    ? 'Stato partecipazione: puoi unirti'
+                    : 'Stato partecipazione: jam al completo',
               ),
               Text('Pagamento: ${jam.paymentLabel}'),
               Text('Stato: ${jam.statusLabel}'),
+              const SizedBox(height: 16),
+              const Text(
+                'Partecipanti confermati',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              FutureBuilder<Map<String, String>>(
+                future: _controller.loadParticipantUsernames(jam.participantIds),
+                builder: (context, snapshot) {
+                  final names = snapshot.data?.values.toList() ?? jam.confirmedParticipantNames;
+                  if (snapshot.connectionState == ConnectionState.waiting &&
+                      names.isEmpty) {
+                    return const SizedBox(
+                      height: 24,
+                      width: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    );
+                  }
+                  if (names.isEmpty) {
+                    return const Text('Nessun partecipante aggiuntivo confermato.');
+                  }
+                  return Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: names.map((name) => Chip(label: Text(name))).toList(),
+                  );
+                },
+              ),
             ],
           ),
         ),
@@ -570,6 +615,16 @@ class _FindJamPageMobileState extends State<FindJamPageMobile> {
                                         fontWeight: FontWeight.bold,
                                       ),
                                     ),
+                                    if (jam.hasGroup)
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 4),
+                                        child: Text(
+                                          'Gruppo: ${jam.groupLabel}',
+                                          style: TextStyle(
+                                            color: Colors.grey.shade700,
+                                          ),
+                                        ),
+                                      ),
                                     const SizedBox(height: 8),
                                     Text(
                                       jam.jam.descrizione,
@@ -603,7 +658,7 @@ class _FindJamPageMobileState extends State<FindJamPageMobile> {
                                             ),
                                             const SizedBox(width: 4),
                                             Text(
-                                              '${jam.jam.personePresenti} presenti / Cerchiamo ${jam.jam.personeRichieste}',
+                                              '${jam.confirmedParticipantsCount} presenti / Mancano ${jam.remainingSpots}',
                                             ),
                                           ],
                                         ),

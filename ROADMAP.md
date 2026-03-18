@@ -67,6 +67,7 @@ Stato: completato
 
 ## Sprint 3
 Obiettivo: profilo, gruppi, discovery
+Stato: completato
 
 - Profilo utente esteso.
   Campi: bio, strumenti, generi, livello, citta, disponibilita

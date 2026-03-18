@@ -17,6 +17,12 @@
         }
       }
     },
+    "user_public_profiles": {
+      "$uid": {
+        ".read": "auth != null",
+        ".write": "auth != null && (auth.uid == $uid || root.child('users').child(auth.uid).child('role').val() == 'admin')"
+      }
+    },
     "user_search_index": {
       ".read": true,
       "$nickname": {
