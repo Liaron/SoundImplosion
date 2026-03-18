@@ -60,7 +60,7 @@ class FirebaseProfileRepository implements ProfileRepository {
       throw Exception('Utente non loggato');
     }
 
-    await currentUser.delete();
-    await _databaseService.deleteCurrentUserProfileData();
+    await _databaseService.deleteCurrentUserAccount();
+    await _auth.signOut();
   }
 }

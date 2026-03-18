@@ -63,10 +63,8 @@ class _AuthPageMobileState extends State<AuthPageMobile> {
     });
 
     try {
-      debugPrint('AUTH google:start');
       final userCredential = await _authService.signInWithGoogle();
       final firebaseUser = userCredential.user;
-      debugPrint('AUTH google:done uid=${firebaseUser?.uid}');
 
       if (firebaseUser == null) {
         throw Exception('Utente Google non disponibile');
@@ -79,7 +77,6 @@ class _AuthPageMobileState extends State<AuthPageMobile> {
           email: firebaseUser.email,
           excludingUid: firebaseUser.uid,
         );
-        debugPrint('AUTH google:bootstrap username=$generatedUsername');
         final newUser = AppUser(
           uid: firebaseUser.uid,
           nickname: generatedUsername,
@@ -96,8 +93,6 @@ class _AuthPageMobileState extends State<AuthPageMobile> {
         await AppTelemetryService.instance.logLogin(method: 'google');
       }
     } catch (e, stackTrace) {
-      debugPrint('AUTH google failed: $e');
-      debugPrintStack(stackTrace: stackTrace);
       await AppTelemetryService.instance.recordError(
         e,
         stackTrace,
@@ -127,25 +122,19 @@ class _AuthPageMobileState extends State<AuthPageMobile> {
       });
       try {
         if (_isLogin) {
-          debugPrint('AUTH login:start');
           await _authService.signInWithEmailAndPassword(
             email: _emailController.text.trim(),
             password: _passwordController.text.trim(),
           );
           await AppTelemetryService.instance.logLogin(method: 'password');
-          debugPrint('AUTH login:success');
         } else {
           final email = _emailController.text.trim();
           final username = _nicknameController.text.trim();
           final password = _passwordController.text.trim();
 
-          debugPrint('AUTH register:availability:start');
           final availability = await _dbService.checkRegistrationAvailability(
             nickname: username,
             email: email,
-          );
-          debugPrint(
-            'AUTH register:availability:done username=${availability.nicknameAvailable} email=${availability.emailAvailable}',
           );
           if (!availability.isAvailable) {
             throw Exception(availability.errorMessage);
@@ -157,12 +146,8 @@ class _AuthPageMobileState extends State<AuthPageMobile> {
             });
           }
 
-          debugPrint('AUTH register:createUser:start');
           final userCredential = await _authService
               .createUserWithEmailAndPassword(email: email, password: password);
-          debugPrint(
-            'AUTH register:createUser:done uid=${userCredential.user?.uid}',
-          );
 
           // 2. Se successo, crea il profilo utente sul DB con il nickname
           if (userCredential.user != null) {
@@ -173,29 +158,18 @@ class _AuthPageMobileState extends State<AuthPageMobile> {
             final newUser = AppUser(uid: uid, nickname: username, email: email);
 
             try {
-              debugPrint('AUTH register:saveUser:start');
               await _dbService.saveUser(newUser);
-              debugPrint('AUTH register:saveUser:done');
               try {
-                debugPrint('AUTH register:sendVerification:start');
                 await _authService.sendEmailVerification();
-                debugPrint('AUTH register:sendVerification:done');
-              } catch (verificationError) {
-                debugPrint(
-                  'AUTH register:sendVerification:failed $verificationError',
-                );
-              }
+              } catch (_) {}
               await AppTelemetryService.instance.logSignUp(method: 'password');
             } catch (e) {
-              debugPrint('AUTH register:saveUser:failed $e');
               await userCredential.user?.delete();
               rethrow;
             }
           }
         }
       } catch (e, stackTrace) {
-        debugPrint('AUTH flow failed: $e');
-        debugPrintStack(stackTrace: stackTrace);
         await AppTelemetryService.instance.recordError(
           e,
           stackTrace,

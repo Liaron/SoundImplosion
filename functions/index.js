@@ -51,7 +51,19 @@ function extractIds(rawValue) {
 
   if (Array.isArray(rawValue)) {
     return rawValue
-        .map((value, index) => value != null ? String(index) : "")
+        .map((value) => {
+          if (value == null) {
+            return "";
+          }
+          if (typeof value === "string" || typeof value === "number") {
+            return String(value).trim();
+          }
+          if (typeof value === "object") {
+            const uid = String(value.uid || value.id || "").trim();
+            return uid;
+          }
+          return "";
+        })
         .filter(Boolean);
   }
 
@@ -85,6 +97,11 @@ function parseIndexedUserIds(rawValue) {
   }
 
   return Object.keys(rawValue);
+}
+
+function parseCount(value) {
+  const parsed = Number.parseInt(String(value || 0), 10);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function buildNotificationContent(payload) {
@@ -228,6 +245,47 @@ async function getValue(path) {
   return snapshot.exists() ? snapshot.val() : null;
 }
 
+async function isAdminUid(uid) {
+  if (!uid) {
+    return false;
+  }
+
+  const userData = await getValue(`users/${uid}`);
+  return !!(userData && typeof userData === "object" && userData.role === "admin");
+}
+
+async function checkRegistrationAvailabilityValues({
+  nickname,
+  email,
+  excludingUid,
+}) {
+  const normalizedNickname = normalizeNickname(nickname);
+  const normalizedEmail = normalizeEmail(email);
+  const excludedUid = String(excludingUid || "").trim();
+
+  let nicknameAvailable = false;
+  if (normalizedNickname) {
+    const nicknameClaim = await getValue(`nickname_claims/${normalizedNickname}`);
+    const claimedBy = nicknameClaim == null ? "" : String(nicknameClaim).trim();
+    if (!claimedBy || claimedBy === excludedUid) {
+      const indexedUsers = parseIndexedUserIds(
+          await getValue(`user_search_index/${normalizedNickname}`),
+      ).filter((uid) => uid && uid !== excludedUid);
+      nicknameAvailable = indexedUsers.length === 0;
+    }
+  }
+
+  let emailAvailable = false;
+  if (normalizedEmail) {
+    const claimedBy = String(
+        (await getValue(`email_claims/${emailKey(normalizedEmail)}`)) || "",
+    ).trim();
+    emailAvailable = !claimedBy || claimedBy === excludedUid;
+  }
+
+  return {nicknameAvailable, emailAvailable};
+}
+
 async function removeFeedEntriesByJamId(jamId, updates) {
   const feed = await getValue("feed");
   if (!feed || typeof feed !== "object") {
@@ -244,41 +302,118 @@ async function removeFeedEntriesByJamId(jamId, updates) {
   }
 }
 
+function clearSlotBookingReference(dateStr, slotKey, updates) {
+  updates[`/slots/${dateStr}/${slotKey}/status`] = "libero";
+  updates[`/slots/${dateStr}/${slotKey}/booked_by`] = null;
+  updates[`/slots/${dateStr}/${slotKey}/booking_id`] = null;
+  updates[`/slots/${dateStr}/${slotKey}/is_jam`] = null;
+}
+
 async function removeSlotsByBookingId(dateStr, bookingId, updates) {
-  const slots = await getValue(`slots/${dateStr}`);
-  if (!slots || typeof slots !== "object") {
+  const scannedDates = new Set();
+
+  async function scanDateSlots(targetDate) {
+    if (!targetDate || scannedDates.has(targetDate)) {
+      return;
+    }
+
+    scannedDates.add(targetDate);
+    const slots = await getValue(`slots/${targetDate}`);
+    if (!slots || typeof slots !== "object") {
+      return;
+    }
+
+    for (const [slotKey, rawSlot] of Object.entries(slots)) {
+      if (!rawSlot || typeof rawSlot !== "object") {
+        continue;
+      }
+      if (rawSlot.booking_id === bookingId) {
+        clearSlotBookingReference(targetDate, slotKey, updates);
+      }
+    }
+  }
+
+  await scanDateSlots(dateStr);
+
+  const allSlots = await getValue("slots");
+  if (!allSlots || typeof allSlots !== "object") {
     return;
   }
 
-  for (const [slotKey, rawSlot] of Object.entries(slots)) {
-    if (!rawSlot || typeof rawSlot !== "object") {
+  for (const [targetDate, rawDay] of Object.entries(allSlots)) {
+    if (scannedDates.has(targetDate) || !rawDay || typeof rawDay !== "object") {
       continue;
     }
-    if (rawSlot.booking_id === bookingId) {
-      updates[`/slots/${dateStr}/${slotKey}/status`] = "libero";
-      updates[`/slots/${dateStr}/${slotKey}/booked_by`] = null;
-      updates[`/slots/${dateStr}/${slotKey}/booking_id`] = null;
-      updates[`/slots/${dateStr}/${slotKey}/is_jam`] = null;
+
+    for (const [slotKey, rawSlot] of Object.entries(rawDay)) {
+      if (!rawSlot || typeof rawSlot !== "object") {
+        continue;
+      }
+      if (rawSlot.booking_id === bookingId) {
+        clearSlotBookingReference(targetDate, slotKey, updates);
+      }
     }
   }
 }
 
-async function buildBookingDeletionUpdates(bookingId, bookingData) {
-  const updates = {};
+async function removeUserNotificationsByField(fieldName, fieldValue, updates) {
+  if (!fieldValue) {
+    return;
+  }
+
+  const notifications = await getValue("user_notifications");
+  if (!notifications || typeof notifications !== "object") {
+    return;
+  }
+
+  for (const [uid, rawUserNotifications] of Object.entries(notifications)) {
+    if (!rawUserNotifications || typeof rawUserNotifications !== "object") {
+      continue;
+    }
+
+    for (const [notificationId, rawNotification] of Object.entries(rawUserNotifications)) {
+      if (!rawNotification || typeof rawNotification !== "object") {
+        continue;
+      }
+
+      if (
+        rawNotification[fieldName] === fieldValue ||
+        notificationId === fieldValue
+      ) {
+        updates[`/user_notifications/${uid}/${notificationId}`] = null;
+      }
+    }
+  }
+}
+
+async function buildBookingDeletionUpdates(
+    bookingId,
+    bookingData,
+    notificationMemberIds = null,
+) {
+  const updates = {
+    [`/bookings/${bookingId}`]: null,
+  };
   const bookingOwnerId = bookingData.user_id || "";
   const bookingDate = bookingData.data || "";
   const groupId = bookingData.group_id || "";
 
-  if (!bookingOwnerId || !bookingDate) {
-    return updates;
+  if (bookingOwnerId) {
+    updates[`/user_bookings/${bookingOwnerId}/${bookingId}`] = null;
   }
 
-  updates[`/bookings/${bookingId}`] = null;
-  updates[`/user_bookings/${bookingOwnerId}/${bookingId}`] = null;
+  await removeUserNotificationsByField("booking_id", bookingId, updates);
 
   if (groupId) {
     updates[`/group_bookings/${groupId}/${bookingId}`] = null;
     updates[`/group_booking_notifications/${groupId}/${bookingId}`] = null;
+
+    const memberIds = notificationMemberIds || new Set(extractIds(
+        await getValue(`groups_info/${groupId}/members`),
+    ));
+    for (const memberId of memberIds) {
+        updates[`/user_notifications/${memberId}/${bookingId}`] = null;
+      }
   }
 
   await removeSlotsByBookingId(bookingDate, bookingId, updates);
@@ -290,11 +425,10 @@ async function buildJamDeletionUpdates(jamId, jamData) {
   const dateStr = jamData.data || "";
   const participants = jamData.participants;
 
-  if (dateStr) {
-    await removeSlotsByBookingId(dateStr, jamId, updates);
-  }
+  await removeSlotsByBookingId(dateStr, jamId, updates);
 
   await removeFeedEntriesByJamId(jamId, updates);
+  await removeUserNotificationsByField("jam_id", jamId, updates);
 
   if (participants && typeof participants === "object") {
     for (const participantId of Object.keys(participants)) {
@@ -306,6 +440,16 @@ async function buildJamDeletionUpdates(jamId, jamData) {
   return updates;
 }
 
+function removeGroupInviteArtifacts(groupId, targetUid, updates) {
+  if (!groupId || !targetUid) {
+    return;
+  }
+
+  updates[`/group_invites/${targetUid}/${groupId}`] = null;
+  updates[`/user_notifications/${targetUid}/${groupInviteNotificationId(groupId)}`] =
+    null;
+}
+
 async function cleanupUserData(uid) {
   const updates = {
     [`/users/${uid}`]: null,
@@ -313,6 +457,8 @@ async function cleanupUserData(uid) {
     [`/user_bookings/${uid}`]: null,
     [`/user_joined_jams/${uid}`]: null,
     [`/user_notifications/${uid}`]: null,
+    [`/group_invites/${uid}`]: null,
+    [`/user_devices/${uid}`]: null,
   };
 
   const userData = await getValue(`users/${uid}`);
@@ -339,24 +485,52 @@ async function cleanupUserData(uid) {
         continue;
       }
 
+      const groupMemberIds = new Set([
+        ...extractIds(rawGroup.members),
+        ...extractIds(rawGroup.member_nicknames),
+      ]);
+      const pendingInviteIds = new Set(extractIds(rawGroup.pending_invites));
+
       if (rawGroup.owner_id === uid) {
         updates[`/groups_info/${groupId}`] = null;
         updates[`/group_bookings/${groupId}`] = null;
         updates[`/group_booking_notifications/${groupId}`] = null;
 
-        const members = rawGroup.members;
-        if (members && typeof members === "object") {
-          for (const memberId of Object.keys(members)) {
-            updates[`/users/${memberId}/gruppi/${groupId}`] = null;
+        for (const memberId of groupMemberIds) {
+          updates[`/users/${memberId}/gruppi/${groupId}`] = null;
+        }
+
+        for (const invitedUserId of pendingInviteIds) {
+          removeGroupInviteArtifacts(groupId, invitedUserId, updates);
+        }
+
+        const groupBookings = await getValue(`group_bookings/${groupId}`);
+        if (groupBookings && typeof groupBookings === "object") {
+          for (const [bookingId, rawBooking] of Object.entries(groupBookings)) {
+            if (!rawBooking || typeof rawBooking !== "object") {
+              continue;
+            }
+            Object.assign(
+                updates,
+                await buildBookingDeletionUpdates(
+                    bookingId,
+                    rawBooking,
+                    groupMemberIds,
+                ),
+            );
           }
         }
         continue;
       }
 
-      if (rawGroup.members && typeof rawGroup.members === "object" && rawGroup.members[uid] != null) {
+      if (groupMemberIds.has(uid)) {
         updates[`/groups_info/${groupId}/members/${uid}`] = null;
         updates[`/groups_info/${groupId}/member_nicknames/${uid}`] = null;
         updates[`/users/${uid}/gruppi/${groupId}`] = null;
+      }
+
+      if (pendingInviteIds.has(uid)) {
+        updates[`/groups_info/${groupId}/pending_invites/${uid}`] = null;
       }
     }
   }
@@ -385,8 +559,13 @@ async function cleanupUserData(uid) {
         continue;
       }
 
-      if (rawJam.participants && typeof rawJam.participants === "object" && rawJam.participants[uid] != null) {
+      if (extractIds(rawJam.participants).includes(uid)) {
+        const currentPresent = parseCount(rawJam.persone_presenti);
+        const currentRequired = parseCount(rawJam.persone_richieste);
         updates[`/jams/${jamId}/participants/${uid}`] = null;
+        updates[`/jams/${jamId}/participant_usernames/${uid}`] = null;
+        updates[`/jams/${jamId}/persone_presenti`] = currentPresent > 0 ? currentPresent - 1 : 0;
+        updates[`/jams/${jamId}/persone_richieste`] = currentRequired + 1;
         updates[`/user_joined_jams/${uid}/${jamId}`] = null;
       }
     }
@@ -413,6 +592,225 @@ exports.pushUserNotification = functions.database
           payload,
       );
       return null;
+    });
+
+exports.checkRegistrationAvailability = functions
+    .region("us-central1")
+    .https
+    .onCall(async (data) => {
+      const nickname = String((data && data.nickname) || "").trim();
+      const email = String((data && data.email) || "").trim();
+      const excludingUid = String((data && data.excludingUid) || "").trim();
+
+      if (!nickname || !email) {
+        throw new functions.https.HttpsError(
+            "invalid-argument",
+            "nickname ed email sono obbligatori.",
+        );
+      }
+
+      return checkRegistrationAvailabilityValues({
+        nickname,
+        email,
+        excludingUid,
+      });
+    });
+
+exports.deleteCurrentUserAccount = functions
+    .region("us-central1")
+    .https
+    .onCall(async (_data, context) => {
+      if (!context.auth || !context.auth.uid) {
+        throw new functions.https.HttpsError(
+            "unauthenticated",
+            "Utente non autenticato.",
+        );
+      }
+
+      const uid = context.auth.uid;
+
+      try {
+        await admin.auth().deleteUser(uid);
+      } catch (error) {
+        const code = error && typeof error === "object" ? error.code : "";
+        if (code !== "auth/user-not-found") {
+          throw new functions.https.HttpsError(
+              "internal",
+              "Eliminazione account da Authentication fallita.",
+          );
+        }
+      }
+
+      try {
+        await cleanupUserData(uid);
+      } catch (error) {
+        throw new functions.https.HttpsError(
+            "internal",
+            "Account eliminato da Authentication ma cleanup database fallito.",
+        );
+      }
+
+      return {ok: true};
+    });
+
+exports.deleteBookingCascade = functions
+    .region("us-central1")
+    .https
+    .onCall(async (data, context) => {
+      if (!context.auth || !context.auth.uid) {
+        throw new functions.https.HttpsError(
+            "unauthenticated",
+            "Utente non autenticato.",
+        );
+      }
+
+      const bookingId = String((data && data.bookingId) || "").trim();
+      if (!bookingId) {
+        throw new functions.https.HttpsError(
+            "invalid-argument",
+            "bookingId obbligatorio.",
+        );
+      }
+
+      const bookingData = await getValue(`bookings/${bookingId}`);
+      if (!bookingData || typeof bookingData !== "object") {
+        return {ok: true};
+      }
+
+      const uid = context.auth.uid;
+      const isAdmin = (await getValue(`users/${uid}/role`)) === "admin";
+      const bookingOwnerId = String(bookingData.user_id || "").trim();
+      const groupId = String(bookingData.group_id || "").trim();
+      const groupOwnerId = groupId ?
+        String((await getValue(`groups_info/${groupId}/owner_id`)) || "").trim() :
+        "";
+
+      if (!isAdmin && bookingOwnerId !== uid && groupOwnerId !== uid) {
+        throw new functions.https.HttpsError(
+            "permission-denied",
+            "Non hai i permessi per eliminare questa prenotazione.",
+        );
+      }
+
+      const updates = await buildBookingDeletionUpdates(bookingId, bookingData);
+      await db.ref().update(updates);
+      return {ok: true};
+    });
+
+exports.deleteJamCascade = functions
+    .region("us-central1")
+    .https
+    .onCall(async (data, context) => {
+      if (!context.auth || !context.auth.uid) {
+        throw new functions.https.HttpsError(
+            "unauthenticated",
+            "Utente non autenticato.",
+        );
+      }
+
+      const jamId = String((data && data.jamId) || "").trim();
+      if (!jamId) {
+        throw new functions.https.HttpsError(
+            "invalid-argument",
+            "jamId obbligatorio.",
+        );
+      }
+
+      const jamData = await getValue(`jams/${jamId}`);
+      if (!jamData || typeof jamData !== "object") {
+        return {ok: true};
+      }
+
+      const uid = context.auth.uid;
+      const isAdmin = (await getValue(`users/${uid}/role`)) === "admin";
+      const creatorId = String(jamData.creator_id || "").trim();
+
+      if (!isAdmin && creatorId !== uid) {
+        throw new functions.https.HttpsError(
+            "permission-denied",
+            "Non hai i permessi per eliminare questa jam.",
+        );
+      }
+
+      const updates = await buildJamDeletionUpdates(jamId, jamData);
+      await db.ref().update(updates);
+      return {ok: true};
+    });
+
+exports.deleteGroupCascade = functions
+    .region("us-central1")
+    .https
+    .onCall(async (data, context) => {
+      if (!context.auth || !context.auth.uid) {
+        throw new functions.https.HttpsError(
+            "unauthenticated",
+            "Utente non autenticato.",
+        );
+      }
+
+      const groupId = String((data && data.groupId) || "").trim();
+      if (!groupId) {
+        throw new functions.https.HttpsError(
+            "invalid-argument",
+            "groupId obbligatorio.",
+        );
+      }
+
+      const groupData = await getValue(`groups_info/${groupId}`);
+      if (!groupData || typeof groupData !== "object") {
+        return {ok: true};
+      }
+
+      const uid = context.auth.uid;
+      const isAdmin = (await getValue(`users/${uid}/role`)) === "admin";
+      const ownerId = String(groupData.owner_id || "").trim();
+
+      if (!isAdmin && ownerId !== uid) {
+        throw new functions.https.HttpsError(
+            "permission-denied",
+            "Non hai i permessi per eliminare questo gruppo.",
+        );
+      }
+
+      const memberIds = new Set([
+        ...extractIds(groupData.members),
+        ...extractIds(groupData.member_nicknames),
+      ]);
+      const pendingInviteIds = new Set(extractIds(groupData.pending_invites));
+      const updates = {
+        [`/groups_info/${groupId}`]: null,
+        [`/group_bookings/${groupId}`]: null,
+        [`/group_booking_notifications/${groupId}`]: null,
+      };
+
+      const groupBookings = await getValue(`group_bookings/${groupId}`);
+      if (groupBookings && typeof groupBookings === "object") {
+        for (const [bookingId, rawBooking] of Object.entries(groupBookings)) {
+          if (!rawBooking || typeof rawBooking !== "object") {
+            continue;
+          }
+
+          Object.assign(
+              updates,
+              await buildBookingDeletionUpdates(
+                  bookingId,
+                  rawBooking,
+                  memberIds,
+              ),
+          );
+        }
+      }
+
+      for (const memberId of memberIds) {
+        updates[`/users/${memberId}/gruppi/${groupId}`] = null;
+      }
+
+      for (const invitedUserId of pendingInviteIds) {
+        removeGroupInviteArtifacts(groupId, invitedUserId, updates);
+      }
+
+      await db.ref().update(updates);
+      return {ok: true};
     });
 
 exports.inviteUserToGroup = functions.region("us-central1").https.onCall(async (data, context) => {
@@ -747,23 +1145,28 @@ exports.cleanupPastSlots = functions.region("us-central1").https.onCall(async (_
     );
   }
 
+  if (!(await isAdminUid(context.auth.uid))) {
+    throw new functions.https.HttpsError(
+        "permission-denied",
+        "Solo un admin puo eseguire il cleanup degli slot.",
+    );
+  }
+
   const slots = await getValue("slots");
   if (!slots || typeof slots !== "object") {
     return {deletedCount: 0};
   }
 
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const todayKey = new Date().toISOString().slice(0, 10);
   const updates = {};
   let deletedCount = 0;
 
   for (const dateKey of Object.keys(slots)) {
-    const parsedDate = new Date(`${dateKey}T00:00:00`);
-    if (Number.isNaN(parsedDate.getTime())) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
       continue;
     }
 
-    if (parsedDate < today) {
+    if (dateKey < todayKey) {
       updates[`/slots/${dateKey}`] = null;
       deletedCount += 1;
     }

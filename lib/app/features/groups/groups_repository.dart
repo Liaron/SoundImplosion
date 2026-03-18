@@ -239,6 +239,16 @@ class DiscoveryUserProfile {
             .where((item) => item.isNotEmpty)
             .toList();
       }
+      if (rawValue is Map) {
+        return rawValue.values
+            .map((item) => item?.toString().trim() ?? '')
+            .where((item) => item.isNotEmpty)
+            .toList();
+      }
+      final value = rawValue?.toString().trim() ?? '';
+      if (value.isNotEmpty) {
+        return <String>[value];
+      }
       return const <String>[];
     }
 

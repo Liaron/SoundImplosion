@@ -24,7 +24,7 @@
       }
     },
     "user_search_index": {
-      ".read": true,
+      ".read": "auth != null",
       "$nickname": {
         "$uid": {
           ".write": "auth != null && (auth.uid == $uid || root.child('users').child(auth.uid).child('role').val() == 'admin')"
@@ -32,13 +32,13 @@
       }
     },
     "nickname_claims": {
-      ".read": true,
+      ".read": "auth != null",
       "$nickname": {
         ".write": "auth != null && (((!data.exists() || data.val() == auth.uid) && (!newData.exists() || newData.val() == auth.uid)) || root.child('users').child(auth.uid).child('role').val() == 'admin')"
       }
     },
     "user_email_index": {
-      ".read": true,
+      ".read": "auth != null",
       "$email": {
         "$uid": {
           ".write": "auth != null && (auth.uid == $uid || root.child('users').child(auth.uid).child('role').val() == 'admin')"
@@ -46,7 +46,7 @@
       }
     },
     "email_claims": {
-      ".read": true,
+      ".read": "auth != null",
       "$email": {
         ".write": "auth != null && (((!data.exists() || data.val() == auth.uid) && (!newData.exists() || newData.val() == auth.uid)) || root.child('users').child(auth.uid).child('role').val() == 'admin')"
       }
@@ -89,7 +89,7 @@
         ".read": "auth != null && (root.child('groups_info').child($groupId).child('members').child(auth.uid).exists() || root.child('groups_info').child($groupId).child('owner_id').val() == auth.uid || root.child('users').child(auth.uid).child('role').val() == 'admin')",
         ".write": "auth != null && (!newData.exists() && (root.child('groups_info').child($groupId).child('owner_id').val() == auth.uid || root.child('users').child(auth.uid).child('role').val() == 'admin'))",
         "$bookingId": {
-          ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'admin' || newData.child('user_id').val() == auth.uid || data.child('user_id').val() == auth.uid)"
+          ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('groups_info').child($groupId).child('owner_id').val() == auth.uid || ((newData.child('user_id').val() == auth.uid || data.child('user_id').val() == auth.uid) && root.child('groups_info').child($groupId).child('members').child(auth.uid).exists()))"
         }
       }
     },
@@ -146,7 +146,7 @@
         ".read": "auth != null && (root.child('groups_info').child($groupId).child('members').child(auth.uid).exists() || root.child('groups_info').child($groupId).child('owner_id').val() == auth.uid || root.child('users').child(auth.uid).child('role').val() == 'admin')",
         ".write": "auth != null && (!newData.exists() && (root.child('groups_info').child($groupId).child('owner_id').val() == auth.uid || root.child('users').child(auth.uid).child('role').val() == 'admin'))",
         "$notificationId": {
-          ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'admin' || newData.child('creator_id').val() == auth.uid || (!newData.exists() && data.child('creator_id').val() == auth.uid))"
+          ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('groups_info').child($groupId).child('owner_id').val() == auth.uid || (((newData.child('creator_id').val() == auth.uid) || (!newData.exists() && data.child('creator_id').val() == auth.uid)) && root.child('groups_info').child($groupId).child('members').child(auth.uid).exists()))"
         }
       }
     },

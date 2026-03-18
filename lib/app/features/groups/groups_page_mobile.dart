@@ -325,6 +325,9 @@ class _GroupsPageMobileState extends State<GroupsPageMobile> {
         currentUserId != null && currentUserId != group.ownerId;
     final canEditNotes = canManageMembers;
     final inviteController = _inviteControllerFor(group.id);
+    final memberListHeight = (group.sortedMembers.length * 72.0)
+        .clamp(72.0, 220.0)
+        .toDouble();
 
     await showDialog<void>(
       context: context,
@@ -364,7 +367,7 @@ class _GroupsPageMobileState extends State<GroupsPageMobile> {
                 ),
                 const SizedBox(height: 8),
                 SizedBox(
-                  height: 220,
+                  height: memberListHeight,
                   child: ListView.builder(
                     shrinkWrap: true,
                     itemCount: group.sortedMembers.length,
@@ -409,6 +412,34 @@ class _GroupsPageMobileState extends State<GroupsPageMobile> {
                     },
                   ),
                 ),
+                if (canManageMembers) ...[
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Aggiungi utente',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: inviteController,
+                    decoration: const InputDecoration(
+                      labelText: 'Invita tramite username',
+                      hintText: 'Inserisci lo username esatto',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.person_add),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: ElevatedButton.icon(
+                      onPressed: _controller.isSubmitting
+                          ? null
+                          : () => _inviteToGroup(group),
+                      icon: const Icon(Icons.person_add_alt_1),
+                      label: const Text('Invita membro'),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 16),
                 Row(
                   children: [
@@ -529,28 +560,6 @@ class _GroupsPageMobileState extends State<GroupsPageMobile> {
                     ),
                   ),
                 ],
-                if (canManageMembers) ...[
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: inviteController,
-                    decoration: const InputDecoration(
-                      labelText: 'Invita tramite username',
-                      hintText: 'Inserisci lo username esatto',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.person_add),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: ElevatedButton(
-                      onPressed: _controller.isSubmitting
-                          ? null
-                          : () => _inviteToGroup(group),
-                      child: const Text('Invita membro'),
-                    ),
-                  ),
-                ],
               ],
             ),
           ),
@@ -584,10 +593,21 @@ class _GroupsPageMobileState extends State<GroupsPageMobile> {
 
   Future<void> _inviteToGroup(GroupListItem group) async {
     final inviteController = _inviteControllerFor(group.id);
+    final trimmedUsername = inviteController.text.trim();
+    if (trimmedUsername.isEmpty) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Inserisci uno username da invitare')),
+      );
+      return;
+    }
+
     try {
       await _controller.inviteUserToGroup(
         groupId: group.id,
-        nickname: inviteController.text,
+        nickname: trimmedUsername,
       );
       inviteController.clear();
       if (!mounted) {

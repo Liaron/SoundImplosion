@@ -41,9 +41,36 @@ class DatabaseService {
 
   Map<String, dynamic> _asStringKeyedMap(dynamic rawValue) {
     if (rawValue is Map) {
-      return Map<String, dynamic>.from(rawValue);
+      final result = <String, dynamic>{};
+      for (final entry in rawValue.entries) {
+        final key = entry.key?.toString().trim() ?? '';
+        if (key.isEmpty) {
+          continue;
+        }
+        result[key] = entry.value;
+      }
+      return result;
     }
     return <String, dynamic>{};
+  }
+
+  List<String> _asLowercaseStringList(dynamic rawValue) {
+    if (rawValue is List) {
+      return rawValue
+          .map((item) => item?.toString().trim().toLowerCase() ?? '')
+          .where((item) => item.isNotEmpty)
+          .toList();
+    }
+
+    if (rawValue is Map) {
+      return rawValue.values
+          .map((item) => item?.toString().trim().toLowerCase() ?? '')
+          .where((item) => item.isNotEmpty)
+          .toList();
+    }
+
+    final value = rawValue?.toString().trim().toLowerCase() ?? '';
+    return value.isEmpty ? const <String>[] : <String>[value];
   }
 
   @visibleForTesting
@@ -163,6 +190,30 @@ class DatabaseService {
     required String email,
     String? excludingUid,
   }) async {
+    try {
+      final response = await _functions
+          .httpsCallable('checkRegistrationAvailability')
+          .call({
+            'nickname': nickname.trim(),
+            'email': email.trim(),
+            'excludingUid': excludingUid,
+          });
+      final data = response.data;
+      if (data is Map) {
+        final payload = Map<String, dynamic>.from(data);
+        return RegistrationAvailability(
+          nicknameAvailable: payload['nicknameAvailable'] == true,
+          emailAvailable: payload['emailAvailable'] == true,
+        );
+      }
+    } on FirebaseFunctionsException catch (error) {
+      if (_auth.currentUser == null) {
+        throw Exception(
+          error.message ?? 'Verifica disponibilita non disponibile',
+        );
+      }
+    }
+
     final results = await Future.wait([
       isNicknameAvailable(nickname, excludingUid: excludingUid),
       isEmailAvailable(email, excludingUid: excludingUid),
@@ -263,7 +314,6 @@ class DatabaseService {
       email: trimmedEmail,
     );
     final claimRef = _dbRef.child('nickname_claims').child(normalizedNickname);
-    debugPrint('DB saveUser:nicknameClaim:start nickname=$normalizedNickname');
     final claimResult = await claimRef.runTransaction((Object? currentData) {
       final claimedBy = currentData?.toString().trim() ?? '';
       if (claimedBy.isNotEmpty && claimedBy != user.uid) {
@@ -276,10 +326,8 @@ class DatabaseService {
     if (!claimResult.committed) {
       throw Exception('Username gia utilizzato');
     }
-    debugPrint('DB saveUser:nicknameClaim:done');
 
     final emailClaimRef = _dbRef.child('email_claims').child(emailKey);
-    debugPrint('DB saveUser:emailClaim:start email=$normalizedEmail');
     final emailClaimResult = await emailClaimRef.runTransaction((
       Object? currentData,
     ) {
@@ -298,7 +346,6 @@ class DatabaseService {
       }
       throw Exception('Email gia utilizzata');
     }
-    debugPrint('DB saveUser:emailClaim:done');
 
     final currentIndexRef = _dbRef
         .child('user_search_index')
@@ -320,23 +367,17 @@ class DatabaseService {
     }
 
     try {
-      debugPrint('DB saveUser:userWrite:start uid=${user.uid}');
       await _dbRef.child('users').child(user.uid).set(sanitizedUser.toMap());
-      debugPrint('DB saveUser:userWrite:done');
       await _dbRef
           .child('user_public_profiles')
           .child(user.uid)
           .set(_buildPublicUserProfileData(sanitizedUser));
-      debugPrint('DB saveUser:nicknameIndexWrite:start');
       await currentIndexRef.child(user.uid).set({'username': trimmedNickname});
-      debugPrint('DB saveUser:nicknameIndexWrite:done');
-      debugPrint('DB saveUser:emailIndexWrite:start');
       await _dbRef
           .child('user_email_index')
           .child(emailKey)
           .child(user.uid)
           .set(true);
-      debugPrint('DB saveUser:emailIndexWrite:done');
 
       if (previousLowercase != null &&
           previousLowercase.isNotEmpty &&
@@ -601,6 +642,10 @@ class DatabaseService {
   }
 
   Future<void> cleanupPastSlots() async {
+    if (!await _isCurrentUserAdmin()) {
+      return;
+    }
+
     try {
       await _functions.httpsCallable('cleanupPastSlots').call();
     } on FirebaseFunctionsException catch (error) {
@@ -901,125 +946,16 @@ class DatabaseService {
     }
   }
 
-  Future<Set<String>> _getGroupMemberIds(String groupId) async {
-    if (groupId.isEmpty) {
-      return <String>{};
-    }
-
-    final groupSnapshot = await _dbRef
-        .child('groups_info')
-        .child(groupId)
-        .get();
-    if (!groupSnapshot.exists || groupSnapshot.value == null) {
-      return <String>{};
-    }
-
-    final groupData = Map<String, dynamic>.from(groupSnapshot.value as Map);
-    return <String>{
-      ..._extractIds(groupData['members']),
-      ..._extractIds(groupData['membri']),
-      ..._extractIds(groupData['users']),
-      ..._extractIds(groupData['user_ids']),
-      ..._extractIds(groupData['member_nicknames']),
-    };
-  }
-
-  Future<Map<String, dynamic>> _buildBookingDeletionUpdates(
-    String bookingId, {
-    Map<String, dynamic>? bookingDataOverride,
-    Set<String>? notificationMemberIds,
-  }) async {
-    final bookingData =
-        bookingDataOverride ?? await _loadBookingData(bookingId);
-    if (bookingData == null) {
-      return <String, dynamic>{};
-    }
-
-    final bookingOwnerId = bookingData['user_id']?.toString();
-    final bookingDate = bookingData['data']?.toString();
-    final groupId = bookingData['group_id']?.toString();
-    if (bookingOwnerId == null ||
-        bookingOwnerId.isEmpty ||
-        bookingDate == null ||
-        bookingDate.isEmpty) {
-      throw Exception('Prenotazione non valida o incompleta');
-    }
-
-    final updates = <String, dynamic>{
-      '/bookings/$bookingId': null,
-      '/user_bookings/$bookingOwnerId/$bookingId': null,
-    };
-
-    if (groupId != null && groupId.isNotEmpty) {
-      updates['/group_bookings/$groupId/$bookingId'] = null;
-      updates['/group_booking_notifications/$groupId/$bookingId'] = null;
-
-      final memberIds =
-          notificationMemberIds ?? await _getGroupMemberIds(groupId);
-      for (final memberId in memberIds) {
-        updates['/user_notifications/$memberId/$bookingId'] = null;
-      }
-    }
-
-    final slotsToFree = await _findSlotsByBookingId(bookingDate, bookingId);
-    for (final key in slotsToFree.keys) {
-      updates['/slots/$bookingDate/$key/status'] = 'libero';
-      updates['/slots/$bookingDate/$key/booked_by'] = null;
-      updates['/slots/$bookingDate/$key/booking_id'] = null;
-      updates['/slots/$bookingDate/$key/is_jam'] = null;
-    }
-
-    return updates;
-  }
-
-  Future<Map<String, dynamic>?> _loadBookingData(String bookingId) async {
-    final bookingSnapshot = await _dbRef
-        .child('bookings')
-        .child(bookingId)
-        .get();
-    if (!bookingSnapshot.exists || bookingSnapshot.value == null) {
-      return null;
-    }
-
-    return Map<String, dynamic>.from(bookingSnapshot.value as Map);
-  }
-
   // --- ELIMINAZIONE PRENOTAZIONE ---
 
   Future<void> deleteBooking(String bookingId) async {
-    final user = _auth.currentUser;
-    if (user == null) {
-      throw Exception("Utente non loggato");
+    try {
+      await _functions.httpsCallable('deleteBookingCascade').call({
+        'bookingId': bookingId,
+      });
+    } on FirebaseFunctionsException catch (error) {
+      throw Exception(error.message ?? 'Eliminazione prenotazione fallita');
     }
-
-    debugPrint("Inizio cancellazione prenotazione: $bookingId");
-
-    final bookingSnapshot = await _dbRef
-        .child('bookings')
-        .child(bookingId)
-        .get();
-    if (!bookingSnapshot.exists || bookingSnapshot.value == null) {
-      return;
-    }
-
-    final bookingData = Map<String, dynamic>.from(bookingSnapshot.value as Map);
-    final bookingOwnerId = bookingData['user_id'] as String?;
-
-    if (bookingOwnerId == null) {
-      throw Exception("Prenotazione non valida o incompleta");
-    }
-
-    if (bookingOwnerId != user.uid) {
-      throw Exception("Puoi eliminare solo le tue prenotazioni.");
-    }
-
-    final updates = await _buildBookingDeletionUpdates(
-      bookingId,
-      bookingDataOverride: bookingData,
-    );
-
-    await _dbRef.update(updates);
-    debugPrint("Prenotazione $bookingId eliminata, slot liberati.");
   }
 
   Future<void> updateBooking({
@@ -1956,29 +1892,28 @@ class DatabaseService {
     }
 
     final profiles = <Map<String, dynamic>>[];
-    final rawProfiles = Map<String, dynamic>.from(snapshot.value as Map);
+    final rawProfiles = _asStringKeyedMap(snapshot.value);
     for (final entry in rawProfiles.entries) {
-      if (entry.key == currentUid || entry.value is! Map) {
+      if (entry.key == currentUid) {
         continue;
       }
 
-      final profile = Map<String, dynamic>.from(entry.value as Map);
-      final username = profile['username']?.toString() ?? '';
+      final profile = _asStringKeyedMap(entry.value);
+      if (profile.isEmpty) {
+        continue;
+      }
+
+      final username =
+          profile['username']?.toString() ??
+          profile['username_lowercase']?.toString() ??
+          '';
       final city = profile['city']?.toString() ?? '';
-      final instrumentsRaw = profile['instruments_search'];
-      final genresRaw = profile['genres_search'];
-      final instruments = instrumentsRaw is List
-          ? instrumentsRaw
-                .map((item) => item?.toString().toLowerCase() ?? '')
-                .where((item) => item.isNotEmpty)
-                .toList()
-          : const <String>[];
-      final genres = genresRaw is List
-          ? genresRaw
-                .map((item) => item?.toString().toLowerCase() ?? '')
-                .where((item) => item.isNotEmpty)
-                .toList()
-          : const <String>[];
+      final instruments = _asLowercaseStringList(
+        profile['instruments_search'] ?? profile['instruments'],
+      );
+      final genres = _asLowercaseStringList(
+        profile['genres_search'] ?? profile['genres'],
+      );
 
       final matchesUsername =
           usernameFilter.isEmpty || username.toLowerCase().contains(usernameFilter);
@@ -2145,74 +2080,13 @@ class DatabaseService {
   }
 
   Future<void> deleteGroup(String groupId) async {
-    final user = _auth.currentUser;
-    if (user == null) {
-      throw Exception('Utente non loggato');
+    try {
+      await _functions.httpsCallable('deleteGroupCascade').call({
+        'groupId': groupId,
+      });
+    } on FirebaseFunctionsException catch (error) {
+      throw Exception(error.message ?? 'Eliminazione gruppo fallita');
     }
-
-    final groupSnapshot = await _dbRef
-        .child('groups_info')
-        .child(groupId)
-        .get();
-    if (!groupSnapshot.exists || groupSnapshot.value == null) {
-      throw Exception('Gruppo non trovato');
-    }
-
-    final groupData = Map<String, dynamic>.from(groupSnapshot.value as Map);
-    final ownerId = groupData['owner_id']?.toString() ?? '';
-    final isAdmin = await _isCurrentUserAdmin();
-    if (ownerId != user.uid && !isAdmin) {
-      throw Exception(
-        'Solo il proprietario o un admin puo eliminare il gruppo',
-      );
-    }
-
-    final memberIds = <String>{
-      ..._extractIds(groupData['members']),
-      ..._extractIds(groupData['member_nicknames']),
-    };
-    final pendingInviteIds = _extractIds(groupData['pending_invites']);
-
-    final groupBookingsSnapshot = await _dbRef
-        .child('group_bookings')
-        .child(groupId)
-        .get();
-
-    final updates = <String, dynamic>{
-      '/groups_info/$groupId': null,
-      '/group_bookings/$groupId': null,
-      '/group_booking_notifications/$groupId': null,
-    };
-
-    if (groupBookingsSnapshot.exists && groupBookingsSnapshot.value is Map) {
-      final rawBookings = Map<String, dynamic>.from(
-        groupBookingsSnapshot.value as Map,
-      );
-      for (final entry in rawBookings.entries) {
-        final rawBooking = entry.value;
-        if (rawBooking is! Map) {
-          continue;
-        }
-
-        final bookingUpdates = await _buildBookingDeletionUpdates(
-          entry.key.toString(),
-          bookingDataOverride: Map<String, dynamic>.from(rawBooking),
-          notificationMemberIds: memberIds,
-        );
-        updates.addAll(bookingUpdates);
-      }
-    }
-
-    for (final memberId in memberIds) {
-      updates['/users/$memberId/gruppi/$groupId'] = null;
-    }
-    for (final invitedUserId in pendingInviteIds) {
-      updates['/group_invites/$invitedUserId/$groupId'] = null;
-      updates['/user_notifications/$invitedUserId/${_groupInviteNotificationId(groupId)}'] =
-          null;
-    }
-
-    await _dbRef.update(updates);
   }
 
   Future<void> revokeGroupInvite({
@@ -2375,121 +2249,12 @@ class DatabaseService {
 
   // ELIMINA JAM
   Future<void> deleteJam(String jamId) async {
-    final user = _auth.currentUser;
-    if (user == null) return;
-
-    debugPrint("Inizio cancellazione JAM: $jamId");
-
     try {
-      final snapshot = await _dbRef.child('jams').child(jamId).get();
-      if (!snapshot.exists || snapshot.value == null) {
-        return;
-      }
-
-      final data = Map<String, dynamic>.from(snapshot.value as Map);
-      final dateStr = data['data'] as String;
-      final creatorId = data['creator_id'] as String;
-      final participantIds = _extractIds(data['participants']);
-      final isAdmin = await _isCurrentUserAdmin();
-
-      if (creatorId != user.uid && !isAdmin) {
-        throw Exception("Solo il creatore può eliminare questa Jam.");
-      }
-
-      final Map<String, dynamic> updates = {};
-
-      // 1. Trova e rimuovi il post dal feed
-      try {
-        final feedSnapshot = await _dbRef
-            .child('feed')
-            .orderByChild('jam_id')
-            .equalTo(jamId)
-            .get();
-        if (feedSnapshot.exists && feedSnapshot.value != null) {
-          final feedData = Map<String, dynamic>.from(feedSnapshot.value as Map);
-          feedData.forEach((key, value) {
-            updates['/feed/$key'] = null;
-          });
-        }
-      } catch (e) {
-        debugPrint("Query feed fallita ($e). Tento fallback...");
-        final allFeedSnapshot = await _dbRef.child('feed').get();
-        if (allFeedSnapshot.exists && allFeedSnapshot.value != null) {
-          final allFeed = Map<String, dynamic>.from(
-            allFeedSnapshot.value as Map,
-          );
-          allFeed.forEach((key, value) {
-            final feedItem = Map<String, dynamic>.from(value as Map);
-            if (feedItem['jam_id'] == jamId) {
-              updates['/feed/$key'] = null;
-            }
-          });
-        }
-      }
-
-      // 2. Trova e libera gli slot
-      Map<String, dynamic> slotsToFree = {};
-      try {
-        final slotsSnapshot = await _dbRef
-            .child('slots')
-            .child(dateStr)
-            .orderByChild('booking_id')
-            .equalTo(jamId)
-            .get();
-        if (slotsSnapshot.exists && slotsSnapshot.value != null) {
-          if (slotsSnapshot.value is Map) {
-            slotsToFree = Map<String, dynamic>.from(slotsSnapshot.value as Map);
-          } else if (slotsSnapshot.value is List) {
-            // Handle potential list return (though unlikely with string keys)
-            final list = slotsSnapshot.value as List;
-            for (int i = 0; i < list.length; i++) {
-              if (list[i] != null) {
-                // Try to recover original key if possible, but here we likely only have value
-                // Ideally we shouldn't get here for slots with "HH_mm" keys.
-                // But if we do, we can't reliably reconstruct the key unless it's inside the value.
-                // The code below iterates over slotsToFree keys.
-                // If we can't get the key, we can't update.
-                // So we assume Map.
-              }
-            }
-          }
-        }
-      } catch (e) {
-        final allSlotsSnapshot = await _dbRef
-            .child('slots')
-            .child(dateStr)
-            .get();
-        if (allSlotsSnapshot.exists && allSlotsSnapshot.value != null) {
-          final allSlots = Map<String, dynamic>.from(
-            allSlotsSnapshot.value as Map,
-          );
-          allSlots.forEach((key, value) {
-            final slotData = Map<String, dynamic>.from(value as Map);
-            if (slotData['booking_id'] == jamId) {
-              slotsToFree[key] = slotData;
-            }
-          });
-        }
-      }
-      slotsToFree.forEach((key, value) {
-        updates['/slots/$dateStr/$key/status'] = 'libero';
-        updates['/slots/$dateStr/$key/booked_by'] = null;
-        updates['/slots/$dateStr/$key/booking_id'] = null;
-        updates['/slots/$dateStr/$key/is_jam'] = null;
+      await _functions.httpsCallable('deleteJamCascade').call({
+        'jamId': jamId,
       });
-
-      for (final participantId in participantIds) {
-        updates['/user_joined_jams/$participantId/$jamId'] = null;
-      }
-
-      // 3. Rimuovi la Jam
-      updates['/jams/$jamId'] = null;
-
-      await _dbRef.update(updates);
-      debugPrint("Jam $jamId e post feed eliminati, slot liberati.");
-    } catch (e) {
-      debugPrint("Errore durante eliminazione jam: $e");
-      rethrow;
+    } on FirebaseFunctionsException catch (error) {
+      throw Exception(error.message ?? 'Eliminazione jam fallita');
     }
   }
 
@@ -2637,6 +2402,19 @@ class DatabaseService {
     }
 
     await _dbRef.update(updates);
+  }
+
+  Future<void> deleteCurrentUserAccount() async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception('Utente non loggato');
+    }
+
+    try {
+      await _functions.httpsCallable('deleteCurrentUserAccount').call();
+    } on FirebaseFunctionsException catch (error) {
+      throw Exception(error.message ?? 'Eliminazione account fallita');
+    }
   }
 }
 
