@@ -535,48 +535,75 @@ class _OrganizeJamPageMobileState extends State<OrganizeJamPageMobile> {
                 ),
                 const SizedBox(height: 16),
 
-                // Gruppo e Pagamento sulla stessa riga
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        decoration: const InputDecoration(
-                          labelText: 'Gruppo',
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.group),
+                // Gruppo e Pagamento affiancati solo quando c'e spazio sufficiente
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final useVerticalLayout = constraints.maxWidth < 430;
+                    final groupField = DropdownButtonFormField<String>(
+                      decoration: const InputDecoration(
+                        labelText: 'Gruppo',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.group),
+                      ),
+                      key: ValueKey<String?>(_controller.selectedGroupId),
+                      initialValue: _controller.selectedGroupId,
+                      isExpanded: true,
+                      items: [
+                        const DropdownMenuItem<String>(
+                          value: null,
+                          child: Text('Nessun gruppo'),
                         ),
-                        initialValue: _controller.selectedGroupId,
-                        items: _controller.userGroups.map((group) {
-                          return DropdownMenuItem(
+                        ..._controller.userGroups.map((group) {
+                          return DropdownMenuItem<String>(
                             value: group['id'],
                             child: Text(
                               group['name'] ?? '',
                               overflow: TextOverflow.ellipsis,
                             ),
                           );
-                        }).toList(),
-                        onChanged: _controller.setSelectedGroup,
+                        }),
+                      ],
+                      onChanged: _controller.setSelectedGroup,
+                    );
+
+                    final paymentField = DropdownButtonFormField<String>(
+                      decoration: const InputDecoration(
+                        labelText: 'Pagamento',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.payment),
                       ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        decoration: const InputDecoration(
-                          labelText: 'Pagamento',
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.payment),
-                        ),
-                        initialValue: _controller.selectedPayment,
-                        items: OrganizeJamController.paymentOptions.map((opt) {
-                          return DropdownMenuItem(value: opt, child: Text(opt));
-                        }).toList(),
-                        onChanged: _controller.setSelectedPayment,
-                        validator: (value) =>
-                            value == null ? 'Obbligatorio' : null,
-                      ),
-                    ),
-                  ],
+                      initialValue: _controller.selectedPayment,
+                      isExpanded: true,
+                      items: OrganizeJamController.paymentOptions.map((opt) {
+                        return DropdownMenuItem<String>(
+                          value: opt,
+                          child: Text(opt),
+                        );
+                      }).toList(),
+                      onChanged: _controller.setSelectedPayment,
+                      validator: (value) =>
+                          value == null ? 'Obbligatorio' : null,
+                    );
+
+                    if (useVerticalLayout) {
+                      return Column(
+                        children: [
+                          groupField,
+                          const SizedBox(height: 16),
+                          paymentField,
+                        ],
+                      );
+                    }
+
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: groupField),
+                        const SizedBox(width: 16),
+                        Expanded(child: paymentField),
+                      ],
+                    );
+                  },
                 ),
                 const SizedBox(height: 16),
 

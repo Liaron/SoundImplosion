@@ -581,13 +581,21 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.group),
                   ),
+                  key: ValueKey<String?>(_controller.selectedGroupId),
                   initialValue: _controller.selectedGroupId,
-                  items: _controller.userGroups.map((group) {
-                    return DropdownMenuItem(
-                      value: group['id'],
-                      child: Text(group['name'] ?? ''),
-                    );
-                  }).toList(),
+                  isExpanded: true,
+                  items: [
+                    const DropdownMenuItem<String>(
+                      value: null,
+                      child: Text('Nessun gruppo'),
+                    ),
+                    ..._controller.userGroups.map((group) {
+                      return DropdownMenuItem<String>(
+                        value: group['id'],
+                        child: Text(group['name'] ?? ''),
+                      );
+                    }),
+                  ],
                   onChanged: _controller.setSelectedGroup,
                 ),
                 const SizedBox(height: 16),
