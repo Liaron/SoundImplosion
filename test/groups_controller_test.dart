@@ -92,9 +92,10 @@ class FakeGroupsRepository implements GroupsRepository {
   final List<Map<String, String>> updatedNotes = [];
 
   @override
-  Future<void> createGroup(String name, {String description = ''}) async {
+  Future<String> createGroup(String name, {String description = ''}) async {
     createdGroupNames.add(name);
     createdGroupDescriptions.add(description);
+    return 'created-group-id';
   }
 
   @override

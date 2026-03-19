@@ -47,14 +47,18 @@ class GroupsController extends ChangeNotifier {
     );
   }
 
-  Future<void> createGroup(String name, {String description = ''}) async {
+  Future<String> createGroup(String name, {String description = ''}) async {
     isSubmitting = true;
     notifyListeners();
     try {
-      await _repository.createGroup(name, description: description);
+      final groupId = await _repository.createGroup(
+        name,
+        description: description,
+      );
       await AppTelemetryService.instance.logCreateGroup(
         hasDescription: description.trim().isNotEmpty,
       );
+      return groupId;
     } finally {
       isSubmitting = false;
       notifyListeners();
@@ -161,6 +165,9 @@ class GroupsController extends ChangeNotifier {
         instrumentQuery: instrumentQuery,
         genreQuery: genreQuery,
       );
+    } catch (error) {
+      debugPrint('searchUserProfiles failed: $error');
+      discoveryResults = [];
     } finally {
       isSearchingProfiles = false;
       notifyListeners();

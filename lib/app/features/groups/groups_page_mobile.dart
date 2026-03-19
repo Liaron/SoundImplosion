@@ -29,6 +29,7 @@ class _GroupsPageMobileState extends State<GroupsPageMobile> {
       TextEditingController();
   final TextEditingController _searchGenreController = TextEditingController();
   final Map<String, TextEditingController> _inviteControllers = {};
+  final Map<String, DiscoveryUserProfile> _selectedProfilesForNewGroup = {};
   bool _didOpenInitialGroup = false;
 
   @override
@@ -151,17 +152,40 @@ class _GroupsPageMobileState extends State<GroupsPageMobile> {
 
   Future<void> _createGroup() async {
     try {
-      await _controller.createGroup(
+      final groupId = await _controller.createGroup(
         _groupNameController.text,
         description: _groupDescriptionController.text,
       );
+      final selectedProfiles = _selectedProfilesForNewGroup.values.toList();
+      final failedInvites = <String>[];
+      for (final profile in selectedProfiles) {
+        try {
+          await _controller.inviteUserToGroup(
+            groupId: groupId,
+            nickname: profile.username,
+          );
+        } catch (_) {
+          failedInvites.add(profile.username);
+        }
+      }
       _groupNameController.clear();
       _groupDescriptionController.clear();
+      _selectedProfilesForNewGroup.clear();
+      _controller.clearDiscoveryResults();
       if (!mounted) {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Gruppo creato correttamente')),
+        SnackBar(
+          content: Text(
+            failedInvites.isEmpty
+                ? (selectedProfiles.isEmpty
+                      ? 'Gruppo creato correttamente'
+                      : 'Gruppo creato e inviti inviati'
+                  )
+                : 'Gruppo creato, ma alcuni inviti non sono stati inviati: ${failedInvites.join(', ')}',
+          ),
+        ),
       );
     } catch (e) {
       if (!mounted) {
@@ -639,17 +663,18 @@ class _GroupsPageMobileState extends State<GroupsPageMobile> {
         genreQuery: _searchGenreController.text,
       );
     } catch (e) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Errore: ${e.toString().replaceAll('Exception: ', '')}',
-          ),
-        ),
-      );
+      debugPrint('Groups discovery search failed: $e');
     }
+  }
+
+  void _toggleProfileSelectionForNewGroup(DiscoveryUserProfile profile) {
+    setState(() {
+      if (_selectedProfilesForNewGroup.containsKey(profile.uid)) {
+        _selectedProfilesForNewGroup.remove(profile.uid);
+      } else {
+        _selectedProfilesForNewGroup[profile.uid] = profile;
+      }
+    });
   }
 
   @override
@@ -762,6 +787,28 @@ class _GroupsPageMobileState extends State<GroupsPageMobile> {
                   ),
                 ],
               ),
+              if (_selectedProfilesForNewGroup.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Utenti da invitare nel nuovo gruppo',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _selectedProfilesForNewGroup.values.map((profile) {
+                    return Chip(
+                      label: Text(profile.username),
+                      onDeleted: () =>
+                          _toggleProfileSelectionForNewGroup(profile),
+                    );
+                  }).toList(),
+                ),
+              ],
               if (_controller.discoveryResults.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 SizedBox(
@@ -770,6 +817,9 @@ class _GroupsPageMobileState extends State<GroupsPageMobile> {
                     itemCount: _controller.discoveryResults.length,
                     itemBuilder: (context, index) {
                       final profile = _controller.discoveryResults[index];
+                      final isSelected = _selectedProfilesForNewGroup.containsKey(
+                        profile.uid,
+                      );
                       return Card(
                         margin: const EdgeInsets.only(bottom: 8),
                         child: ListTile(
@@ -792,6 +842,19 @@ class _GroupsPageMobileState extends State<GroupsPageMobile> {
                                 ),
                               if (profile.bio.isNotEmpty) Text(profile.bio),
                             ],
+                          ),
+                          trailing: IconButton(
+                            onPressed: () =>
+                                _toggleProfileSelectionForNewGroup(profile),
+                            icon: Icon(
+                              isSelected
+                                  ? Icons.check_circle
+                                  : Icons.person_add_alt_1,
+                              color: isSelected ? Colors.green : null,
+                            ),
+                            tooltip: isSelected
+                                ? 'Rimuovi dalla lista inviti'
+                                : 'Aggiungi al nuovo gruppo',
                           ),
                           isThreeLine: true,
                         ),

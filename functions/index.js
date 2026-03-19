@@ -943,6 +943,84 @@ exports.inviteUserToGroup = functions.region("us-central1").https.onCall(async (
   return {ok: true};
 });
 
+exports.removeUserFromGroup = functions.region("us-central1").https.onCall(async (data, context) => {
+  if (!context.auth || !context.auth.uid) {
+    throw new functions.https.HttpsError(
+        "unauthenticated",
+        "Utente non autenticato.",
+    );
+  }
+
+  const groupId = String((data && data.groupId) || "").trim();
+  const targetUserId = String((data && data.targetUserId) || "").trim();
+  if (!groupId || !targetUserId) {
+    throw new functions.https.HttpsError(
+        "invalid-argument",
+        "groupId e targetUserId sono obbligatori.",
+    );
+  }
+
+  const callerUid = context.auth.uid;
+  const group = await getValue(`groups_info/${groupId}`);
+  if (!group || typeof group !== "object") {
+    throw new functions.https.HttpsError("not-found", "Gruppo non trovato.");
+  }
+
+  const callerData = await getValue(`users/${callerUid}`);
+  const isAdmin = callerData && typeof callerData === "object" && callerData.role === "admin";
+  const ownerId = String(group.owner_id || "").trim();
+  if (ownerId !== callerUid && !isAdmin) {
+    throw new functions.https.HttpsError(
+        "permission-denied",
+        "Solo il proprietario del gruppo puo rimuovere membri.",
+    );
+  }
+
+  if (targetUserId === ownerId) {
+    throw new functions.https.HttpsError(
+        "failed-precondition",
+        "Il proprietario non puo essere rimosso dal gruppo.",
+    );
+  }
+
+  const memberIds = new Set([
+    ...extractIds(group.members),
+    ...extractIds(group.member_nicknames),
+  ]);
+  if (!memberIds.has(targetUserId)) {
+    throw new functions.https.HttpsError(
+        "not-found",
+        "Utente non presente nel gruppo.",
+    );
+  }
+
+  const callerUsername = String(
+      callerData?.username ||
+      callerData?.nickname ||
+      callerUid,
+  );
+  const targetUser = await getValue(`users/${targetUserId}`);
+  const targetUsername = String(
+      targetUser?.username ||
+      targetUser?.nickname ||
+      targetUserId,
+  );
+  const activityRef = db.ref(`groups_info/${groupId}/activity`).push();
+
+  await db.ref().update({
+    [`/groups_info/${groupId}/members/${targetUserId}`]: null,
+    [`/groups_info/${groupId}/member_nicknames/${targetUserId}`]: null,
+    [`/users/${targetUserId}/gruppi/${groupId}`]: null,
+    [`/groups_info/${groupId}/activity/${activityRef.key}`]:
+      groupActivityEntry(
+          "member_removed",
+          `${callerUsername} ha rimosso ${targetUsername} dal gruppo.`,
+      ),
+  });
+
+  return {ok: true};
+});
+
 exports.acceptGroupInvite = functions.region("us-central1").https.onCall(async (data, context) => {
   if (!context.auth || !context.auth.uid) {
     throw new functions.https.HttpsError(

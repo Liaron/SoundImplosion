@@ -1,6 +1,22 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:soundimplosion/services/database_service.dart';
+
+Map<String, dynamic> _safeStringMap(dynamic rawValue) {
+  if (rawValue is Map) {
+    final result = <String, dynamic>{};
+    for (final entry in rawValue.entries) {
+      final key = entry.key?.toString().trim() ?? '';
+      if (key.isEmpty) {
+        continue;
+      }
+      result[key] = entry.value;
+    }
+    return result;
+  }
+  return <String, dynamic>{};
+}
 
 class GroupListItem {
   const GroupListItem({
@@ -116,7 +132,7 @@ class GroupPendingInvite {
 
   factory GroupPendingInvite.fromRaw(String uid, dynamic rawValue) {
     if (rawValue is Map) {
-      final map = Map<String, dynamic>.from(rawValue);
+      final map = _safeStringMap(rawValue);
       return GroupPendingInvite(
         uid: uid,
         username: map['username']?.toString() ?? uid,
@@ -148,7 +164,7 @@ class GroupInviteHistoryItem {
 
   factory GroupInviteHistoryItem.fromRaw(String id, dynamic rawValue) {
     if (rawValue is Map) {
-      final map = Map<String, dynamic>.from(rawValue);
+      final map = _safeStringMap(rawValue);
       return GroupInviteHistoryItem(
         id: id,
         status: map['status']?.toString() ?? 'unknown',
@@ -192,7 +208,7 @@ class GroupActivityItem {
 
   factory GroupActivityItem.fromRaw(String id, dynamic rawValue) {
     if (rawValue is Map) {
-      final map = Map<String, dynamic>.from(rawValue);
+      final map = _safeStringMap(rawValue);
       return GroupActivityItem(
         id: id,
         type: map['type']?.toString() ?? 'generic',
@@ -267,7 +283,7 @@ class DiscoveryUserProfile {
 
 abstract class GroupsRepository {
   Stream<List<GroupListItem>> watchUserGroups();
-  Future<void> createGroup(String name, {String description = ''});
+  Future<String> createGroup(String name, {String description = ''});
   Future<void> inviteUserToGroup({
     required String groupId,
     required String nickname,
@@ -306,7 +322,12 @@ class FirebaseGroupsRepository implements GroupsRepository {
       return null;
     }
 
-    return GroupListItem.fromMap(id, Map<String, dynamic>.from(rawValue));
+    final map = _safeStringMap(rawValue);
+    if (map.isEmpty) {
+      return null;
+    }
+
+    return GroupListItem.fromMap(id, map);
   }
 
   @override
@@ -341,6 +362,8 @@ class FirebaseGroupsRepository implements GroupsRepository {
                 groups[entry.key.toString()] = group;
               }
             }
+          } else if (value != null) {
+            debugPrint('watchUserGroups: groups_info payload ignorato perche non mappa');
           }
           emit();
         }, onError: controller.addError);
@@ -376,11 +399,15 @@ class FirebaseGroupsRepository implements GroupsRepository {
                 if (value == null) {
                   groups.remove(groupId);
                 } else {
-                  final group = _groupFromRawValue(groupId, value);
-                  if (group == null) {
-                    groups.remove(groupId);
-                  } else {
-                    groups[groupId] = group;
+                  try {
+                    final group = _groupFromRawValue(groupId, value);
+                    if (group == null) {
+                      groups.remove(groupId);
+                    } else {
+                      groups[groupId] = group;
+                    }
+                  } catch (error) {
+                    debugPrint('watchUserGroups: gruppo ignorato $groupId per errore di parsing: $error');
                   }
                 }
                 emit();
@@ -404,7 +431,7 @@ class FirebaseGroupsRepository implements GroupsRepository {
   }
 
   @override
-  Future<void> createGroup(String name, {String description = ''}) {
+  Future<String> createGroup(String name, {String description = ''}) {
     return _databaseService.createGroup(name, description: description);
   }
 

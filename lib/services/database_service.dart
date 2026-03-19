@@ -286,6 +286,44 @@ class DatabaseService {
     };
   }
 
+  bool _profileMatchesFilters(
+    Map<String, dynamic> profile, {
+    required String usernameFilter,
+    required String cityFilter,
+    required String instrumentFilter,
+    required String genreFilter,
+    bool usernameAlreadyMatched = false,
+  }) {
+    final username =
+        profile['username']?.toString() ??
+        profile['username_lowercase']?.toString() ??
+        '';
+    final city = profile['city']?.toString() ?? '';
+    final instruments = _asLowercaseStringList(
+      profile['instruments_search'] ?? profile['instruments'],
+    );
+    final genres = _asLowercaseStringList(
+      profile['genres_search'] ?? profile['genres'],
+    );
+
+    final matchesUsername =
+        usernameFilter.isEmpty ||
+        usernameAlreadyMatched ||
+        username.toLowerCase().contains(usernameFilter);
+    final matchesCity =
+        cityFilter.isEmpty || city.toLowerCase().contains(cityFilter);
+    final matchesInstrument =
+        instrumentFilter.isEmpty ||
+        instruments.any((item) => item.contains(instrumentFilter));
+    final matchesGenre =
+        genreFilter.isEmpty || genres.any((item) => item.contains(genreFilter));
+
+    return matchesUsername &&
+        matchesCity &&
+        matchesInstrument &&
+        matchesGenre;
+  }
+
   Future<void> saveUser(AppUser user) async {
     final trimmedNickname = user.nickname.trim();
     final trimmedEmail = user.email?.trim() ?? '';
@@ -1827,7 +1865,7 @@ class DatabaseService {
         results.add({'uid': uid, 'nickname': trimmedNickname});
       }
     } else if (rawValue is Map) {
-      final data = Map<String, dynamic>.from(rawValue);
+      final data = _asStringKeyedMap(rawValue);
       final looksLikeSinglePayload =
           data.containsKey('uid') ||
           data.containsKey('nickname') ||
@@ -1850,7 +1888,7 @@ class DatabaseService {
       for (final entry in data.entries) {
         final rawPayload = entry.value;
         final payload = rawPayload is Map
-            ? Map<String, dynamic>.from(rawPayload)
+            ? _asStringKeyedMap(rawPayload)
             : <String, dynamic>{
                 'username': rawPayload?.toString() ?? trimmedNickname,
               };
@@ -1886,50 +1924,85 @@ class DatabaseService {
     }
 
     final currentUid = excludingUid ?? _auth.currentUser?.uid;
-    final snapshot = await _dbRef.child('user_public_profiles').get();
-    if (!snapshot.exists || snapshot.value == null || snapshot.value is! Map) {
+    final indexedUsernameMatches = usernameFilter.isEmpty
+        ? const <Map<String, dynamic>>[]
+        : await searchUsersByNickname(usernameQuery);
+    final indexedUserIds = indexedUsernameMatches
+        .map((item) => item['uid']?.toString().trim() ?? '')
+        .where((item) => item.isNotEmpty)
+        .toSet();
+    if (usernameFilter.isNotEmpty && indexedUserIds.isEmpty) {
       return [];
     }
 
+    if (usernameFilter.isNotEmpty) {
+      if (cityFilter.isNotEmpty ||
+          instrumentFilter.isNotEmpty ||
+          genreFilter.isNotEmpty) {
+        return [];
+      }
+
+      final profiles = indexedUsernameMatches
+          .where((item) => item['uid']?.toString() != currentUid)
+          .map(
+            (item) => <String, dynamic>{
+              'uid': item['uid']?.toString() ?? '',
+              'username':
+                  item['nickname']?.toString().trim().isNotEmpty == true
+                  ? item['nickname'].toString().trim()
+                  : usernameQuery.trim(),
+              'city': '',
+              'bio': '',
+              'skill_level': 'Non specificato',
+              'genres': const <String>[],
+              'instruments': const <String>[],
+              'availability': const <String>[],
+            },
+          )
+          .where((item) => item['uid']?.toString().isNotEmpty == true)
+          .toList();
+
+      profiles.sort((a, b) {
+        final left = a['username']?.toString() ?? '';
+        final right = b['username']?.toString() ?? '';
+        return left.compareTo(right);
+      });
+      return profiles;
+    }
+
+    final snapshots = await Future.wait([_dbRef.child('user_public_profiles').get()]);
+    final publicProfilesSnapshot = snapshots[0];
+
     final profiles = <Map<String, dynamic>>[];
-    final rawProfiles = _asStringKeyedMap(snapshot.value);
-    for (final entry in rawProfiles.entries) {
-      if (entry.key == currentUid) {
-        continue;
-      }
+    final rawPublicProfiles = publicProfilesSnapshot.exists &&
+            publicProfilesSnapshot.value != null
+        ? _asStringKeyedMap(publicProfilesSnapshot.value)
+        : const <String, dynamic>{};
+    final candidateUserIds = <String>{...rawPublicProfiles.keys};
 
-      final profile = _asStringKeyedMap(entry.value);
-      if (profile.isEmpty) {
-        continue;
-      }
+    for (final uid in candidateUserIds) {
+      try {
+        if (uid == currentUid) {
+          continue;
+        }
 
-      final username =
-          profile['username']?.toString() ??
-          profile['username_lowercase']?.toString() ??
-          '';
-      final city = profile['city']?.toString() ?? '';
-      final instruments = _asLowercaseStringList(
-        profile['instruments_search'] ?? profile['instruments'],
-      );
-      final genres = _asLowercaseStringList(
-        profile['genres_search'] ?? profile['genres'],
-      );
+        final publicProfile = _asStringKeyedMap(rawPublicProfiles[uid]);
+        final profile = <String, dynamic>{'uid': uid, ...publicProfile};
+        if (profile.isEmpty) {
+          continue;
+        }
 
-      final matchesUsername =
-          usernameFilter.isEmpty || username.toLowerCase().contains(usernameFilter);
-      final matchesCity =
-          cityFilter.isEmpty || city.toLowerCase().contains(cityFilter);
-      final matchesInstrument =
-          instrumentFilter.isEmpty ||
-          instruments.any((item) => item.contains(instrumentFilter));
-      final matchesGenre =
-          genreFilter.isEmpty || genres.any((item) => item.contains(genreFilter));
-
-      if (matchesUsername &&
-          matchesCity &&
-          matchesInstrument &&
-          matchesGenre) {
-        profiles.add({'uid': entry.key, ...profile});
+        if (_profileMatchesFilters(
+          profile,
+          usernameFilter: usernameFilter,
+          cityFilter: cityFilter,
+          instrumentFilter: instrumentFilter,
+          genreFilter: genreFilter,
+        )) {
+          profiles.add({'uid': uid, ...profile});
+        }
+      } catch (error) {
+        debugPrint('Ricerca profili: record utente ignorato per $uid: $error');
       }
     }
 
@@ -1941,7 +2014,7 @@ class DatabaseService {
     return profiles;
   }
 
-  Future<void> createGroup(String name, {String description = ''}) async {
+  Future<String> createGroup(String name, {String description = ''}) async {
     final user = _auth.currentUser;
     if (user == null) {
       throw Exception('Utente non loggato');
@@ -1982,26 +2055,36 @@ class DatabaseService {
       },
       '/users/${user.uid}/gruppi/$groupId': true,
     });
+
+    return groupId;
   }
 
   Future<void> removeUserFromGroup({
     required String groupId,
     required String targetUserId,
   }) async {
+    try {
+      await _functions.httpsCallable('removeUserFromGroup').call({
+        'groupId': groupId,
+        'targetUserId': targetUserId,
+      });
+    } on FirebaseFunctionsException catch (error) {
+      if (error.code != 'not-found') {
+        throw Exception(error.message ?? 'Rimozione membro fallita');
+      }
+    }
+
     final user = _auth.currentUser;
     if (user == null) {
       throw Exception('Utente non loggato');
     }
 
-    final groupSnapshot = await _dbRef
-        .child('groups_info')
-        .child(groupId)
-        .get();
+    final groupSnapshot = await _dbRef.child('groups_info').child(groupId).get();
     if (!groupSnapshot.exists || groupSnapshot.value == null) {
       throw Exception('Gruppo non trovato');
     }
 
-    final groupData = Map<String, dynamic>.from(groupSnapshot.value as Map);
+    final groupData = _asStringKeyedMap(groupSnapshot.value);
     final ownerId = groupData['owner_id']?.toString() ?? '';
     final isAdmin = await _isCurrentUserAdmin();
     if (ownerId != user.uid && !isAdmin) {
@@ -2017,11 +2100,12 @@ class DatabaseService {
       throw Exception('Utente non presente nel gruppo');
     }
 
-    final actorData = await _loadUserData(user.uid);
-    final targetData = await _loadUserData(targetUserId);
-    final actorUsername = _currentUsernameFromMap(actorData, user.uid);
-    final targetUsername = _currentUsernameFromMap(targetData, targetUserId);
-    final activityId = _dbRef.child('groups_info').child(groupId).child('activity').push().key;
+    final activityId = _dbRef
+        .child('groups_info')
+        .child(groupId)
+        .child('activity')
+        .push()
+        .key;
 
     final updates = <String, dynamic>{
       '/groups_info/$groupId/members/$targetUserId': null,
@@ -2031,7 +2115,7 @@ class DatabaseService {
     if (activityId != null) {
       updates['/groups_info/$groupId/activity/$activityId'] = _groupActivityEntry(
         type: 'member_removed',
-        message: '$actorUsername ha rimosso $targetUsername dal gruppo.',
+        message: 'Un membro e stato rimosso dal gruppo.',
       );
     }
     await _dbRef.update(updates);
