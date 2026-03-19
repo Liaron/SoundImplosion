@@ -7,7 +7,6 @@ import 'package:flutter/foundation.dart';
 import 'package:soundimplosion/app/features/notifications/notifications_repository.dart';
 import 'package:soundimplosion/firebase_options.dart';
 import 'package:soundimplosion/services/database_service.dart';
-import 'package:soundimplosion/services/local_notification_service.dart';
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -91,15 +90,6 @@ class PushNotificationService {
           !preferences.allowsCategory(category)) {
         return;
       }
-
-      final title = message.notification?.title ?? 'Nuova notifica';
-      final body = message.notification?.body ?? 'Hai un nuovo aggiornamento.';
-      await LocalNotificationService.instance.showRawNotification(
-        id: title.hashCode ^ body.hashCode,
-        title: title,
-        body: body,
-        payload: payload,
-      );
     });
 
     _initialized = true;
