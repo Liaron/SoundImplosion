@@ -13,6 +13,7 @@ void main() {
           jam: Jam(
             id: 'jam-1',
             creatorId: 'creator-1',
+            titolo: 'Jam pending title',
             data: '2026-03-21',
             oraInizio: '10:00',
             oraFine: '12:30',

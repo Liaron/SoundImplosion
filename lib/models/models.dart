@@ -236,6 +236,7 @@ class Jam {
   final String creatorId;
   final String? groupId;
   final String? groupName;
+  final String titolo;
   final String data;
   final String oraInizio;
   final String oraFine;
@@ -253,6 +254,7 @@ class Jam {
     required this.creatorId,
     this.groupId,
     this.groupName,
+    required this.titolo,
     required this.data,
     required this.oraInizio,
     required this.oraFine,
@@ -271,6 +273,7 @@ class Jam {
       'creator_nickname': creatorNickname,
       'group_id': groupId,
       'group_name': groupName,
+      'titolo': titolo,
       'data': data,
       'ora_inizio': oraInizio,
       'ora_fine': oraFine,
@@ -309,6 +312,7 @@ class Jam {
       creatorId: map['creator_id'] as String? ?? '',
       groupId: map['group_id'] as String?,
       groupName: map['group_name'] as String?,
+      titolo: map['titolo'] as String? ?? '',
       data: map['data'] as String? ?? '',
       oraInizio: map['ora_inizio'] as String? ?? '',
       oraFine: map['ora_fine'] as String? ?? '',

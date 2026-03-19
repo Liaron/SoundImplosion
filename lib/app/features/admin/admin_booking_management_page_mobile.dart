@@ -169,35 +169,44 @@ class _AdminBookingManagementPageMobileState
                   ],
                 ),
                 const SizedBox(height: 8),
-                Text('Richiedente: ${_controller.userNames[booking.userId] ?? booking.userId}'),
+                Text(
+                  'Richiedente: ${_controller.userNames[booking.userId] ?? booking.userId}',
+                ),
                 Text(item.groupLabel),
                 Text('Partecipanti: ${booking.numeroUtenti}'),
                 if (booking.attrezzatura.isNotEmpty)
                   Text('Attrezzatura: ${booking.attrezzatura}'),
                 const SizedBox(height: 12),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
+                Row(
                   children: [
-                    OutlinedButton(
-                      onPressed: _controller.isSubmitting
-                          ? null
-                          : () => _cancelBooking(item.id),
-                      child: const Text('Rifiuta'),
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: _controller.isSubmitting
+                            ? null
+                            : () => _cancelBooking(item.id),
+                        child: const Text('Rifiuta'),
+                      ),
                     ),
-                    OutlinedButton(
-                      onPressed: _controller.isSubmitting
-                          ? null
-                          : () => _rescheduleBooking(item),
-                      child: const Text('Riprogramma'),
-                    ),
-                    ElevatedButton(
-                      onPressed: _controller.isSubmitting
-                          ? null
-                          : () => _confirmBooking(item.id),
-                      child: const Text('Conferma'),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: _controller.isSubmitting
+                            ? null
+                            : () => _rescheduleBooking(item),
+                        child: const Text('Riprogramma'),
+                      ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _controller.isSubmitting
+                        ? null
+                        : () => _confirmBooking(item.id),
+                    child: const Text('Conferma prenotazione'),
+                  ),
                 ),
               ],
             ),

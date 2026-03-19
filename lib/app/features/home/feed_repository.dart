@@ -7,6 +7,7 @@ class HomeFeedItem {
     required this.timestamp,
     this.jamId,
     this.creatorId,
+    this.title,
     this.date,
     this.startTime,
     this.description,
@@ -17,6 +18,7 @@ class HomeFeedItem {
   final int timestamp;
   final String? jamId;
   final String? creatorId;
+  final String? title;
   final String? date;
   final String? startTime;
   final String? description;
@@ -36,6 +38,7 @@ class HomeFeedItem {
       timestamp: parseTimestamp(map['timestamp']),
       jamId: map['jam_id']?.toString(),
       creatorId: map['creator_id']?.toString(),
+      title: map['titolo']?.toString(),
       date: map['data']?.toString(),
       startTime: map['ora_inizio']?.toString(),
       description: map['descrizione']?.toString(),

@@ -103,6 +103,9 @@ class _HomePageMobileState extends State<HomePageMobile> {
   Widget _buildJamPostCard(HomeFeedItem item) {
     final date = item.date ?? 'N/A';
     final startTime = item.startTime ?? 'N/A';
+    final title = item.title?.trim().isNotEmpty == true
+        ? item.title!.trim()
+        : 'Nuova Jam Session';
     final description = item.description ?? '';
     // Potremmo recuperare il nickname del creatore, ma per ora teniamolo semplice
     // final creatorId = item['creator_id'];
@@ -130,6 +133,8 @@ class _HomePageMobileState extends State<HomePageMobile> {
               ],
             ),
             const SizedBox(height: 12),
+            Text(title, style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 8),
             Text(
               '"$description"',
               style: TextStyle(
@@ -141,7 +146,11 @@ class _HomePageMobileState extends State<HomePageMobile> {
             const SizedBox(height: 8),
             Text(
               'Quando? Il $date alle ore $startTime',
-              style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
+              style: TextStyle(
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.7),
+              ),
             ),
             const SizedBox(height: 12),
             Align(

@@ -168,6 +168,7 @@ class OrganizeJamController extends ChangeNotifier {
   }
 
   Future<void> submitJam({
+    required String title,
     required int presentPeople,
     required int requiredPeople,
     required String description,
@@ -197,6 +198,7 @@ class OrganizeJamController extends ChangeNotifier {
           selectedDate: currentDate,
           selectedSlots: _selectedSlots,
           groupId: selectedGroupId,
+          title: title,
           presentPeople: presentPeople,
           requiredPeople: requiredPeople,
           description: description,
@@ -210,6 +212,7 @@ class OrganizeJamController extends ChangeNotifier {
         await _repository.submitJam(
           selectedDate: currentDate,
           selectedSlots: _selectedSlots,
+          title: title,
           presentPeople: presentPeople,
           requiredPeople: requiredPeople,
           description: description,

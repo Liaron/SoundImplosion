@@ -17,6 +17,7 @@ class _OrganizeJamPageMobileState extends State<OrganizeJamPageMobile> {
   final _formKey = GlobalKey<FormState>();
   final OrganizeJamController _controller = OrganizeJamController();
 
+  final _titleController = TextEditingController();
   final _presentPeopleController = TextEditingController();
   final _requiredPeopleController = TextEditingController();
   final _descriptionController = TextEditingController();
@@ -34,6 +35,7 @@ class _OrganizeJamPageMobileState extends State<OrganizeJamPageMobile> {
   void dispose() {
     _controller.removeListener(_handleControllerChanged);
     _controller.dispose();
+    _titleController.dispose();
     _presentPeopleController.dispose();
     _requiredPeopleController.dispose();
     _descriptionController.dispose();
@@ -55,6 +57,7 @@ class _OrganizeJamPageMobileState extends State<OrganizeJamPageMobile> {
       return;
     }
 
+    _titleController.text = jam.titolo;
     _presentPeopleController.text = jam.personePresenti.toString();
     _requiredPeopleController.text = jam.personeRichieste.toString();
     _descriptionController.text = jam.descrizione;
@@ -278,6 +281,7 @@ class _OrganizeJamPageMobileState extends State<OrganizeJamPageMobile> {
 
     try {
       await _controller.submitJam(
+        title: _titleController.text,
         presentPeople: int.parse(_presentPeopleController.text),
         requiredPeople: int.parse(_requiredPeopleController.text),
         description: _descriptionController.text,
@@ -407,6 +411,21 @@ class _OrganizeJamPageMobileState extends State<OrganizeJamPageMobile> {
                 const SizedBox(height: 24),
 
                 // 2. Campi Specifici Jam
+                TextFormField(
+                  controller: _titleController,
+                  decoration: const InputDecoration(
+                    labelText: 'Titolo jam',
+                    hintText: 'Es. Rock Session del venerdi',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.music_note),
+                  ),
+                  textCapitalization: TextCapitalization.sentences,
+                  validator: (value) => value == null || value.trim().isEmpty
+                      ? 'Inserisci un titolo'
+                      : null,
+                ),
+                const SizedBox(height: 16),
+
                 Row(
                   children: [
                     Expanded(

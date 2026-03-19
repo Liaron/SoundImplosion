@@ -184,6 +184,9 @@ class _PendingJamCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final jam = item.jam;
+    final jamTitle = jam.titolo.trim().isEmpty
+        ? 'Jam senza titolo'
+        : jam.titolo.trim();
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
@@ -195,9 +198,7 @@ class _PendingJamCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    jam.descrizione.isEmpty
-                        ? 'Jam senza descrizione'
-                        : jam.descrizione,
+                    jamTitle,
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -215,33 +216,42 @@ class _PendingJamCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
+            Text('Titolo jam: $jamTitle'),
             Text('Data: ${item.dateLabel}'),
             Text('Orario: ${item.timeRangeLabel}'),
             Text('Creatore: ${jam.creatorNickname ?? jam.creatorId}'),
+            if (jam.descrizione.trim().isNotEmpty)
+              Text('Descrizione: ${jam.descrizione.trim()}'),
             Text('Pagamento: ${item.paymentLabel}'),
-            Text(
-              'Partecipanti: ${jam.personePresenti} presenti, ${jam.personeRichieste} richiesti',
-            ),
+            Text('Partecipanti richiesti: ${jam.personeRichieste}'),
+            Text('Partecipanti confermati: ${jam.personePresenti}'),
             if (jam.attrezzatura.isNotEmpty)
               Text('Attrezzatura: ${jam.attrezzatura}'),
             const SizedBox(height: 12),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
+            Row(
               children: [
-                OutlinedButton(
-                  onPressed: isSubmitting ? null : onReject,
-                  child: const Text('Rifiuta'),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: isSubmitting ? null : onReject,
+                    child: const Text('Rifiuta'),
+                  ),
                 ),
-                OutlinedButton(
-                  onPressed: isSubmitting ? null : onReschedule,
-                  child: const Text('Riprogramma'),
-                ),
-                ElevatedButton(
-                  onPressed: isSubmitting ? null : onApprove,
-                  child: const Text('Conferma'),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: isSubmitting ? null : onReschedule,
+                    child: const Text('Riprogramma'),
+                  ),
                 ),
               ],
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: isSubmitting ? null : onApprove,
+                child: const Text('Approva jam'),
+              ),
             ),
           ],
         ),

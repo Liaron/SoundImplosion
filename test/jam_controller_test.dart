@@ -35,6 +35,7 @@ void main() {
     expect(controller.selectedRangeLabel, '10:00 - 12:30');
 
     await controller.submitJam(
+      title: 'Jam blues night',
       presentPeople: 2,
       requiredPeople: 3,
       description: 'Jam blues',
@@ -54,6 +55,7 @@ void main() {
         id: 'jam-9',
         creatorId: 'user-1',
         groupId: 'group-1',
+        titolo: 'Old jam title',
         data: '2026-03-20',
         oraInizio: '10:00',
         oraFine: '12:30',
@@ -79,6 +81,7 @@ void main() {
     expect(controller.validateSelection(), isNull);
 
     await controller.submitJam(
+      title: 'Updated jam title',
       presentPeople: 3,
       requiredPeople: 2,
       description: 'Updated jam',
@@ -98,6 +101,7 @@ void main() {
       jam: Jam(
         id: 'jam-1',
         creatorId: 'user-1',
+        titolo: 'Blues title',
         data: '2026-03-20',
         oraInizio: '10:00',
         oraFine: '12:30',
@@ -115,6 +119,7 @@ void main() {
       jam: Jam(
         id: 'jam-2',
         creatorId: 'user-2',
+        titolo: 'Rock title',
         data: '2026-03-21',
         oraInizio: '14:00',
         oraFine: '16:30',
@@ -164,6 +169,7 @@ void main() {
       jam: Jam(
         id: 'jam-1',
         creatorId: 'user-1',
+        titolo: 'Blues title',
         data: '2026-03-20',
         oraInizio: '10:00',
         oraFine: '12:30',
@@ -211,6 +217,7 @@ void main() {
         jam: Jam(
           id: 'jam-pending',
           creatorId: 'user-1',
+          titolo: 'Pending jam title',
           data: '2026-03-22',
           oraInizio: '10:00',
           oraFine: '12:30',
@@ -227,6 +234,7 @@ void main() {
         jam: Jam(
           id: 'jam-published',
           creatorId: 'user-2',
+          titolo: 'Published jam title',
           data: '2026-03-23',
           oraInizio: '14:00',
           oraFine: '16:30',
@@ -361,6 +369,7 @@ class FakeJamRepository implements JamRepository {
     required DateTime selectedDate,
     required List<String> selectedSlots,
     String? groupId,
+    required String title,
     required int presentPeople,
     required int requiredPeople,
     required String description,
@@ -382,6 +391,7 @@ class FakeJamRepository implements JamRepository {
   Future<void> submitJam({
     required DateTime selectedDate,
     required List<String> selectedSlots,
+    required String title,
     required int presentPeople,
     required int requiredPeople,
     required String description,

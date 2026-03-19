@@ -73,6 +73,9 @@ class _FindJamPageMobileState extends State<FindJamPageMobile> {
   void _showJamDetails(JamListItem jam) {
     final isOwnedByCurrentUser = jam.isOwnedBy(_controller.currentUserId);
     final isJoinedByCurrentUser = jam.isJoinedBy(_controller.currentUserId);
+    final jamTitle = jam.jam.titolo.trim().isEmpty
+        ? 'Jam senza titolo'
+        : jam.jam.titolo.trim();
     final canJoin =
         jam.isPublished &&
         !isOwnedByCurrentUser &&
@@ -83,7 +86,7 @@ class _FindJamPageMobileState extends State<FindJamPageMobile> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text("Dettagli Jam"),
+        title: Text(jamTitle),
         content: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -100,6 +103,11 @@ class _FindJamPageMobileState extends State<FindJamPageMobile> {
                 Text('Gruppo associato: ${jam.groupLabel}'),
                 const SizedBox(height: 8),
               ],
+              Text(
+                'Titolo: $jamTitle',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
               Text('Data: ${jam.dateLabel}'),
               Text('Orario: ${jam.timeRangeLabel}'),
               const SizedBox(height: 16),
@@ -134,9 +142,13 @@ class _FindJamPageMobileState extends State<FindJamPageMobile> {
               ),
               const SizedBox(height: 8),
               FutureBuilder<Map<String, String>>(
-                future: _controller.loadParticipantUsernames(jam.participantIds),
+                future: _controller.loadParticipantUsernames(
+                  jam.participantIds,
+                ),
                 builder: (context, snapshot) {
-                  final names = snapshot.data?.values.toList() ?? jam.confirmedParticipantNames;
+                  final names =
+                      snapshot.data?.values.toList() ??
+                      jam.confirmedParticipantNames;
                   if (snapshot.connectionState == ConnectionState.waiting &&
                       names.isEmpty) {
                     return const SizedBox(
@@ -146,12 +158,16 @@ class _FindJamPageMobileState extends State<FindJamPageMobile> {
                     );
                   }
                   if (names.isEmpty) {
-                    return const Text('Nessun partecipante aggiuntivo confermato.');
+                    return const Text(
+                      'Nessun partecipante aggiuntivo confermato.',
+                    );
                   }
                   return Wrap(
                     spacing: 8,
                     runSpacing: 8,
-                    children: names.map((name) => Chip(label: Text(name))).toList(),
+                    children: names
+                        .map((name) => Chip(label: Text(name)))
+                        .toList(),
                   );
                 },
               ),
@@ -605,10 +621,25 @@ class _FindJamPageMobileState extends State<FindJamPageMobile> {
                                           'Organizzata da: ${jam.jam.creatorNickname}',
                                           style: TextStyle(
                                             fontStyle: FontStyle.italic,
-                                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .onSurface
+                                                .withValues(alpha: 0.6),
                                           ),
                                         ),
                                       ),
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 8.0),
+                                      child: Text(
+                                        jam.jam.titolo.trim().isEmpty
+                                            ? 'Jam senza titolo'
+                                            : jam.jam.titolo.trim(),
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
                                     Text(
                                       jam.timeRangeLabel,
                                       style: const TextStyle(
@@ -621,7 +652,10 @@ class _FindJamPageMobileState extends State<FindJamPageMobile> {
                                         child: Text(
                                           'Gruppo: ${jam.groupLabel}',
                                           style: TextStyle(
-                                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .onSurface
+                                                .withValues(alpha: 0.7),
                                           ),
                                         ),
                                       ),
@@ -636,7 +670,10 @@ class _FindJamPageMobileState extends State<FindJamPageMobile> {
                                       child: Chip(
                                         label: Text(
                                           jam.statusLabel,
-                                          style: const TextStyle(fontSize: 12, color: Colors.black87),
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.black87,
+                                          ),
                                         ),
                                         backgroundColor: jam.isPublished
                                             ? Colors.green[100]
@@ -655,7 +692,10 @@ class _FindJamPageMobileState extends State<FindJamPageMobile> {
                                             Icon(
                                               Icons.people,
                                               size: 18,
-                                              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
+                                              color: Theme.of(context)
+                                                  .colorScheme
+                                                  .onSurface
+                                                  .withValues(alpha: 0.5),
                                             ),
                                             const SizedBox(width: 4),
                                             Text(

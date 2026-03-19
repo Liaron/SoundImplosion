@@ -1590,6 +1590,7 @@ class DatabaseService {
       for (final entry in feedData.entries) {
         updates['/feed/${entry.key}/type'] = 'jam_published';
         updates['/feed/${entry.key}/creator_id'] = jamData['creator_id'];
+        updates['/feed/${entry.key}/titolo'] = jamData['titolo'];
         updates['/feed/${entry.key}/data'] = jamData['data'];
         updates['/feed/${entry.key}/ora_inizio'] = jamData['ora_inizio'];
         updates['/feed/${entry.key}/descrizione'] = jamData['descrizione'];
@@ -1602,6 +1603,7 @@ class DatabaseService {
           'timestamp': ServerValue.timestamp,
           'jam_id': jamId,
           'creator_id': jamData['creator_id'],
+          'titolo': jamData['titolo'],
           'data': jamData['data'],
           'ora_inizio': jamData['ora_inizio'],
           'descrizione': jamData['descrizione'],
@@ -1801,6 +1803,7 @@ class DatabaseService {
     required String date,
     required List<String> selectedSlotTimes,
     String? groupId,
+    required String title,
     required int presentPeople,
     required int requiredPeople,
     required String description,
@@ -1851,6 +1854,7 @@ class DatabaseService {
       }
     }
 
+    final trimmedTitle = title.trim();
     final trimmedDescription = description.trim();
     final trimmedEquipment = equipment.trim();
     final groupName = await _resolveGroupName(groupId);
@@ -1874,6 +1878,7 @@ class DatabaseService {
       '/jams/$jamId/ora_fine': newEndTime,
       '/jams/$jamId/group_id': groupId,
       '/jams/$jamId/group_name': groupName.isEmpty ? null : groupName,
+      '/jams/$jamId/titolo': trimmedTitle,
       '/jams/$jamId/persone_presenti': presentPeople,
       '/jams/$jamId/persone_richieste': requiredPeople,
       '/jams/$jamId/descrizione': trimmedDescription,
