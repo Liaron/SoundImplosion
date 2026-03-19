@@ -165,7 +165,7 @@ class _AdminBookingManagementPageMobileState
                   ],
                 ),
                 const SizedBox(height: 8),
-                Text('Richiedente: ${booking.userId}'),
+                Text('Richiedente: ${_controller.userNames[booking.userId] ?? booking.userId}'),
                 Text(item.groupLabel),
                 Text('Partecipanti: ${booking.numeroUtenti}'),
                 if (booking.attrezzatura.isNotEmpty)

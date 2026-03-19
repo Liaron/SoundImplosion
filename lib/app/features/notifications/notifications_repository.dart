@@ -179,27 +179,27 @@ class AppNotificationItem {
         break;
       case 'admin_booking_created':
         title = 'Nuova richiesta di prenotazione';
-        body = 'Una prenotazione per il $date alle $start necessita di approvazione.';
+        body = '${username ?? "Un utente"} ha richiesto una prenotazione per il $date alle $start.';
         break;
       case 'admin_booking_modified':
         title = 'Prenotazione modificata';
-        body = 'La prenotazione del $date alle $start è stata modificata e necessita di approvazione.';
+        body = '${username ?? "Un utente"} ha modificato la prenotazione del $date alle $start.';
         break;
       case 'admin_booking_cancelled':
         title = 'Prenotazione annullata';
-        body = 'La prenotazione del $date alle $start è stata annullata dall\'utente.';
+        body = '${username ?? "Un utente"} ha annullato la prenotazione del $date alle $start.';
         break;
       case 'admin_jam_created':
         title = 'Nuova richiesta di Jam Session';
-        body = 'Una Jam Session per il $date alle $start necessita di approvazione.';
+        body = '${username ?? "Un utente"} ha richiesto una Jam Session per il $date alle $start.';
         break;
       case 'admin_jam_modified':
         title = 'Jam Session modificata';
-        body = 'La Jam Session del $date alle $start è stata modificata e necessita di approvazione.';
+        body = '${username ?? "Un utente"} ha modificato la Jam Session del $date alle $start.';
         break;
       case 'admin_jam_cancelled':
         title = 'Jam Session annullata';
-        body = 'La Jam Session del $date alle $start è stata annullata dall\'utente.';
+        body = '${username ?? "Un utente"} ha annullato la Jam Session del $date alle $start.';
         break;
       case 'group_invite':
         title = 'Invito a un gruppo';

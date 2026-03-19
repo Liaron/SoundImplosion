@@ -14,6 +14,7 @@ class AdminBookingController extends ChangeNotifier {
   bool isSubmitting = false;
   Object? error;
   List<BookingListItem> pendingBookings = [];
+  Map<String, String> userNames = {};
 
   StreamSubscription<List<BookingListItem>>? _subscription;
 
@@ -23,8 +24,19 @@ class AdminBookingController extends ChangeNotifier {
     notifyListeners();
 
     _subscription = _repository.watchPendingBookings().listen(
-      (items) {
+      (items) async {
         pendingBookings = items;
+        
+        final userIds = items.map((item) => item.booking.userId).toSet();
+        if (userIds.isNotEmpty) {
+          try {
+            final names = await _repository.getUsernames(userIds);
+            userNames.addAll(names);
+          } catch (_) {
+            // Ignoriamo gli errori di fetch dei nomi
+          }
+        }
+        
         isLoading = false;
         error = null;
         notifyListeners();

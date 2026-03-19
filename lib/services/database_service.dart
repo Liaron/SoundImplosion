@@ -964,7 +964,7 @@ class DatabaseService {
           .toMap();
     }
     
-    _addAdminNotifications(
+    await _addAdminNotifications(
       updates,
       adminIds,
       'admin_booking_created',
@@ -972,6 +972,7 @@ class DatabaseService {
       booking.oraInizio,
       end: booking.oraFine,
       subjectId: newBookingKey,
+      requesterId: booking.userId,
     );
 
     for (final time in selectedSlotTimes) {
@@ -1005,16 +1006,18 @@ class DatabaseService {
         final bookingData = Map<String, dynamic>.from(snapshot.value as Map);
         final date = bookingData['data']?.toString() ?? '';
         final start = bookingData['ora_inizio']?.toString() ?? '';
-        
+        final ownerId = bookingData['user_id']?.toString() ?? '';
+
         final adminIds = await _getAdminUserIds();
         final updates = <String, dynamic>{};
-        _addAdminNotifications(
+        await _addAdminNotifications(
           updates,
           adminIds,
           'admin_booking_cancelled',
           date,
           start,
           subjectId: bookingId,
+          requesterId: ownerId,
         );
         if (updates.isNotEmpty) {
           await _dbRef.update(updates);
@@ -1119,14 +1122,15 @@ class DatabaseService {
       '/user_bookings/$bookingOwnerId/$bookingId/stato': nextStatus,
     };
     
-    _addAdminNotifications(
-      updates,
-      adminIds,
-      'admin_booking_modified',
-      date,
-      orderedSlots.first,
-      end: newEndTime,
-      subjectId: bookingId,
+await _addAdminNotifications(
+        updates,
+        adminIds,
+        'admin_booking_modified',
+        date,
+        orderedSlots.first,
+        end: newEndTime,
+        subjectId: bookingId,
+        requesterId: bookingOwnerId,
     );
 
     if (previousGroupId != null &&
@@ -1459,14 +1463,15 @@ class DatabaseService {
       updates['$slotPath/is_jam'] = true;
     }
     
-    _addAdminNotifications(
-      updates,
-      adminIds,
-      'admin_jam_created',
-      jam.data,
-      jam.oraInizio,
-      end: jam.oraFine,
-      subjectId: newJamKey,
+await _addAdminNotifications(
+        updates,
+        adminIds,
+        'admin_jam_created',
+        jam.data,
+        jam.oraInizio,
+        end: jam.oraFine,
+        subjectId: newJamKey,
+        requesterId: jam.creatorId,
     );
 
     try {
@@ -1838,14 +1843,15 @@ class DatabaseService {
       '/jams/$jamId/stato': nextStatus,
     };
     
-    _addAdminNotifications(
-      updates,
-      adminIds,
-      'admin_jam_modified',
-      date,
-      orderedSlots.first,
-      end: newEndTime,
-      subjectId: jamId,
+await _addAdminNotifications(
+        updates,
+        adminIds,
+        'admin_jam_modified',
+        date,
+        orderedSlots.first,
+        end: newEndTime,
+        subjectId: jamId,
+        requesterId: creatorId,
     );
 
     for (final key in oldSlots.keys) {
@@ -1926,7 +1932,7 @@ class DatabaseService {
     return admins;
   }
 
-  void _addAdminNotifications(
+  Future<void> _addAdminNotifications(
     Map<String, dynamic> updates,
     List<String> adminIds,
     String type,
@@ -1934,7 +1940,14 @@ class DatabaseService {
     String start, {
     String? end,
     String? subjectId,
-  }) {
+    String? requesterId,
+  }) async {
+    String? username;
+    if (requesterId != null && requesterId.isNotEmpty) {
+      final namesMap = await getUsernamesByIds([requesterId]);
+      username = namesMap[requesterId];
+    }
+
     final timestamp = ServerValue.timestamp;
     for (final adminId in adminIds) {
       final notifId =
@@ -1947,6 +1960,9 @@ class DatabaseService {
           if (end != null) 'ora_fine': end,
           'timestamp': timestamp,
           'read': false,
+          if (subjectId != null) 'subject_id': subjectId,
+          if (requesterId != null) 'requester_id': requesterId,
+          if (username != null) 'username': username,
         };
       }
     }
@@ -2451,16 +2467,18 @@ class DatabaseService {
         final jamData = Map<String, dynamic>.from(snapshot.value as Map);
         final date = jamData['data']?.toString() ?? '';
         final start = jamData['ora_inizio']?.toString() ?? '';
+        final creatorId = jamData['creator_id']?.toString() ?? '';
 
         final adminIds = await _getAdminUserIds();
         final updates = <String, dynamic>{};
-        _addAdminNotifications(
+        await _addAdminNotifications(
           updates,
           adminIds,
           'admin_jam_cancelled',
           date,
           start,
           subjectId: jamId,
+          requesterId: creatorId,
         );
         if (updates.isNotEmpty) {
           await _dbRef.update(updates);

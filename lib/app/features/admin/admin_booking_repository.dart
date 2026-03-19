@@ -6,6 +6,7 @@ abstract class AdminBookingRepository {
   Stream<List<BookingListItem>> watchPendingBookings();
   Future<void> confirmBooking(String bookingId);
   Future<void> cancelBooking(String bookingId);
+  Future<Map<String, String>> getUsernames(Iterable<String> userIds);
 }
 
 class FirebaseAdminBookingRepository implements AdminBookingRepository {
@@ -13,6 +14,11 @@ class FirebaseAdminBookingRepository implements AdminBookingRepository {
     : _databaseService = databaseService ?? DatabaseService();
 
   final DatabaseService _databaseService;
+
+  @override
+  Future<Map<String, String>> getUsernames(Iterable<String> userIds) {
+    return _databaseService.getUsernamesByIds(userIds);
+  }
 
   Map<String, dynamic>? _mapFromRawValue(dynamic rawValue) {
     if (rawValue is! Map) {
