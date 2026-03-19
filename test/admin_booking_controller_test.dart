@@ -71,4 +71,13 @@ class FakeAdminBookingRepository implements AdminBookingRepository {
   Stream<List<BookingListItem>> watchPendingBookings() {
     return Stream<List<BookingListItem>>.value(items);
   }
+
+  @override
+  Future<Map<String, String>> getUsernames(Iterable<String> userIds) async {
+    final map = <String, String>{};
+    for (final id in userIds) {
+      map[id] = 'User_$id';
+    }
+    return map;
+  }
 }
