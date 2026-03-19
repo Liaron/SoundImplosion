@@ -402,7 +402,47 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: Text(_currentPageTitle)),
+      appBar: AppBar(
+        title: Text(_currentPageTitle),
+        actions: [
+          IconButton(
+            icon: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                const Icon(Icons.notifications),
+                if (_unreadNotificationCount > 0)
+                  Positioned(
+                    right: -2,
+                    top: -2,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.error,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 16,
+                        minHeight: 16,
+                      ),
+                      child: Text(
+                        _unreadNotificationCount > 99
+                            ? '99+'
+                            : '$_unreadNotificationCount',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onError,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            onPressed: () => _navigateToPage(5, closeDrawer: false),
+          ),
+        ],
+      ),
       body: _widgetOptions.elementAt(_selectedIndex),
       drawer: Drawer(
         child: Column(
@@ -443,27 +483,6 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
               ),
             const Spacer(),
             const Divider(),
-            ListTile(
-              leading: const Icon(Icons.notifications),
-              title: const Text('Notifiche'),
-              trailing: _unreadNotificationCount > 0
-                  ? CircleAvatar(
-                      radius: 12,
-                      backgroundColor: Theme.of(context).colorScheme.secondary,
-                      child: Text(
-                        _unreadNotificationCount > 99
-                            ? '99+'
-                            : _unreadNotificationCount.toString(),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    )
-                  : null,
-              onTap: () => _navigateToPage(5),
-            ),
             ListTile(
               leading: const Icon(Icons.person),
               title: const Text('Profilo'),

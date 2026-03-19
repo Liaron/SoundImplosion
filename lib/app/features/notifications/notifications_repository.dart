@@ -95,9 +95,15 @@ class AppNotificationItem {
       case 'booking_created':
       case 'booking_confirmed':
       case 'booking_cancelled':
+      case 'admin_booking_created':
+      case 'admin_booking_modified':
+      case 'admin_booking_cancelled':
         return NotificationCategory.bookings;
       case 'jam_approved':
       case 'jam_rejected':
+      case 'admin_jam_created':
+      case 'admin_jam_modified':
+      case 'admin_jam_cancelled':
         return NotificationCategory.jams;
       case 'group_invite':
       case 'group_invite_accepted':
@@ -109,6 +115,9 @@ class AppNotificationItem {
   }
 
   NotificationRouteTarget get routeTarget {
+    if (type.startsWith('admin_')) {
+      return const NotificationRouteTarget(pageIndex: 4); // Admin panel
+    }
     switch (category) {
       case NotificationCategory.bookings:
         return NotificationRouteTarget(pageIndex: 1, bookingId: id);
@@ -167,6 +176,30 @@ class AppNotificationItem {
       case 'jam_rejected':
         title = 'Jam rifiutata';
         body = 'La tua jam del $date alle $start e stata annullata.';
+        break;
+      case 'admin_booking_created':
+        title = 'Nuova richiesta di prenotazione';
+        body = 'Una prenotazione per il $date alle $start necessita di approvazione.';
+        break;
+      case 'admin_booking_modified':
+        title = 'Prenotazione modificata';
+        body = 'La prenotazione del $date alle $start è stata modificata e necessita di approvazione.';
+        break;
+      case 'admin_booking_cancelled':
+        title = 'Prenotazione annullata';
+        body = 'La prenotazione del $date alle $start è stata annullata dall\'utente.';
+        break;
+      case 'admin_jam_created':
+        title = 'Nuova richiesta di Jam Session';
+        body = 'Una Jam Session per il $date alle $start necessita di approvazione.';
+        break;
+      case 'admin_jam_modified':
+        title = 'Jam Session modificata';
+        body = 'La Jam Session del $date alle $start è stata modificata e necessita di approvazione.';
+        break;
+      case 'admin_jam_cancelled':
+        title = 'Jam Session annullata';
+        body = 'La Jam Session del $date alle $start è stata annullata dall\'utente.';
         break;
       case 'group_invite':
         title = 'Invito a un gruppo';

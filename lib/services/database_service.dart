@@ -951,6 +951,8 @@ class DatabaseService {
       throw Exception("Impossibile generare ID prenotazione");
     }
 
+    final adminIds = await _getAdminUserIds();
+
     final Map<String, dynamic> updates = {};
     final bookingPath = '/bookings/$newBookingKey';
     final userBookingPath = '/user_bookings/${booking.userId}/$newBookingKey';
@@ -961,6 +963,16 @@ class DatabaseService {
       updates['/group_bookings/${booking.groupId}/$newBookingKey'] = booking
           .toMap();
     }
+    
+    _addAdminNotifications(
+      updates,
+      adminIds,
+      'admin_booking_created',
+      booking.data,
+      booking.oraInizio,
+      end: booking.oraFine,
+      subjectId: newBookingKey,
+    );
 
     for (final time in selectedSlotTimes) {
       final key = time.replaceAll(":", "_");
@@ -988,6 +1000,27 @@ class DatabaseService {
 
   Future<void> deleteBooking(String bookingId) async {
     try {
+      final snapshot = await _dbRef.child('bookings').child(bookingId).get();
+      if (snapshot.exists && snapshot.value != null) {
+        final bookingData = Map<String, dynamic>.from(snapshot.value as Map);
+        final date = bookingData['data']?.toString() ?? '';
+        final start = bookingData['ora_inizio']?.toString() ?? '';
+        
+        final adminIds = await _getAdminUserIds();
+        final updates = <String, dynamic>{};
+        _addAdminNotifications(
+          updates,
+          adminIds,
+          'admin_booking_cancelled',
+          date,
+          start,
+          subjectId: bookingId,
+        );
+        if (updates.isNotEmpty) {
+          await _dbRef.update(updates);
+        }
+      }
+
       await _functions.httpsCallable('deleteBookingCascade').call({
         'bookingId': bookingId,
       });
@@ -1064,6 +1097,9 @@ class DatabaseService {
     final oldSlots = previousDate.isEmpty
         ? <String, dynamic>{}
         : await _findSlotsByBookingId(previousDate, bookingId);
+        
+    final adminIds = await _getAdminUserIds();
+
     final updates = <String, dynamic>{
       '/bookings/$bookingId/data': date,
       '/bookings/$bookingId/ora_inizio': orderedSlots.first,
@@ -1082,6 +1118,16 @@ class DatabaseService {
           trimmedEquipment,
       '/user_bookings/$bookingOwnerId/$bookingId/stato': nextStatus,
     };
+    
+    _addAdminNotifications(
+      updates,
+      adminIds,
+      'admin_booking_modified',
+      date,
+      orderedSlots.first,
+      end: newEndTime,
+      subjectId: bookingId,
+    );
 
     if (previousGroupId != null &&
         previousGroupId.isNotEmpty &&
@@ -1383,6 +1429,8 @@ class DatabaseService {
     final newJamKey = _dbRef.child('jams').push().key;
     if (newJamKey == null) throw Exception("Impossibile generare ID Jam");
 
+    final adminIds = await _getAdminUserIds();
+
     final Map<String, dynamic> updates = {};
 
     // 1. Salva la Jam
@@ -1410,6 +1458,16 @@ class DatabaseService {
       updates['$slotPath/booking_id'] = newJamKey;
       updates['$slotPath/is_jam'] = true;
     }
+    
+    _addAdminNotifications(
+      updates,
+      adminIds,
+      'admin_jam_created',
+      jam.data,
+      jam.oraInizio,
+      end: jam.oraFine,
+      subjectId: newJamKey,
+    );
 
     try {
       await _dbRef.update(updates);
@@ -1763,6 +1821,9 @@ class DatabaseService {
     final oldSlots = previousDate.isEmpty
         ? <String, dynamic>{}
         : await _findSlotsByBookingId(previousDate, jamId);
+        
+    final adminIds = await _getAdminUserIds();
+
     final updates = <String, dynamic>{
       '/jams/$jamId/data': date,
       '/jams/$jamId/ora_inizio': orderedSlots.first,
@@ -1776,6 +1837,16 @@ class DatabaseService {
       '/jams/$jamId/attrezzatura': trimmedEquipment,
       '/jams/$jamId/stato': nextStatus,
     };
+    
+    _addAdminNotifications(
+      updates,
+      adminIds,
+      'admin_jam_modified',
+      date,
+      orderedSlots.first,
+      end: newEndTime,
+      subjectId: jamId,
+    );
 
     for (final key in oldSlots.keys) {
       updates['/slots/$previousDate/$key/status'] = 'libero';
@@ -1837,6 +1908,47 @@ class DatabaseService {
   Future<void> _ensureCurrentUserIsAdminOrThrow() async {
     if (!await _isCurrentUserAdmin()) {
       throw Exception('Permessi insufficienti');
+    }
+  }
+
+  Future<List<String>> _getAdminUserIds() async {
+    final snapshot =
+        await _dbRef.child('users').orderByChild('role').equalTo('admin').get();
+    if (!snapshot.exists || snapshot.value == null) return [];
+    
+    // Possiamo iterare sui children
+    final List<String> admins = [];
+    for (final child in snapshot.children) {
+      if (child.key != null) {
+        admins.add(child.key!);
+      }
+    }
+    return admins;
+  }
+
+  void _addAdminNotifications(
+    Map<String, dynamic> updates,
+    List<String> adminIds,
+    String type,
+    String date,
+    String start, {
+    String? end,
+    String? subjectId,
+  }) {
+    final timestamp = ServerValue.timestamp;
+    for (final adminId in adminIds) {
+      final notifId =
+          _dbRef.child('user_notifications').child(adminId).push().key;
+      if (notifId != null) {
+        updates['/user_notifications/$adminId/$notifId'] = {
+          'type': type,
+          'data': date,
+          'ora_inizio': start,
+          if (end != null) 'ora_fine': end,
+          'timestamp': timestamp,
+          'read': false,
+        };
+      }
     }
   }
 
@@ -2334,6 +2446,27 @@ class DatabaseService {
   // ELIMINA JAM
   Future<void> deleteJam(String jamId) async {
     try {
+      final snapshot = await _dbRef.child('jams').child(jamId).get();
+      if (snapshot.exists && snapshot.value != null) {
+        final jamData = Map<String, dynamic>.from(snapshot.value as Map);
+        final date = jamData['data']?.toString() ?? '';
+        final start = jamData['ora_inizio']?.toString() ?? '';
+
+        final adminIds = await _getAdminUserIds();
+        final updates = <String, dynamic>{};
+        _addAdminNotifications(
+          updates,
+          adminIds,
+          'admin_jam_cancelled',
+          date,
+          start,
+          subjectId: jamId,
+        );
+        if (updates.isNotEmpty) {
+          await _dbRef.update(updates);
+        }
+      }
+
       await _functions.httpsCallable('deleteJamCascade').call({
         'jamId': jamId,
       });
