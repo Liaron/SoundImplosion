@@ -41,11 +41,11 @@ class LocalNotificationService {
     );
 
     tz.initializeTimeZones();
-    final timezoneName = await FlutterTimezone.getLocalTimezone();
-    tz.setLocalLocation(tz.getLocation(timezoneName));
+    final timezoneInfo = await FlutterTimezone.getLocalTimezone();
+    tz.setLocalLocation(tz.getLocation(timezoneInfo.identifier));
 
     await _plugin.initialize(
-      initializationSettings,
+      settings: initializationSettings,
       onDidReceiveNotificationResponse: (response) {
         final payload = response.payload;
         if (payload != null && payload.isNotEmpty) {
@@ -109,10 +109,10 @@ class LocalNotificationService {
     );
 
     await _plugin.show(
-      item.id.hashCode,
-      item.title,
-      item.body,
-      details,
+      id: item.id.hashCode,
+      title: item.title,
+      body: item.body,
+      notificationDetails: details,
       payload: item.payload,
     );
   }
@@ -140,7 +140,13 @@ class LocalNotificationService {
       ),
     );
 
-    await _plugin.show(id, title, body, details, payload: payload);
+    await _plugin.show(
+      id: id,
+      title: title,
+      body: body,
+      notificationDetails: details,
+      payload: payload,
+    );
   }
 
   Future<void> scheduleNotification({
@@ -164,21 +170,19 @@ class LocalNotificationService {
     );
 
     await _plugin.zonedSchedule(
-      id,
-      title,
-      body,
-      tz.TZDateTime.from(scheduledAt, tz.local),
-      details,
+      id: id,
+      title: title,
+      body: body,
+      scheduledDate: tz.TZDateTime.from(scheduledAt, tz.local),
+      notificationDetails: details,
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
       payload: payload,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
     );
   }
 
   Future<void> cancelNotification(int id) async {
     await initialize();
-    await _plugin.cancel(id);
+    await _plugin.cancel(id: id);
   }
 
   Future<List<PendingNotificationRequest>> pendingNotificationRequests() async {
