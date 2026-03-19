@@ -524,7 +524,8 @@ class _OrganizeJamPageMobileState extends State<OrganizeJamPageMobile> {
                   controller: _descriptionController,
                   decoration: const InputDecoration(
                     labelText: 'Descrizione',
-                    hintText: 'Descrivi la tua jam o chi stai cercando...',
+                    hintText:
+                        'Spiega il tipo di jam che vuoi organizzare e qualsiasi informazione utile per chi partecipera.',
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.description),
                   ),
@@ -611,10 +612,12 @@ class _OrganizeJamPageMobileState extends State<OrganizeJamPageMobile> {
                   controller: _equipmentController,
                   decoration: const InputDecoration(
                     labelText: 'Attrezzatura (Opzionale)',
+                    hintText:
+                        'Indica se serve attrezzatura, cosa hai gia disponibile e cosa bisogna portare o installare.',
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.speaker),
                   ),
-                  maxLines: 2,
+                  maxLines: 3,
                 ),
                 const SizedBox(height: 24),
 

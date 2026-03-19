@@ -605,6 +605,8 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
                   controller: _equipmentController,
                   decoration: const InputDecoration(
                     labelText: 'Attrezzatura (Opzionale)',
+                    hintText:
+                        'Indica se serve attrezzatura, cosa hai gia disponibile e cosa bisogna portare o installare.',
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.speaker),
                   ),
