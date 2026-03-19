@@ -62,8 +62,6 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
   bool _postProfileBootstrapped = false;
   String? _appVersionLabel;
   int _unreadNotificationCount = 0;
-  OverlayEntry? _inAppNotificationOverlay;
-  Timer? _inAppNotificationTimer;
 
   Future<void> _signOut() async {
     await _authService.signOut();
@@ -80,6 +78,7 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
     'Jam Session',
     'Gruppi',
     'Admin',
+    'Notifiche',
     'Profilo',
     'Contattaci',
     'Impostazioni',
@@ -109,9 +108,10 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
       ), // 2 - Passiamo il parametro
       const GroupsPageMobile(embedded: true), // 3
       const AdminManagementPageMobile(embedded: true), // 4
-      const ProfileDetailsPageMobile(), // 5
-      const ContactUsPageMobile(), // 6
-      const SettingsPageMobile(), // 7
+      const NotificationsPageMobile(), // 5
+      const ProfileDetailsPageMobile(), // 6
+      const ContactUsPageMobile(), // 7
+      const SettingsPageMobile(), // 8
     ];
 
     final maxIndex = _widgetOptions.length - 1;
@@ -127,7 +127,6 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
 
   @override
   void dispose() {
-    _removeInAppNotificationOverlay();
     _notificationSubscription?.cancel();
     _bookingReminderSubscription?.cancel();
     _notificationTapSubscription?.cancel();
@@ -136,125 +135,6 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
     AppPreferencesService.instance.removeListener(_handlePreferencesChanged);
     _controller.dispose();
     super.dispose();
-  }
-
-  void _removeInAppNotificationOverlay() {
-    _inAppNotificationTimer?.cancel();
-    _inAppNotificationTimer = null;
-    _inAppNotificationOverlay?.remove();
-    _inAppNotificationOverlay = null;
-  }
-
-  void _showInAppNotificationPopup(AppNotificationItem item) {
-    if (!mounted) {
-      return;
-    }
-
-    _removeInAppNotificationOverlay();
-
-    final overlay = Overlay.of(context);
-
-    _inAppNotificationOverlay = OverlayEntry(
-      builder: (overlayContext) {
-        final topInset = MediaQuery.of(overlayContext).padding.top;
-        final theme = Theme.of(overlayContext);
-        return Positioned(
-          top: topInset + 12,
-          left: 12,
-          right: 12,
-          child: Material(
-            color: Colors.transparent,
-            child: SafeArea(
-              bottom: false,
-              child: Align(
-                alignment: Alignment.topCenter,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 560),
-                  child: GestureDetector(
-                    onTap: () {
-                      _removeInAppNotificationOverlay();
-                      _openNotificationTarget(item.routeTarget);
-                    },
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.surface,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color(0x33000000),
-                            blurRadius: 18,
-                            offset: Offset(0, 10),
-                          ),
-                        ],
-                        border: Border.all(
-                          color: theme.colorScheme.outline.withValues(alpha: 0.18),
-                        ),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Icon(
-                              Icons.notifications_active,
-                              color: theme.colorScheme.primary,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    item.title,
-                                    style: theme.textTheme.titleSmall?.copyWith(
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    item.body,
-                                    style: theme.textTheme.bodyMedium,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                  visualDensity: VisualDensity.compact,
-                                  onPressed: _removeInAppNotificationOverlay,
-                                  icon: const Icon(Icons.close),
-                                  tooltip: 'Chiudi',
-                                ),
-                                TextButton(
-                                  onPressed: () {
-                                    _removeInAppNotificationOverlay();
-                                    _openNotificationTarget(item.routeTarget);
-                                  },
-                                  child: const Text('Apri'),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-
-    overlay.insert(_inAppNotificationOverlay!);
-    _inAppNotificationTimer = Timer(const Duration(seconds: 5), () {
-      _removeInAppNotificationOverlay();
-    });
   }
 
   void _handleControllerChanged() {
@@ -334,7 +214,15 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
             }
 
             if (preferences.inAppEnabled && mounted) {
-              _showInAppNotificationPopup(item);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('${item.title}: ${item.body}'),
+                  action: SnackBarAction(
+                    label: 'Apri',
+                    onPressed: () => _openNotificationTarget(item.routeTarget),
+                  ),
+                ),
+              );
             }
           }
         });
@@ -383,19 +271,11 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
         );
         break;
       case 5:
-        await Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const NotificationsPageMobile()),
-        );
+        _navigateToPage(5, closeDrawer: false);
         break;
       default:
         break;
     }
-  }
-
-  Future<void> _openNotificationsPage() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const NotificationsPageMobile()),
-    );
   }
 
   Future<void> _bootstrapBookingReminders() async {
@@ -522,22 +402,7 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_currentPageTitle),
-        actions: [
-          IconButton(
-            onPressed: _openNotificationsPage,
-            icon: Badge.count(
-              isLabelVisible: _unreadNotificationCount > 0,
-              count: _unreadNotificationCount > 99
-                  ? 99
-                  : _unreadNotificationCount,
-              child: const Icon(Icons.notifications),
-            ),
-            tooltip: 'Notifiche',
-          ),
-        ],
-      ),
+      appBar: AppBar(title: Text(_currentPageTitle)),
       body: _widgetOptions.elementAt(_selectedIndex),
       drawer: Drawer(
         child: Column(
@@ -579,19 +444,40 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
             const Spacer(),
             const Divider(),
             ListTile(
+              leading: const Icon(Icons.notifications),
+              title: const Text('Notifiche'),
+              trailing: _unreadNotificationCount > 0
+                  ? CircleAvatar(
+                      radius: 12,
+                      backgroundColor: Theme.of(context).colorScheme.secondary,
+                      child: Text(
+                        _unreadNotificationCount > 99
+                            ? '99+'
+                            : _unreadNotificationCount.toString(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    )
+                  : null,
+              onTap: () => _navigateToPage(5),
+            ),
+            ListTile(
               leading: const Icon(Icons.person),
               title: const Text('Profilo'),
-              onTap: () => _navigateToPage(5),
+              onTap: () => _navigateToPage(6),
             ),
             ListTile(
               leading: const Icon(Icons.contact_mail),
               title: const Text('Contattaci'),
-              onTap: () => _navigateToPage(6),
+              onTap: () => _navigateToPage(7),
             ),
             ListTile(
               leading: const Icon(Icons.settings),
               title: const Text('Impostazioni'),
-              onTap: () => _navigateToPage(7),
+              onTap: () => _navigateToPage(8),
             ),
             const Divider(),
             ListTile(
