@@ -14,29 +14,36 @@ class AdminBookingController extends ChangeNotifier {
   bool isSubmitting = false;
   Object? error;
   List<BookingListItem> pendingBookings = [];
+  List<BookingListItem> approvedBookings = [];
   Map<String, String> userNames = {};
 
-  StreamSubscription<List<BookingListItem>>? _subscription;
+  StreamSubscription<List<BookingListItem>>? _pendingSubscription;
+  StreamSubscription<List<BookingListItem>>? _approvedSubscription;
 
   Future<void> initialize() async {
     isLoading = true;
     error = null;
     notifyListeners();
 
-    _subscription = _repository.watchPendingBookings().listen(
+    _pendingSubscription = _repository.watchPendingBookings().listen(
       (items) async {
         pendingBookings = items;
-        
-        final userIds = items.map((item) => item.booking.userId).toSet();
-        if (userIds.isNotEmpty) {
-          try {
-            final names = await _repository.getUsernames(userIds);
-            userNames.addAll(names);
-          } catch (_) {
-            // Ignoriamo gli errori di fetch dei nomi
-          }
-        }
-        
+        await _loadUserNames();
+        isLoading = false;
+        error = null;
+        notifyListeners();
+      },
+      onError: (Object streamError) {
+        error = streamError;
+        isLoading = false;
+        notifyListeners();
+      },
+    );
+
+    _approvedSubscription = _repository.watchApprovedBookings().listen(
+      (items) async {
+        approvedBookings = items;
+        await _loadUserNames();
         isLoading = false;
         error = null;
         notifyListeners();
@@ -71,9 +78,37 @@ class AdminBookingController extends ChangeNotifier {
     }
   }
 
+  Future<void> deleteBooking(String bookingId) async {
+    isSubmitting = true;
+    notifyListeners();
+    try {
+      await _repository.deleteBooking(bookingId);
+    } finally {
+      isSubmitting = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> _loadUserNames() async {
+    final userIds = {
+      ...pendingBookings.map((item) => item.booking.userId),
+      ...approvedBookings.map((item) => item.booking.userId),
+    };
+    if (userIds.isEmpty) {
+      return;
+    }
+    try {
+      final names = await _repository.getUsernames(userIds);
+      userNames.addAll(names);
+    } catch (_) {
+      // Ignoriamo gli errori di fetch dei nomi
+    }
+  }
+
   @override
   void dispose() {
-    _subscription?.cancel();
+    _pendingSubscription?.cancel();
+    _approvedSubscription?.cancel();
     super.dispose();
   }
 }

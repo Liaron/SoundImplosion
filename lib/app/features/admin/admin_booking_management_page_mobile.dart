@@ -121,7 +121,57 @@ class _AdminBookingManagementPageMobileState
     }
   }
 
-  Widget _buildBody() {
+  Future<void> _deleteBooking(String bookingId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Elimina prenotazione'),
+        content: const Text(
+          'Vuoi eliminare questa prenotazione gia approvata?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Annulla'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Elimina'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    try {
+      await _controller.deleteBooking(bookingId);
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Prenotazione eliminata')));
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Errore: ${e.toString().replaceAll('Exception: ', '')}',
+          ),
+        ),
+      );
+    }
+  }
+
+  Widget _buildList({
+    required List<BookingListItem> items,
+    required bool approved,
+  }) {
     if (_controller.isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -130,15 +180,21 @@ class _AdminBookingManagementPageMobileState
       return Center(child: Text('Errore caricamento: ${_controller.error}'));
     }
 
-    if (_controller.pendingBookings.isEmpty) {
-      return const Center(child: Text('Non ci sono prenotazioni in attesa.'));
+    if (items.isEmpty) {
+      return Center(
+        child: Text(
+          approved
+              ? 'Non ci sono prenotazioni gia approvate.'
+              : 'Non ci sono prenotazioni in attesa.',
+        ),
+      );
     }
 
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: _controller.pendingBookings.length,
+      itemCount: items.length,
       itemBuilder: (context, index) {
-        final item = _controller.pendingBookings[index];
+        final item = items[index];
         final booking = item.booking;
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
@@ -163,7 +219,9 @@ class _AdminBookingManagementPageMobileState
                         item.statusLabel,
                         style: const TextStyle(color: Colors.black87),
                       ),
-                      backgroundColor: Colors.orange[100],
+                      backgroundColor: approved
+                          ? Colors.green[100]
+                          : Colors.orange[100],
                       side: BorderSide.none,
                     ),
                   ],
@@ -177,37 +235,49 @@ class _AdminBookingManagementPageMobileState
                 if (booking.attrezzatura.isNotEmpty)
                   Text('Attrezzatura: ${booking.attrezzatura}'),
                 const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: _controller.isSubmitting
-                            ? null
-                            : () => _cancelBooking(item.id),
-                        child: const Text('Rifiuta'),
+                if (!approved) ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: _controller.isSubmitting
+                              ? null
+                              : () => _cancelBooking(item.id),
+                          child: const Text('Rifiuta'),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: _controller.isSubmitting
-                            ? null
-                            : () => _rescheduleBooking(item),
-                        child: const Text('Riprogramma'),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: _controller.isSubmitting
+                              ? null
+                              : () => _rescheduleBooking(item),
+                          child: const Text('Riprogramma'),
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _controller.isSubmitting
-                        ? null
-                        : () => _confirmBooking(item.id),
-                    child: const Text('Conferma prenotazione'),
+                    ],
                   ),
-                ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _controller.isSubmitting
+                          ? null
+                          : () => _confirmBooking(item.id),
+                      child: const Text('Conferma prenotazione'),
+                    ),
+                  ),
+                ] else
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _controller.isSubmitting
+                          ? null
+                          : () => _deleteBooking(item.id),
+                      icon: const Icon(Icons.delete_outline),
+                      label: const Text('Elimina prenotazione'),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -218,7 +288,27 @@ class _AdminBookingManagementPageMobileState
 
   @override
   Widget build(BuildContext context) {
-    final body = _buildBody();
+    final body = DefaultTabController(
+      length: 2,
+      child: Column(
+        children: [
+          const TabBar(
+            tabs: [
+              Tab(text: 'Proposte'),
+              Tab(text: 'Approvate'),
+            ],
+          ),
+          Expanded(
+            child: TabBarView(
+              children: [
+                _buildList(items: _controller.pendingBookings, approved: false),
+                _buildList(items: _controller.approvedBookings, approved: true),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
     if (widget.embedded) {
       return body;
     }

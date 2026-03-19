@@ -121,6 +121,51 @@ class _AdminJamManagementPageMobileState
     }
   }
 
+  Future<void> _deleteJam(String jamId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Elimina jam'),
+        content: const Text('Vuoi eliminare questa jam gia approvata?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Annulla'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Elimina'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    try {
+      await _controller.deleteJam(jamId);
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Jam eliminata')));
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Errore: ${e.toString().replaceAll('Exception: ', '')}',
+          ),
+        ),
+      );
+    }
+  }
+
   Widget _buildBody() {
     if (_controller.isLoading) {
       return const Center(child: CircularProgressIndicator());
@@ -130,23 +175,56 @@ class _AdminJamManagementPageMobileState
       return Center(child: Text('Errore caricamento: ${_controller.error}'));
     }
 
-    if (_controller.pendingJams.isEmpty) {
-      return const Center(
-        child: Text('Non ci sono jam in attesa di approvazione.'),
+    return DefaultTabController(
+      length: 2,
+      child: Column(
+        children: [
+          const TabBar(
+            tabs: [
+              Tab(text: 'Proposte'),
+              Tab(text: 'Approvate'),
+            ],
+          ),
+          Expanded(
+            child: TabBarView(
+              children: [
+                _buildJamList(items: _controller.pendingJams, approved: false),
+                _buildJamList(items: _controller.approvedJams, approved: true),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildJamList({
+    required List<JamListItem> items,
+    required bool approved,
+  }) {
+    if (items.isEmpty) {
+      return Center(
+        child: Text(
+          approved
+              ? 'Non ci sono jam gia approvate.'
+              : 'Non ci sono jam in attesa di approvazione.',
+        ),
       );
     }
 
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: _controller.pendingJams.length,
+      itemCount: items.length,
       itemBuilder: (context, index) {
-        final item = _controller.pendingJams[index];
+        final item = items[index];
         return _PendingJamCard(
           item: item,
+          approved: approved,
           isSubmitting: _controller.isSubmitting,
-          onApprove: () => _approveJam(item.id),
-          onReject: () => _rejectJam(item.id),
-          onReschedule: () => _rescheduleJam(item),
+          onApprove: approved ? null : () => _approveJam(item.id),
+          onReject: approved ? null : () => _rejectJam(item.id),
+          onReschedule: approved ? null : () => _rescheduleJam(item),
+          onDelete: approved ? () => _deleteJam(item.id) : null,
         );
       },
     );
@@ -169,17 +247,21 @@ class _AdminJamManagementPageMobileState
 class _PendingJamCard extends StatelessWidget {
   const _PendingJamCard({
     required this.item,
+    required this.approved,
     required this.isSubmitting,
-    required this.onApprove,
-    required this.onReject,
-    required this.onReschedule,
+    this.onApprove,
+    this.onReject,
+    this.onReschedule,
+    this.onDelete,
   });
 
   final JamListItem item;
+  final bool approved;
   final bool isSubmitting;
-  final VoidCallback onApprove;
-  final VoidCallback onReject;
-  final VoidCallback onReschedule;
+  final VoidCallback? onApprove;
+  final VoidCallback? onReject;
+  final VoidCallback? onReschedule;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -210,7 +292,9 @@ class _PendingJamCard extends StatelessWidget {
                     item.statusLabel,
                     style: const TextStyle(color: Colors.black87),
                   ),
-                  backgroundColor: Colors.orange[100],
+                  backgroundColor: approved
+                      ? Colors.green[100]
+                      : Colors.orange[100],
                   side: BorderSide.none,
                 ),
               ],
@@ -228,31 +312,41 @@ class _PendingJamCard extends StatelessWidget {
             if (jam.attrezzatura.isNotEmpty)
               Text('Attrezzatura: ${jam.attrezzatura}'),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: isSubmitting ? null : onReject,
-                    child: const Text('Rifiuta'),
+            if (!approved) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: isSubmitting ? null : onReject,
+                      child: const Text('Rifiuta'),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: isSubmitting ? null : onReschedule,
-                    child: const Text('Riprogramma'),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: isSubmitting ? null : onReschedule,
+                      child: const Text('Riprogramma'),
+                    ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: isSubmitting ? null : onApprove,
-                child: const Text('Approva jam'),
+                ],
               ),
-            ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: isSubmitting ? null : onApprove,
+                  child: const Text('Approva jam'),
+                ),
+              ),
+            ] else
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: isSubmitting ? null : onDelete,
+                  icon: const Icon(Icons.delete_outline),
+                  label: const Text('Elimina jam'),
+                ),
+              ),
           ],
         ),
       ),

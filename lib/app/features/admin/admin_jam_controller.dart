@@ -14,17 +14,33 @@ class AdminJamController extends ChangeNotifier {
   bool isSubmitting = false;
   Object? error;
   List<JamListItem> pendingJams = [];
+  List<JamListItem> approvedJams = [];
 
-  StreamSubscription<List<JamListItem>>? _subscription;
+  StreamSubscription<List<JamListItem>>? _pendingSubscription;
+  StreamSubscription<List<JamListItem>>? _approvedSubscription;
 
   Future<void> initialize() async {
     isLoading = true;
     error = null;
     notifyListeners();
 
-    _subscription = _repository.watchPendingJams().listen(
+    _pendingSubscription = _repository.watchPendingJams().listen(
       (items) {
         pendingJams = items;
+        isLoading = false;
+        error = null;
+        notifyListeners();
+      },
+      onError: (Object streamError) {
+        error = streamError;
+        isLoading = false;
+        notifyListeners();
+      },
+    );
+
+    _approvedSubscription = _repository.watchApprovedJams().listen(
+      (items) {
+        approvedJams = items;
         isLoading = false;
         error = null;
         notifyListeners();
@@ -59,9 +75,21 @@ class AdminJamController extends ChangeNotifier {
     }
   }
 
+  Future<void> deleteJam(String jamId) async {
+    isSubmitting = true;
+    notifyListeners();
+    try {
+      await _repository.deleteJam(jamId);
+    } finally {
+      isSubmitting = false;
+      notifyListeners();
+    }
+  }
+
   @override
   void dispose() {
-    _subscription?.cancel();
+    _pendingSubscription?.cancel();
+    _approvedSubscription?.cancel();
     super.dispose();
   }
 }

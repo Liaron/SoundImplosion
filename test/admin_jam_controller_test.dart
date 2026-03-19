@@ -7,7 +7,7 @@ import 'package:soundimplosion/models/models.dart';
 void main() {
   test('AdminJamController loads pending jams from repository', () async {
     final repository = FakeAdminJamRepository(
-      items: [
+      pendingItems: [
         JamListItem(
           id: 'jam-1',
           jam: Jam(
@@ -26,6 +26,7 @@ void main() {
           ),
         ),
       ],
+      approvedItems: const [],
     );
     final controller = AdminJamController(repository: repository);
 
@@ -39,7 +40,10 @@ void main() {
   });
 
   test('AdminJamController delegates approve and reject actions', () async {
-    final repository = FakeAdminJamRepository(items: const []);
+    final repository = FakeAdminJamRepository(
+      pendingItems: const [],
+      approvedItems: const [],
+    );
     final controller = AdminJamController(repository: repository);
 
     await controller.approveJam('jam-1');
@@ -50,14 +54,66 @@ void main() {
 
     controller.dispose();
   });
+
+  test('AdminJamController loads approved jams from repository', () async {
+    final repository = FakeAdminJamRepository(
+      pendingItems: const [],
+      approvedItems: [
+        JamListItem(
+          id: 'jam-approved-1',
+          jam: Jam(
+            id: 'jam-approved-1',
+            creatorId: 'creator-2',
+            titolo: 'Approved jam title',
+            data: '2026-03-25',
+            oraInizio: '18:00',
+            oraFine: '19:15',
+            personePresenti: 3,
+            personeRichieste: 1,
+            descrizione: 'Jam approved',
+            pagamento: 'Diviso',
+            attrezzatura: 'Mixer',
+            stato: JamStatus.pubblicata,
+          ),
+        ),
+      ],
+    );
+    final controller = AdminJamController(repository: repository);
+
+    await controller.initialize();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(controller.approvedJams, hasLength(1));
+
+    controller.dispose();
+  });
+
+  test('AdminJamController delegates delete action', () async {
+    final repository = FakeAdminJamRepository(
+      pendingItems: const [],
+      approvedItems: const [],
+    );
+    final controller = AdminJamController(repository: repository);
+
+    await controller.deleteJam('jam-3');
+
+    expect(repository.deletedJamIds, ['jam-3']);
+
+    controller.dispose();
+  });
 }
 
 class FakeAdminJamRepository implements AdminJamRepository {
-  FakeAdminJamRepository({required this.items});
+  FakeAdminJamRepository({
+    required this.pendingItems,
+    required this.approvedItems,
+  });
 
-  final List<JamListItem> items;
+  final List<JamListItem> pendingItems;
+  final List<JamListItem> approvedItems;
   final List<String> approvedJamIds = [];
   final List<String> rejectedJamIds = [];
+  final List<String> deletedJamIds = [];
 
   @override
   Future<void> approveJam(String jamId) async {
@@ -70,7 +126,17 @@ class FakeAdminJamRepository implements AdminJamRepository {
   }
 
   @override
+  Future<void> deleteJam(String jamId) async {
+    deletedJamIds.add(jamId);
+  }
+
+  @override
   Stream<List<JamListItem>> watchPendingJams() {
-    return Stream<List<JamListItem>>.value(items);
+    return Stream<List<JamListItem>>.value(pendingItems);
+  }
+
+  @override
+  Stream<List<JamListItem>> watchApprovedJams() {
+    return Stream<List<JamListItem>>.value(approvedItems);
   }
 }

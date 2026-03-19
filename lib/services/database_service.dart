@@ -543,6 +543,14 @@ class DatabaseService {
         .onValue;
   }
 
+  Stream<DatabaseEvent> getApprovedBookingsStream() {
+    return _dbRef
+        .child('bookings')
+        .orderByChild('stato')
+        .equalTo(BookingStatus.confermata.name)
+        .onValue;
+  }
+
   Stream<DatabaseEvent> getUserGroupIdsStream() {
     final user = _auth.currentUser;
     if (user == null) {

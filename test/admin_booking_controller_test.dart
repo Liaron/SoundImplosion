@@ -9,7 +9,7 @@ void main() {
     'AdminBookingController loads pending bookings from repository',
     () async {
       final repository = FakeAdminBookingRepository(
-        items: [
+        pendingItems: [
           BookingListItem(
             id: 'booking-1',
             booking: Booking(
@@ -23,6 +23,7 @@ void main() {
             ),
           ),
         ],
+        approvedItems: const [],
       );
       final controller = AdminBookingController(repository: repository);
 
@@ -37,7 +38,10 @@ void main() {
   );
 
   test('AdminBookingController delegates confirm and cancel actions', () async {
-    final repository = FakeAdminBookingRepository(items: const []);
+    final repository = FakeAdminBookingRepository(
+      pendingItems: const [],
+      approvedItems: const [],
+    );
     final controller = AdminBookingController(repository: repository);
 
     await controller.confirmBooking('booking-1');
@@ -48,14 +52,65 @@ void main() {
 
     controller.dispose();
   });
+
+  test(
+    'AdminBookingController loads approved bookings from repository',
+    () async {
+      final repository = FakeAdminBookingRepository(
+        pendingItems: const [],
+        approvedItems: [
+          BookingListItem(
+            id: 'booking-approved-1',
+            booking: Booking(
+              id: 'booking-approved-1',
+              userId: 'user-2',
+              data: '2026-03-22',
+              oraInizio: '12:30',
+              oraFine: '13:45',
+              numeroUtenti: 2,
+              attrezzatura: 'Microfono',
+              stato: BookingStatus.confermata,
+            ),
+          ),
+        ],
+      );
+      final controller = AdminBookingController(repository: repository);
+
+      await controller.initialize();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(controller.approvedBookings, hasLength(1));
+
+      controller.dispose();
+    },
+  );
+
+  test('AdminBookingController delegates delete action', () async {
+    final repository = FakeAdminBookingRepository(
+      pendingItems: const [],
+      approvedItems: const [],
+    );
+    final controller = AdminBookingController(repository: repository);
+
+    await controller.deleteBooking('booking-3');
+
+    expect(repository.deletedBookingIds, ['booking-3']);
+
+    controller.dispose();
+  });
 }
 
 class FakeAdminBookingRepository implements AdminBookingRepository {
-  FakeAdminBookingRepository({required this.items});
+  FakeAdminBookingRepository({
+    required this.pendingItems,
+    required this.approvedItems,
+  });
 
-  final List<BookingListItem> items;
+  final List<BookingListItem> pendingItems;
+  final List<BookingListItem> approvedItems;
   final List<String> confirmedBookingIds = [];
   final List<String> cancelledBookingIds = [];
+  final List<String> deletedBookingIds = [];
 
   @override
   Future<void> cancelBooking(String bookingId) async {
@@ -68,8 +123,18 @@ class FakeAdminBookingRepository implements AdminBookingRepository {
   }
 
   @override
+  Future<void> deleteBooking(String bookingId) async {
+    deletedBookingIds.add(bookingId);
+  }
+
+  @override
   Stream<List<BookingListItem>> watchPendingBookings() {
-    return Stream<List<BookingListItem>>.value(items);
+    return Stream<List<BookingListItem>>.value(pendingItems);
+  }
+
+  @override
+  Stream<List<BookingListItem>> watchApprovedBookings() {
+    return Stream<List<BookingListItem>>.value(approvedItems);
   }
 
   @override
