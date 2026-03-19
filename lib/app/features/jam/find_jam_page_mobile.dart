@@ -605,7 +605,7 @@ class _FindJamPageMobileState extends State<FindJamPageMobile> {
                                           'Organizzata da: ${jam.jam.creatorNickname}',
                                           style: TextStyle(
                                             fontStyle: FontStyle.italic,
-                                            color: Colors.grey.shade600,
+                                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                                           ),
                                         ),
                                       ),
@@ -621,7 +621,7 @@ class _FindJamPageMobileState extends State<FindJamPageMobile> {
                                         child: Text(
                                           'Gruppo: ${jam.groupLabel}',
                                           style: TextStyle(
-                                            color: Colors.grey.shade700,
+                                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
                                           ),
                                         ),
                                       ),
@@ -636,11 +636,12 @@ class _FindJamPageMobileState extends State<FindJamPageMobile> {
                                       child: Chip(
                                         label: Text(
                                           jam.statusLabel,
-                                          style: const TextStyle(fontSize: 12),
+                                          style: const TextStyle(fontSize: 12, color: Colors.black87),
                                         ),
                                         backgroundColor: jam.isPublished
                                             ? Colors.green[100]
                                             : Colors.orange[100],
+                                        side: BorderSide.none,
                                         visualDensity: VisualDensity.compact,
                                       ),
                                     ),
@@ -651,10 +652,10 @@ class _FindJamPageMobileState extends State<FindJamPageMobile> {
                                       children: [
                                         Row(
                                           children: [
-                                            const Icon(
+                                            Icon(
                                               Icons.people,
                                               size: 18,
-                                              color: Colors.grey,
+                                              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
                                             ),
                                             const SizedBox(width: 4),
                                             Text(
@@ -667,12 +668,14 @@ class _FindJamPageMobileState extends State<FindJamPageMobile> {
                                             jam.paymentLabel,
                                             style: const TextStyle(
                                               fontSize: 12,
+                                              color: Colors.black87,
                                             ),
                                           ),
                                           backgroundColor:
                                               jam.paymentLabel == 'Offerto'
                                               ? Colors.green[100]
                                               : Colors.orange[100],
+                                          side: BorderSide.none,
                                           visualDensity: VisualDensity.compact,
                                         ),
                                       ],

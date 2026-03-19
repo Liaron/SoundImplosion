@@ -762,22 +762,22 @@ class _SettingsPageMobileState extends State<SettingsPageMobile> {
     return DefaultTabController(
       length: 2,
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Impostazioni'),
-          bottom: const TabBar(
-            labelColor: Colors.white,
-            unselectedLabelColor: Colors.white70,
-            indicatorColor: Colors.white,
-            tabs: [
-              Tab(text: 'Generale'),
-              Tab(text: 'Notifiche'),
-            ],
-          ),
-        ),
-        body: TabBarView(
+        body: Column(
           children: [
-            ListView(
-              padding: const EdgeInsets.all(16),
+            TabBar(
+              labelColor: Theme.of(context).colorScheme.primary,
+              unselectedLabelColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+              indicatorColor: Theme.of(context).colorScheme.primary,
+              tabs: const [
+                Tab(text: 'Generale'),
+                Tab(text: 'Notifiche'),
+              ],
+            ),
+            Expanded(
+              child: TabBarView(
+                children: [
+                  ListView(
+                    padding: const EdgeInsets.all(16),
               children: [
                 if (_isSavingGeneral) const LinearProgressIndicator(),
                 _buildSection(
@@ -1160,6 +1160,9 @@ class _SettingsPageMobileState extends State<SettingsPageMobile> {
           ],
         ),
       ),
-    );
-  }
+     ],
+    ),
+   ),
+  );
+ }
 }

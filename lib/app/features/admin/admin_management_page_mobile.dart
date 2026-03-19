@@ -21,11 +21,11 @@ class AdminManagementPageMobile extends StatelessWidget {
                 Theme.of(context).appBarTheme.backgroundColor ??
                 Theme.of(context).colorScheme.primary,
             child: TabBar(
-              labelColor: colorScheme.onPrimary,
-              unselectedLabelColor: colorScheme.onPrimary.withValues(
-                alpha: 0.7,
+              labelColor: colorScheme.primary,
+              unselectedLabelColor: colorScheme.onSurface.withValues(
+                alpha: 0.6,
               ),
-              indicatorColor: colorScheme.secondary,
+              indicatorColor: colorScheme.primary,
               tabs: const [
                 Tab(icon: Icon(Icons.book_online), text: 'Prenotazioni'),
                 Tab(icon: Icon(Icons.music_note), text: 'Jam'),

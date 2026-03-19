@@ -132,16 +132,16 @@ class _HomePageMobileState extends State<HomePageMobile> {
             const SizedBox(height: 12),
             Text(
               '"$description"',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 16,
                 fontStyle: FontStyle.italic,
-                color: Colors.black87,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
             const SizedBox(height: 8),
             Text(
               'Quando? Il $date alle ore $startTime',
-              style: const TextStyle(color: Colors.grey),
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
             ),
             const SizedBox(height: 12),
             Align(

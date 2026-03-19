@@ -264,46 +264,54 @@ class _NotificationsPageMobileState extends State<NotificationsPageMobile> {
     }
 
     return Scaffold(
-      appBar: AppBar(
-        leading: _isSelectionMode
-            ? IconButton(
-                onPressed: _clearSelection,
-                icon: const Icon(Icons.close),
-              )
-            : null,
-        title: Text(
-          _isSelectionMode
-              ? '${_selectedNotificationIds.length} selezionate'
-              : 'Notifiche',
-        ),
-        actions: [
-          if (_isSelectionMode)
-            IconButton(
-              onPressed: () => _confirmDelete(
-                title: 'Elimina selezionate',
-                content: 'Vuoi eliminare le notifiche selezionate?',
-                onConfirm: _deleteSelected,
-              ),
-              icon: const Icon(Icons.delete_outline),
-            )
-          else if (_controller.notifications.any(_isDeletable))
-            IconButton(
-              onPressed: () => _confirmDelete(
-                title: 'Elimina tutte',
-                content:
-                    'Vuoi eliminare tutte le notifiche eliminabili? Gli inviti pendenti resteranno disponibili.',
-                onConfirm: _deleteAll,
-              ),
-              icon: const Icon(Icons.delete_sweep_outlined),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                if (_isSelectionMode) ...[
+                  IconButton(
+                    onPressed: _clearSelection,
+                    icon: const Icon(Icons.close),
+                  ),
+                  Text('${_selectedNotificationIds.length} selezionate'),
+                  IconButton(
+                    onPressed: () => _confirmDelete(
+                      title: 'Elimina selezionate',
+                      content: 'Vuoi eliminare le notifiche selezionate?',
+                      onConfirm: _deleteSelected,
+                    ),
+                    icon: const Icon(Icons.delete_outline),
+                  ),
+                ] else ...[
+                  const Spacer(),
+                  Row(
+                    children: [
+                      if (_controller.notifications.any(_isDeletable))
+                        IconButton(
+                          onPressed: () => _confirmDelete(
+                            title: 'Elimina tutte',
+                            content:
+                                'Vuoi eliminare tutte le notifiche eliminabili? Gli inviti pendenti resteranno disponibili.',
+                            onConfirm: _deleteAll,
+                          ),
+                          icon: const Icon(Icons.delete_sweep_outlined),
+                        ),
+                      if (_controller.unreadCount > 0)
+                        TextButton(
+                          onPressed: _markAllAsRead,
+                          child: const Text('Segna lette'),
+                        ),
+                    ],
+                  ),
+                ],
+              ],
             ),
-          if (!_isSelectionMode && _controller.unreadCount > 0)
-            TextButton(
-              onPressed: _markAllAsRead,
-              child: const Text('Segna tutte'),
-            ),
-        ],
-      ),
-      body: _controller.notifications.isEmpty
+          ),
+          Expanded(
+            child: _controller.notifications.isEmpty
           ? const Center(child: Text('Nessuna notifica disponibile.'))
           : ListView.builder(
               padding: const EdgeInsets.all(16),
@@ -412,6 +420,9 @@ class _NotificationsPageMobileState extends State<NotificationsPageMobile> {
                 );
               },
             ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -208,17 +208,17 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
               decoration: BoxDecoration(
                 color: isSelected
-                    ? Colors.black87
+                    ? Theme.of(context).colorScheme.primary
                     : isSelectable
-                    ? Colors.white
-                    : Colors.grey.shade100,
+                    ? Theme.of(context).cardTheme.color ?? Theme.of(context).colorScheme.surface
+                    : Theme.of(context).colorScheme.surface.withValues(alpha: 0.5),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: isSelected
-                      ? Colors.black87
+                      ? Theme.of(context).colorScheme.primary
                       : isSelectable
-                      ? Colors.black26
-                      : Colors.grey.shade300,
+                      ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.2)
+                      : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
                 ),
               ),
               child: Column(
@@ -228,33 +228,33 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
                     DateFormat('EEE').format(day),
                     style: TextStyle(
                       color: isSelected
-                          ? Colors.white70
+                          ? Theme.of(context).colorScheme.onPrimary.withValues(alpha: 0.8)
                           : isSelectable
-                          ? Colors.black54
-                          : Colors.grey,
+                          ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6)
+                          : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
                   Text(
                     day.day.toString(),
                     style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
                       color: isSelected
-                          ? Colors.white
+                          ? Theme.of(context).colorScheme.onPrimary
                           : isSelectable
-                          ? Colors.black
-                          : Colors.grey,
+                          ? Theme.of(context).colorScheme.onSurface
+                          : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
                   Container(
                     width: 8,
                     height: 8,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: isSelectable
-                          ? (isSelected ? Colors.white : Colors.green)
+                          ? (isSelected ? Theme.of(context).colorScheme.onPrimary : const Color(0xFF4CAF50))
                           : Colors.transparent,
                     ),
                   ),

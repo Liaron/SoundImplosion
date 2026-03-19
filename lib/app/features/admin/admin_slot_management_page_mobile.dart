@@ -191,8 +191,12 @@ class _AdminSlotManagementPageMobileState
                     ? Text('Assegnato a: ${slot.bookedBy}')
                     : null,
                 secondary: Chip(
-                  label: Text(slot.statusLabel),
+                  label: Text(
+                    slot.statusLabel,
+                    style: const TextStyle(color: Colors.black87),
+                  ),
                   backgroundColor: _statusColor(slot),
+                  side: BorderSide.none,
                 ),
                 controlAffinity: ListTileControlAffinity.leading,
               ),

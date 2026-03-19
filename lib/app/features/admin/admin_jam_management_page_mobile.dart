@@ -205,8 +205,12 @@ class _PendingJamCard extends StatelessWidget {
                   ),
                 ),
                 Chip(
-                  label: Text(item.statusLabel),
+                  label: Text(
+                    item.statusLabel,
+                    style: const TextStyle(color: Colors.black87),
+                  ),
                   backgroundColor: Colors.orange[100],
+                  side: BorderSide.none,
                 ),
               ],
             ),

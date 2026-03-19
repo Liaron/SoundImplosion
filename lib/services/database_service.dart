@@ -318,10 +318,7 @@ class DatabaseService {
     final matchesGenre =
         genreFilter.isEmpty || genres.any((item) => item.contains(genreFilter));
 
-    return matchesUsername &&
-        matchesCity &&
-        matchesInstrument &&
-        matchesGenre;
+    return matchesUsername && matchesCity && matchesInstrument && matchesGenre;
   }
 
   Future<void> saveUser(AppUser user) async {
@@ -627,7 +624,9 @@ class DatabaseService {
         .remove();
   }
 
-  Future<void> deleteSelectedUserNotifications(List<String> notificationIds) async {
+  Future<void> deleteSelectedUserNotifications(
+    List<String> notificationIds,
+  ) async {
     final user = _auth.currentUser;
     if (user == null) {
       throw Exception('Utente non loggato');
@@ -963,7 +962,7 @@ class DatabaseService {
       updates['/group_bookings/${booking.groupId}/$newBookingKey'] = booking
           .toMap();
     }
-    
+
     await _addAdminNotifications(
       updates,
       adminIds,
@@ -1100,7 +1099,7 @@ class DatabaseService {
     final oldSlots = previousDate.isEmpty
         ? <String, dynamic>{}
         : await _findSlotsByBookingId(previousDate, bookingId);
-        
+
     final adminIds = await _getAdminUserIds();
 
     final updates = <String, dynamic>{
@@ -1121,16 +1120,16 @@ class DatabaseService {
           trimmedEquipment,
       '/user_bookings/$bookingOwnerId/$bookingId/stato': nextStatus,
     };
-    
-await _addAdminNotifications(
-        updates,
-        adminIds,
-        'admin_booking_modified',
-        date,
-        orderedSlots.first,
-        end: newEndTime,
-        subjectId: bookingId,
-        requesterId: bookingOwnerId,
+
+    await _addAdminNotifications(
+      updates,
+      adminIds,
+      'admin_booking_modified',
+      date,
+      orderedSlots.first,
+      end: newEndTime,
+      subjectId: bookingId,
+      requesterId: bookingOwnerId,
     );
 
     if (previousGroupId != null &&
@@ -1275,7 +1274,10 @@ await _addAdminNotifications(
     return <String>{};
   }
 
-  String _currentUsernameFromMap(Map<String, dynamic> userData, String fallback) {
+  String _currentUsernameFromMap(
+    Map<String, dynamic> userData,
+    String fallback,
+  ) {
     return userData['username']?.toString().trim().isNotEmpty == true
         ? userData['username'].toString().trim()
         : (userData['nickname']?.toString().trim().isNotEmpty == true
@@ -1307,25 +1309,62 @@ await _addAdminNotifications(
     };
   }
 
-  Future<Map<String, dynamic>> _loadUserData(String uid) async {
-    final snapshot = await _dbRef.child('users').child(uid).get();
-    if (!snapshot.exists || snapshot.value == null || snapshot.value is! Map) {
-      return <String, dynamic>{};
+  bool _isPermissionDeniedError(Object error) {
+    if (error is FirebaseException && error.code == 'permission-denied') {
+      return true;
     }
-    return Map<String, dynamic>.from(snapshot.value as Map);
+
+    final message = error.toString().toLowerCase();
+    return message.contains('permission denied') ||
+        message.contains('permission-denied');
+  }
+
+  Future<Map<String, dynamic>> _loadUserData(String uid) async {
+    try {
+      final snapshot = await _dbRef.child('users').child(uid).get();
+      if (!snapshot.exists ||
+          snapshot.value == null ||
+          snapshot.value is! Map) {
+        return <String, dynamic>{};
+      }
+      return Map<String, dynamic>.from(snapshot.value as Map);
+    } catch (error) {
+      if (_isPermissionDeniedError(error)) {
+        debugPrint('Lettura user $uid non autorizzata: uso fallback locale.');
+        return <String, dynamic>{};
+      }
+      rethrow;
+    }
   }
 
   Future<String> _resolveGroupName(String? groupId) async {
     if (groupId == null || groupId.trim().isEmpty) {
       return '';
     }
-    final snapshot = await _dbRef.child('groups_info').child(groupId).child('name').get();
-    return snapshot.value?.toString() ?? '';
+    try {
+      final snapshot = await _dbRef
+          .child('groups_info')
+          .child(groupId)
+          .child('name')
+          .get();
+      return snapshot.value?.toString() ?? '';
+    } catch (error) {
+      if (_isPermissionDeniedError(error)) {
+        debugPrint(
+          'Lettura nome gruppo $groupId non autorizzata: nome gruppo omesso.',
+        );
+        return '';
+      }
+      rethrow;
+    }
   }
 
-  Future<String> resolveGroupName(String? groupId) => _resolveGroupName(groupId);
+  Future<String> resolveGroupName(String? groupId) =>
+      _resolveGroupName(groupId);
 
-  Future<Map<String, String>> getUsernamesByIds(Iterable<String> userIds) async {
+  Future<Map<String, String>> getUsernamesByIds(
+    Iterable<String> userIds,
+  ) async {
     final result = <String, String>{};
     for (final rawId in userIds) {
       final uid = rawId.trim();
@@ -1462,16 +1501,16 @@ await _addAdminNotifications(
       updates['$slotPath/booking_id'] = newJamKey;
       updates['$slotPath/is_jam'] = true;
     }
-    
-await _addAdminNotifications(
-        updates,
-        adminIds,
-        'admin_jam_created',
-        jam.data,
-        jam.oraInizio,
-        end: jam.oraFine,
-        subjectId: newJamKey,
-        requesterId: jam.creatorId,
+
+    await _addAdminNotifications(
+      updates,
+      adminIds,
+      'admin_jam_created',
+      jam.data,
+      jam.oraInizio,
+      end: jam.oraFine,
+      subjectId: newJamKey,
+      requesterId: jam.creatorId,
     );
 
     try {
@@ -1826,7 +1865,7 @@ await _addAdminNotifications(
     final oldSlots = previousDate.isEmpty
         ? <String, dynamic>{}
         : await _findSlotsByBookingId(previousDate, jamId);
-        
+
     final adminIds = await _getAdminUserIds();
 
     final updates = <String, dynamic>{
@@ -1842,16 +1881,16 @@ await _addAdminNotifications(
       '/jams/$jamId/attrezzatura': trimmedEquipment,
       '/jams/$jamId/stato': nextStatus,
     };
-    
-await _addAdminNotifications(
-        updates,
-        adminIds,
-        'admin_jam_modified',
-        date,
-        orderedSlots.first,
-        end: newEndTime,
-        subjectId: jamId,
-        requesterId: creatorId,
+
+    await _addAdminNotifications(
+      updates,
+      adminIds,
+      'admin_jam_modified',
+      date,
+      orderedSlots.first,
+      end: newEndTime,
+      subjectId: jamId,
+      requesterId: creatorId,
     );
 
     for (final key in oldSlots.keys) {
@@ -1918,18 +1957,30 @@ await _addAdminNotifications(
   }
 
   Future<List<String>> _getAdminUserIds() async {
-    final snapshot =
-        await _dbRef.child('users').orderByChild('role').equalTo('admin').get();
-    if (!snapshot.exists || snapshot.value == null) return [];
-    
-    // Possiamo iterare sui children
-    final List<String> admins = [];
-    for (final child in snapshot.children) {
-      if (child.key != null) {
-        admins.add(child.key!);
+    try {
+      final snapshot = await _dbRef
+          .child('users')
+          .orderByChild('role')
+          .equalTo('admin')
+          .get();
+      if (!snapshot.exists || snapshot.value == null) return [];
+
+      final List<String> admins = [];
+      for (final child in snapshot.children) {
+        if (child.key != null) {
+          admins.add(child.key!);
+        }
       }
+      return admins;
+    } catch (error) {
+      if (_isPermissionDeniedError(error)) {
+        debugPrint(
+          'Lettura admin non autorizzata: notifiche admin saltate per questo utente.',
+        );
+        return [];
+      }
+      rethrow;
     }
-    return admins;
   }
 
   Future<void> _addAdminNotifications(
@@ -1950,8 +2001,11 @@ await _addAdminNotifications(
 
     final timestamp = ServerValue.timestamp;
     for (final adminId in adminIds) {
-      final notifId =
-          _dbRef.child('user_notifications').child(adminId).push().key;
+      final notifId = _dbRef
+          .child('user_notifications')
+          .child(adminId)
+          .push()
+          .key;
       if (notifId != null) {
         updates['/user_notifications/$adminId/$notifId'] = {
           'type': type,
@@ -1962,6 +2016,7 @@ await _addAdminNotifications(
           'read': false,
           if (subjectId != null) 'subject_id': subjectId,
           if (requesterId != null) 'requester_id': requesterId,
+          if (requesterId != null) 'creator_id': requesterId,
           if (username != null) 'username': username,
         };
       }
@@ -2075,8 +2130,7 @@ await _addAdminNotifications(
           .map(
             (item) => <String, dynamic>{
               'uid': item['uid']?.toString() ?? '',
-              'username':
-                  item['nickname']?.toString().trim().isNotEmpty == true
+              'username': item['nickname']?.toString().trim().isNotEmpty == true
                   ? item['nickname'].toString().trim()
                   : usernameQuery.trim(),
               'city': '',
@@ -2098,12 +2152,14 @@ await _addAdminNotifications(
       return profiles;
     }
 
-    final snapshots = await Future.wait([_dbRef.child('user_public_profiles').get()]);
+    final snapshots = await Future.wait([
+      _dbRef.child('user_public_profiles').get(),
+    ]);
     final publicProfilesSnapshot = snapshots[0];
 
     final profiles = <Map<String, dynamic>>[];
-    final rawPublicProfiles = publicProfilesSnapshot.exists &&
-            publicProfilesSnapshot.value != null
+    final rawPublicProfiles =
+        publicProfilesSnapshot.exists && publicProfilesSnapshot.value != null
         ? _asStringKeyedMap(publicProfilesSnapshot.value)
         : const <String, dynamic>{};
     final candidateUserIds = <String>{...rawPublicProfiles.keys};
@@ -2162,7 +2218,12 @@ await _addAdminNotifications(
       throw Exception('Impossibile creare il gruppo');
     }
 
-    final activityId = _dbRef.child('groups_info').child(groupId).child('activity').push().key;
+    final activityId = _dbRef
+        .child('groups_info')
+        .child(groupId)
+        .child('activity')
+        .push()
+        .key;
 
     await _dbRef.update({
       '/groups_info/$groupId': {
@@ -2207,7 +2268,10 @@ await _addAdminNotifications(
       throw Exception('Utente non loggato');
     }
 
-    final groupSnapshot = await _dbRef.child('groups_info').child(groupId).get();
+    final groupSnapshot = await _dbRef
+        .child('groups_info')
+        .child(groupId)
+        .get();
     if (!groupSnapshot.exists || groupSnapshot.value == null) {
       throw Exception('Gruppo non trovato');
     }
@@ -2241,10 +2305,11 @@ await _addAdminNotifications(
       '/users/$targetUserId/gruppi/$groupId': null,
     };
     if (activityId != null) {
-      updates['/groups_info/$groupId/activity/$activityId'] = _groupActivityEntry(
-        type: 'member_removed',
-        message: 'Un membro e stato rimosso dal gruppo.',
-      );
+      updates['/groups_info/$groupId/activity/$activityId'] =
+          _groupActivityEntry(
+            type: 'member_removed',
+            message: 'Un membro e stato rimosso dal gruppo.',
+          );
     }
     await _dbRef.update(updates);
   }
@@ -2276,17 +2341,23 @@ await _addAdminNotifications(
 
     final userData = await _loadUserData(user.uid);
     final username = _currentUsernameFromMap(userData, user.uid);
-    final activityId = _dbRef.child('groups_info').child(groupId).child('activity').push().key;
+    final activityId = _dbRef
+        .child('groups_info')
+        .child(groupId)
+        .child('activity')
+        .push()
+        .key;
     final updates = <String, dynamic>{
       '/groups_info/$groupId/members/${user.uid}': null,
       '/groups_info/$groupId/member_nicknames/${user.uid}': null,
       '/users/${user.uid}/gruppi/$groupId': null,
     };
     if (activityId != null) {
-      updates['/groups_info/$groupId/activity/$activityId'] = _groupActivityEntry(
-        type: 'member_left',
-        message: '$username ha lasciato il gruppo.',
-      );
+      updates['/groups_info/$groupId/activity/$activityId'] =
+          _groupActivityEntry(
+            type: 'member_left',
+            message: '$username ha lasciato il gruppo.',
+          );
     }
     await _dbRef.update(updates);
   }
@@ -2310,7 +2381,10 @@ await _addAdminNotifications(
       throw Exception('Utente non loggato');
     }
 
-    final groupSnapshot = await _dbRef.child('groups_info').child(groupId).get();
+    final groupSnapshot = await _dbRef
+        .child('groups_info')
+        .child(groupId)
+        .get();
     if (!groupSnapshot.exists || groupSnapshot.value == null) {
       throw Exception('Gruppo non trovato');
     }
@@ -2328,8 +2402,18 @@ await _addAdminNotifications(
     final actorUsername = _currentUsernameFromMap(actorData, user.uid);
     final targetUsername = _currentUsernameFromMap(targetData, targetUserId);
     final notificationId = _groupInviteNotificationId(groupId);
-    final activityId = _dbRef.child('groups_info').child(groupId).child('activity').push().key;
-    final historyId = _dbRef.child('groups_info').child(groupId).child('invite_history').push().key;
+    final activityId = _dbRef
+        .child('groups_info')
+        .child(groupId)
+        .child('activity')
+        .push()
+        .key;
+    final historyId = _dbRef
+        .child('groups_info')
+        .child(groupId)
+        .child('invite_history')
+        .push()
+        .key;
     final updates = <String, dynamic>{
       '/groups_info/$groupId/pending_invites/$targetUserId': null,
       '/group_invites/$targetUserId/$groupId': null,
@@ -2346,7 +2430,8 @@ await _addAdminNotifications(
     if (activityId != null) {
       updates['/groups_info/$groupId/activity/$activityId'] = _groupActivityEntry(
         type: 'invite_revoked',
-        message: '$actorUsername ha revocato l\'invito di $targetUsername in $groupName.',
+        message:
+            '$actorUsername ha revocato l\'invito di $targetUsername in $groupName.',
       );
     }
     await _dbRef.update(updates);
@@ -2361,7 +2446,10 @@ await _addAdminNotifications(
       throw Exception('Utente non loggato');
     }
 
-    final groupSnapshot = await _dbRef.child('groups_info').child(groupId).get();
+    final groupSnapshot = await _dbRef
+        .child('groups_info')
+        .child(groupId)
+        .get();
     if (!groupSnapshot.exists || groupSnapshot.value == null) {
       throw Exception('Gruppo non trovato');
     }
@@ -2375,15 +2463,21 @@ await _addAdminNotifications(
 
     final actorData = await _loadUserData(user.uid);
     final actorUsername = _currentUsernameFromMap(actorData, user.uid);
-    final activityId = _dbRef.child('groups_info').child(groupId).child('activity').push().key;
+    final activityId = _dbRef
+        .child('groups_info')
+        .child(groupId)
+        .child('activity')
+        .push()
+        .key;
     final updates = <String, dynamic>{
       '/groups_info/$groupId/notes': notes.trim(),
     };
     if (activityId != null) {
-      updates['/groups_info/$groupId/activity/$activityId'] = _groupActivityEntry(
-        type: 'notes_updated',
-        message: '$actorUsername ha aggiornato le note del gruppo.',
-      );
+      updates['/groups_info/$groupId/activity/$activityId'] =
+          _groupActivityEntry(
+            type: 'notes_updated',
+            message: '$actorUsername ha aggiornato le note del gruppo.',
+          );
     }
     await _dbRef.update(updates);
   }
@@ -2485,9 +2579,7 @@ await _addAdminNotifications(
         }
       }
 
-      await _functions.httpsCallable('deleteJamCascade').call({
-        'jamId': jamId,
-      });
+      await _functions.httpsCallable('deleteJamCascade').call({'jamId': jamId});
     } on FirebaseFunctionsException catch (error) {
       throw Exception(error.message ?? 'Eliminazione jam fallita');
     }
@@ -2565,11 +2657,14 @@ await _addAdminNotifications(
         .child(uid)
         .get();
     final incomingInviteGroupIds = <String>{};
-    if (incomingInvitesSnapshot.exists && incomingInvitesSnapshot.value is Map) {
+    if (incomingInvitesSnapshot.exists &&
+        incomingInvitesSnapshot.value is Map) {
       final rawInvites = Map<String, dynamic>.from(
         incomingInvitesSnapshot.value as Map,
       );
-      incomingInviteGroupIds.addAll(rawInvites.keys.map((key) => key.toString()));
+      incomingInviteGroupIds.addAll(
+        rawInvites.keys.map((key) => key.toString()),
+      );
     }
 
     final userBookingsSnapshot = await _dbRef
