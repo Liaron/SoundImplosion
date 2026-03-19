@@ -114,6 +114,7 @@ class FakeAdminJamRepository implements AdminJamRepository {
   final List<String> approvedJamIds = [];
   final List<String> rejectedJamIds = [];
   final List<String> deletedJamIds = [];
+  final List<String> proposedJamIds = [];
 
   @override
   Future<void> approveJam(String jamId) async {
@@ -128,6 +129,22 @@ class FakeAdminJamRepository implements AdminJamRepository {
   @override
   Future<void> deleteJam(String jamId) async {
     deletedJamIds.add(jamId);
+  }
+
+  @override
+  Future<void> proposeJamUpdate({
+    required String jamId,
+    required String date,
+    required List<String> selectedSlotTimes,
+    String? groupId,
+    required String title,
+    required int presentPeople,
+    required int requiredPeople,
+    required String description,
+    required String payment,
+    required String equipment,
+  }) async {
+    proposedJamIds.add(jamId);
   }
 
   @override

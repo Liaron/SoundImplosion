@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:soundimplosion/services/push_notification_service.dart';
 export 'package:firebase_auth/firebase_auth.dart';
 
 class AuthService {
@@ -59,6 +60,12 @@ class AuthService {
 
   // Logout da Firebase e Google (se applicabile)
   Future<void> signOut() async {
+    try {
+      await PushNotificationService.instance.unregisterCurrentDeviceToken();
+    } catch (_) {
+      // Ignore token cleanup failures during logout.
+    }
+
     try {
       await _googleSignIn.signOut();
     } catch (_) {

@@ -111,6 +111,7 @@ class FakeAdminBookingRepository implements AdminBookingRepository {
   final List<String> confirmedBookingIds = [];
   final List<String> cancelledBookingIds = [];
   final List<String> deletedBookingIds = [];
+  final List<String> proposedBookingIds = [];
 
   @override
   Future<void> cancelBooking(String bookingId) async {
@@ -125,6 +126,18 @@ class FakeAdminBookingRepository implements AdminBookingRepository {
   @override
   Future<void> deleteBooking(String bookingId) async {
     deletedBookingIds.add(bookingId);
+  }
+
+  @override
+  Future<void> proposeBookingUpdate({
+    required String bookingId,
+    required String date,
+    required List<String> selectedSlotTimes,
+    String? groupId,
+    required int peopleCount,
+    required String equipment,
+  }) async {
+    proposedBookingIds.add(bookingId);
   }
 
   @override

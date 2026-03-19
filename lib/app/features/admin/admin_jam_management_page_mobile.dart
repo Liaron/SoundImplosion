@@ -110,14 +110,45 @@ class _AdminJamManagementPageMobileState
   Future<void> _rescheduleJam(JamListItem item) async {
     final result = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) => OrganizeJamPageMobile(initialJam: item),
+        builder: (_) => OrganizeJamPageMobile(
+          initialJam: item,
+          onEditSubmit: ({
+            required DateTime selectedDate,
+            required List<String> selectedSlots,
+            String? groupId,
+            required String title,
+            required int presentPeople,
+            required int requiredPeople,
+            required String description,
+            required String payment,
+            required String equipment,
+          }) {
+            return _controller.proposeJamUpdate(
+              jamId: item.id,
+              selectedDate: selectedDate,
+              selectedSlots: selectedSlots,
+              groupId: groupId,
+              title: title,
+              presentPeople: presentPeople,
+              requiredPeople: requiredPeople,
+              description: description,
+              payment: payment,
+              equipment: equipment,
+            );
+          },
+          editAppBarTitle: 'Proponi modifica jam',
+          editSubmitLabel: 'INVIA PROPOSTA',
+          editSuccessTitle: 'Proposta inviata',
+          editSuccessMessage:
+              'La proposta di modifica e stata inviata al creatore della jam.',
+        ),
       ),
     );
 
     if (result == true && mounted) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Jam riprogrammata')));
+      ).showSnackBar(const SnackBar(content: Text('Proposta di modifica inviata')));
     }
   }
 
@@ -223,7 +254,7 @@ class _AdminJamManagementPageMobileState
           isSubmitting: _controller.isSubmitting,
           onApprove: approved ? null : () => _approveJam(item.id),
           onReject: approved ? null : () => _rejectJam(item.id),
-          onReschedule: approved ? null : () => _rescheduleJam(item),
+          onReschedule: () => _rescheduleJam(item),
           onDelete: approved ? () => _deleteJam(item.id) : null,
         );
       },
@@ -339,13 +370,23 @@ class _PendingJamCard extends StatelessWidget {
                 ),
               ),
             ] else
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: isSubmitting ? null : onDelete,
-                  icon: const Icon(Icons.delete_outline),
-                  label: const Text('Elimina jam'),
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: isSubmitting ? null : onReschedule,
+                      child: const Text('Proponi modifica'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: isSubmitting ? null : onDelete,
+                      icon: const Icon(Icons.delete_outline),
+                      label: const Text('Elimina'),
+                    ),
+                  ),
+                ],
               ),
           ],
         ),

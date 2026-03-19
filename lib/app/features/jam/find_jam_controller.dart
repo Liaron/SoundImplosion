@@ -25,17 +25,6 @@ class FindJamController extends ChangeNotifier {
     if (showMyJams) {
       var jams = allJams.where((jam) => jam.isOwnedBy(currentUserId)).toList();
 
-      if (selectedDates.isNotEmpty) {
-        jams = jams.where((jam) {
-          final jamDate = _parseDate(jam.jam.data);
-          if (jamDate == null) {
-            return false;
-          }
-
-          return selectedDates.any((selected) => _isSameDay(selected, jamDate));
-        }).toList();
-      }
-
       jams.sort(
         (a, b) => '${b.jam.data} ${b.jam.oraInizio}'.compareTo(
           '${a.jam.data} ${a.jam.oraInizio}',
@@ -143,6 +132,10 @@ class FindJamController extends ChangeNotifier {
 
   void setShowMyJams(bool value) {
     showMyJams = value;
+    if (value) {
+      selectedDates = [];
+      showParticipatingJams = false;
+    }
     notifyListeners();
   }
 

@@ -9,6 +9,14 @@ abstract class AdminBookingRepository {
   Future<void> confirmBooking(String bookingId);
   Future<void> cancelBooking(String bookingId);
   Future<void> deleteBooking(String bookingId);
+  Future<void> proposeBookingUpdate({
+    required String bookingId,
+    required String date,
+    required List<String> selectedSlotTimes,
+    String? groupId,
+    required int peopleCount,
+    required String equipment,
+  });
   Future<Map<String, String>> getUsernames(Iterable<String> userIds);
 }
 
@@ -54,6 +62,25 @@ class FirebaseAdminBookingRepository implements AdminBookingRepository {
   @override
   Future<void> deleteBooking(String bookingId) {
     return _databaseService.deleteBooking(bookingId);
+  }
+
+  @override
+  Future<void> proposeBookingUpdate({
+    required String bookingId,
+    required String date,
+    required List<String> selectedSlotTimes,
+    String? groupId,
+    required int peopleCount,
+    required String equipment,
+  }) {
+    return _databaseService.proposeBookingUpdate(
+      bookingId: bookingId,
+      date: date,
+      selectedSlotTimes: selectedSlotTimes,
+      groupId: groupId,
+      peopleCount: peopleCount,
+      equipment: equipment,
+    );
   }
 
   List<BookingListItem> _parseBookingItems(DatabaseEvent event) {

@@ -73,6 +73,25 @@ class DatabaseService {
     return value.isEmpty ? const <String>[] : <String>[value];
   }
 
+  List<String> _asStringList(dynamic rawValue) {
+    if (rawValue is List) {
+      return rawValue
+          .map((item) => item?.toString().trim() ?? '')
+          .where((item) => item.isNotEmpty)
+          .toList();
+    }
+
+    if (rawValue is Map) {
+      return rawValue.values
+          .map((item) => item?.toString().trim() ?? '')
+          .where((item) => item.isNotEmpty)
+          .toList();
+    }
+
+    final value = rawValue?.toString().trim() ?? '';
+    return value.isEmpty ? const <String>[] : <String>[value];
+  }
+
   @visibleForTesting
   static Set<String> extractIndexedUserIds(dynamic rawValue) {
     if (rawValue == null) {
@@ -657,6 +676,260 @@ class DatabaseService {
     }
   }
 
+  Future<void> acceptBookingUpdateProposal(String notificationId) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception('Utente non loggato');
+    }
+
+    final snapshot = await _dbRef
+        .child('user_notifications')
+        .child(user.uid)
+        .child(notificationId)
+        .get();
+    if (!snapshot.exists || snapshot.value == null || snapshot.value is! Map) {
+      throw Exception('Proposta non trovata');
+    }
+
+    final proposal = Map<String, dynamic>.from(snapshot.value as Map);
+    if (proposal['type']?.toString() != 'booking_update_proposal' ||
+        proposal['proposal_status']?.toString() != 'pending') {
+      throw Exception('Proposta non valida');
+    }
+
+    final proposerAdminId = proposal['creator_id']?.toString() ?? '';
+    final bookingId = proposal['booking_id']?.toString() ?? '';
+    final date = proposal['data']?.toString() ?? '';
+    final start = proposal['ora_inizio']?.toString() ?? '';
+    final end = proposal['ora_fine']?.toString() ?? '';
+
+    await _applyBookingUpdate(
+      bookingId: bookingId,
+      date: date,
+      selectedSlotTimes: _asStringList(proposal['selected_slot_times']),
+      groupId: proposal['group_id']?.toString(),
+      peopleCount: _parseInt(proposal['numero_utenti']),
+      equipment: proposal['attrezzatura']?.toString() ?? '',
+      actingUserId: user.uid,
+      allowAdmin: false,
+      notifyAdmins: false,
+      overrideStatus: proposal['target_status']?.toString(),
+    );
+
+    await _dbRef.update({
+      '/user_notifications/${user.uid}/$notificationId/proposal_status':
+          'accepted',
+      '/user_notifications/${user.uid}/$notificationId/read': true,
+      '/user_notifications/${user.uid}/$notificationId/responded_at':
+          ServerValue.timestamp,
+    });
+
+    if (proposerAdminId.isNotEmpty && proposerAdminId != user.uid) {
+      final responseNotificationId = _dbRef
+          .child('user_notifications')
+          .child(proposerAdminId)
+          .push()
+          .key;
+      if (responseNotificationId != null) {
+        await _dbRef.update({
+          '/user_notifications/$proposerAdminId/$responseNotificationId': {
+            'type': 'admin_booking_update_accepted',
+            'booking_id': bookingId,
+            'creator_id': user.uid,
+            'username': _currentUsernameFromMap(await _loadUserData(user.uid), user.uid),
+            'data': date,
+            'ora_inizio': start,
+            if (end.isNotEmpty) 'ora_fine': end,
+            'timestamp': ServerValue.timestamp,
+            'read': false,
+          },
+        });
+      }
+    }
+  }
+
+  Future<void> rejectBookingUpdateProposal(String notificationId) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception('Utente non loggato');
+    }
+
+    final snapshot = await _dbRef
+        .child('user_notifications')
+        .child(user.uid)
+        .child(notificationId)
+        .get();
+    if (!snapshot.exists || snapshot.value == null || snapshot.value is! Map) {
+      throw Exception('Proposta non trovata');
+    }
+    final proposal = Map<String, dynamic>.from(snapshot.value as Map);
+    final proposerAdminId = proposal['creator_id']?.toString() ?? '';
+    final bookingId = proposal['booking_id']?.toString() ?? '';
+    final date = proposal['data']?.toString() ?? '';
+    final start = proposal['ora_inizio']?.toString() ?? '';
+    final end = proposal['ora_fine']?.toString() ?? '';
+
+    await _dbRef.update({
+      '/user_notifications/${user.uid}/$notificationId/proposal_status':
+          'rejected',
+      '/user_notifications/${user.uid}/$notificationId/read': true,
+      '/user_notifications/${user.uid}/$notificationId/responded_at':
+          ServerValue.timestamp,
+    });
+
+    if (proposerAdminId.isNotEmpty && proposerAdminId != user.uid) {
+      final responseNotificationId = _dbRef
+          .child('user_notifications')
+          .child(proposerAdminId)
+          .push()
+          .key;
+      if (responseNotificationId != null) {
+        await _dbRef.update({
+          '/user_notifications/$proposerAdminId/$responseNotificationId': {
+            'type': 'admin_booking_update_rejected',
+            'booking_id': bookingId,
+            'creator_id': user.uid,
+            'username': _currentUsernameFromMap(await _loadUserData(user.uid), user.uid),
+            'data': date,
+            'ora_inizio': start,
+            if (end.isNotEmpty) 'ora_fine': end,
+            'timestamp': ServerValue.timestamp,
+            'read': false,
+          },
+        });
+      }
+    }
+  }
+
+  Future<void> acceptJamUpdateProposal(String notificationId) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception('Utente non loggato');
+    }
+
+    final snapshot = await _dbRef
+        .child('user_notifications')
+        .child(user.uid)
+        .child(notificationId)
+        .get();
+    if (!snapshot.exists || snapshot.value == null || snapshot.value is! Map) {
+      throw Exception('Proposta non trovata');
+    }
+
+    final proposal = Map<String, dynamic>.from(snapshot.value as Map);
+    if (proposal['type']?.toString() != 'jam_update_proposal' ||
+        proposal['proposal_status']?.toString() != 'pending') {
+      throw Exception('Proposta non valida');
+    }
+
+    final proposerAdminId = proposal['creator_id']?.toString() ?? '';
+    final jamId = proposal['jam_id']?.toString() ?? '';
+    final date = proposal['data']?.toString() ?? '';
+    final start = proposal['ora_inizio']?.toString() ?? '';
+    final end = proposal['ora_fine']?.toString() ?? '';
+
+    await _applyJamUpdate(
+      jamId: jamId,
+      date: date,
+      selectedSlotTimes: _asStringList(proposal['selected_slot_times']),
+      groupId: proposal['group_id']?.toString(),
+      title: proposal['titolo']?.toString() ?? '',
+      presentPeople: _parseInt(proposal['persone_presenti']),
+      requiredPeople: _parseInt(proposal['persone_richieste']),
+      description: proposal['descrizione']?.toString() ?? '',
+      payment: proposal['pagamento']?.toString() ?? '',
+      equipment: proposal['attrezzatura']?.toString() ?? '',
+      actingUserId: user.uid,
+      allowAdmin: false,
+      notifyAdmins: false,
+      overrideStatus: proposal['target_status']?.toString(),
+    );
+
+    await _dbRef.update({
+      '/user_notifications/${user.uid}/$notificationId/proposal_status':
+          'accepted',
+      '/user_notifications/${user.uid}/$notificationId/read': true,
+      '/user_notifications/${user.uid}/$notificationId/responded_at':
+          ServerValue.timestamp,
+    });
+
+    if (proposerAdminId.isNotEmpty && proposerAdminId != user.uid) {
+      final responseNotificationId = _dbRef
+          .child('user_notifications')
+          .child(proposerAdminId)
+          .push()
+          .key;
+      if (responseNotificationId != null) {
+        await _dbRef.update({
+          '/user_notifications/$proposerAdminId/$responseNotificationId': {
+            'type': 'admin_jam_update_accepted',
+            'jam_id': jamId,
+            'creator_id': user.uid,
+            'username': _currentUsernameFromMap(await _loadUserData(user.uid), user.uid),
+            'data': date,
+            'ora_inizio': start,
+            if (end.isNotEmpty) 'ora_fine': end,
+            'timestamp': ServerValue.timestamp,
+            'read': false,
+          },
+        });
+      }
+    }
+  }
+
+  Future<void> rejectJamUpdateProposal(String notificationId) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception('Utente non loggato');
+    }
+
+    final snapshot = await _dbRef
+        .child('user_notifications')
+        .child(user.uid)
+        .child(notificationId)
+        .get();
+    if (!snapshot.exists || snapshot.value == null || snapshot.value is! Map) {
+      throw Exception('Proposta non trovata');
+    }
+    final proposal = Map<String, dynamic>.from(snapshot.value as Map);
+    final proposerAdminId = proposal['creator_id']?.toString() ?? '';
+    final jamId = proposal['jam_id']?.toString() ?? '';
+    final date = proposal['data']?.toString() ?? '';
+    final start = proposal['ora_inizio']?.toString() ?? '';
+    final end = proposal['ora_fine']?.toString() ?? '';
+
+    await _dbRef.update({
+      '/user_notifications/${user.uid}/$notificationId/proposal_status':
+          'rejected',
+      '/user_notifications/${user.uid}/$notificationId/read': true,
+      '/user_notifications/${user.uid}/$notificationId/responded_at':
+          ServerValue.timestamp,
+    });
+
+    if (proposerAdminId.isNotEmpty && proposerAdminId != user.uid) {
+      final responseNotificationId = _dbRef
+          .child('user_notifications')
+          .child(proposerAdminId)
+          .push()
+          .key;
+      if (responseNotificationId != null) {
+        await _dbRef.update({
+          '/user_notifications/$proposerAdminId/$responseNotificationId': {
+            'type': 'admin_jam_update_rejected',
+            'jam_id': jamId,
+            'creator_id': user.uid,
+            'username': _currentUsernameFromMap(await _loadUserData(user.uid), user.uid),
+            'data': date,
+            'ora_inizio': start,
+            if (end.isNotEmpty) 'ora_fine': end,
+            'timestamp': ServerValue.timestamp,
+            'read': false,
+          },
+        });
+      }
+    }
+  }
+
   Future<void> deleteAllUserNotifications() async {
     final user = _auth.currentUser;
     if (user == null) {
@@ -1052,6 +1325,116 @@ class DatabaseService {
       throw Exception('Utente non loggato');
     }
 
+    await _applyBookingUpdate(
+      bookingId: bookingId,
+      date: date,
+      selectedSlotTimes: selectedSlotTimes,
+      groupId: groupId,
+      peopleCount: peopleCount,
+      equipment: equipment,
+      actingUserId: user.uid,
+      allowAdmin: true,
+      notifyAdmins: true,
+    );
+  }
+
+  Future<void> proposeBookingUpdate({
+    required String bookingId,
+    required String date,
+    required List<String> selectedSlotTimes,
+    String? groupId,
+    required int peopleCount,
+    required String equipment,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception('Utente non loggato');
+    }
+    await _ensureCurrentUserIsAdminOrThrow();
+
+    final bookingSnapshot = await _dbRef.child('bookings').child(bookingId).get();
+    if (!bookingSnapshot.exists || bookingSnapshot.value == null) {
+      throw Exception('Prenotazione non trovata');
+    }
+
+    final bookingData = Map<String, dynamic>.from(bookingSnapshot.value as Map);
+    final bookingOwnerId = bookingData['user_id']?.toString() ?? '';
+    if (bookingOwnerId.isEmpty) {
+      throw Exception('Proprietario prenotazione non trovato');
+    }
+
+    final orderedSlots = List<String>.from(selectedSlotTimes)..sort();
+    if (orderedSlots.isEmpty) {
+      throw Exception('Seleziona almeno un orario');
+    }
+
+    final proposerName = _currentUsernameFromMap(
+      await _loadUserData(user.uid),
+      user.uid,
+    );
+    final notificationId = _dbRef
+        .child('user_notifications')
+        .child(bookingOwnerId)
+        .push()
+        .key;
+    final senderNotificationId = _dbRef
+        .child('user_notifications')
+        .child(user.uid)
+        .push()
+        .key;
+    if (notificationId == null || senderNotificationId == null) {
+      throw Exception('Impossibile creare la proposta');
+    }
+
+    await _dbRef.update({
+      '/user_notifications/$bookingOwnerId/$notificationId': {
+        'type': 'booking_update_proposal',
+        'booking_id': bookingId,
+        'creator_id': user.uid,
+        'username': proposerName,
+        'data': date,
+        'ora_inizio': orderedSlots.first,
+        'ora_fine': _calculateEndTime(orderedSlots.last),
+        'selected_slot_times': orderedSlots,
+        'group_id': groupId,
+        'numero_utenti': peopleCount,
+        'attrezzatura': equipment.trim(),
+        'target_status': bookingData['stato']?.toString(),
+        'proposal_status': 'pending',
+        'timestamp': ServerValue.timestamp,
+        'read': false,
+      },
+      '/user_notifications/${user.uid}/$senderNotificationId': {
+        'type': 'admin_booking_update_proposed',
+        'booking_id': bookingId,
+        'creator_id': user.uid,
+        'username': proposerName,
+        'data': date,
+        'ora_inizio': orderedSlots.first,
+        'ora_fine': _calculateEndTime(orderedSlots.last),
+        'timestamp': ServerValue.timestamp,
+        'read': false,
+      },
+    });
+  }
+
+  Future<void> _applyBookingUpdate({
+    required String bookingId,
+    required String date,
+    required List<String> selectedSlotTimes,
+    String? groupId,
+    required int peopleCount,
+    required String equipment,
+    required String actingUserId,
+    required bool allowAdmin,
+    required bool notifyAdmins,
+    String? overrideStatus,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception('Utente non loggato');
+    }
+
     final bookingSnapshot = await _dbRef
         .child('bookings')
         .child(bookingId)
@@ -1065,7 +1448,7 @@ class DatabaseService {
     final previousDate = bookingData['data']?.toString() ?? '';
     final previousGroupId = bookingData['group_id']?.toString();
     final isAdmin = await _isCurrentUserAdmin();
-    if (bookingOwnerId != user.uid && !isAdmin) {
+    if (bookingOwnerId != actingUserId && !(allowAdmin && isAdmin)) {
       throw Exception('Puoi modificare solo le tue prenotazioni');
     }
 
@@ -1101,14 +1484,15 @@ class DatabaseService {
         previousDate != date ||
         (bookingData['ora_inizio']?.toString() ?? '') != orderedSlots.first ||
         (bookingData['ora_fine']?.toString() ?? '') != newEndTime;
-    final nextStatus = scheduleChanged
+    final nextStatus =
+      overrideStatus?.trim().isNotEmpty == true
+        ? overrideStatus!.trim()
+        : scheduleChanged
         ? BookingStatus.inElaborazione.name
         : bookingData['stato']?.toString() ?? BookingStatus.inElaborazione.name;
     final oldSlots = previousDate.isEmpty
         ? <String, dynamic>{}
         : await _findSlotsByBookingId(previousDate, bookingId);
-
-    final adminIds = await _getAdminUserIds();
 
     final updates = <String, dynamic>{
       '/bookings/$bookingId/data': date,
@@ -1129,16 +1513,19 @@ class DatabaseService {
       '/user_bookings/$bookingOwnerId/$bookingId/stato': nextStatus,
     };
 
-    await _addAdminNotifications(
-      updates,
-      adminIds,
-      'admin_booking_modified',
-      date,
-      orderedSlots.first,
-      end: newEndTime,
-      subjectId: bookingId,
-      requesterId: bookingOwnerId,
-    );
+    if (notifyAdmins) {
+      final adminIds = await _getAdminUserIds();
+      await _addAdminNotifications(
+        updates,
+        adminIds,
+        'admin_booking_modified',
+        date,
+        orderedSlots.first,
+        end: newEndTime,
+        subjectId: bookingId,
+        requesterId: bookingOwnerId,
+      );
+    }
 
     if (previousGroupId != null &&
         previousGroupId.isNotEmpty &&
@@ -1823,6 +2210,132 @@ class DatabaseService {
       throw Exception('Utente non loggato');
     }
 
+    await _applyJamUpdate(
+      jamId: jamId,
+      date: date,
+      selectedSlotTimes: selectedSlotTimes,
+      groupId: groupId,
+      title: title,
+      presentPeople: presentPeople,
+      requiredPeople: requiredPeople,
+      description: description,
+      payment: payment,
+      equipment: equipment,
+      actingUserId: user.uid,
+      allowAdmin: true,
+      notifyAdmins: true,
+    );
+  }
+
+  Future<void> proposeJamUpdate({
+    required String jamId,
+    required String date,
+    required List<String> selectedSlotTimes,
+    String? groupId,
+    required String title,
+    required int presentPeople,
+    required int requiredPeople,
+    required String description,
+    required String payment,
+    required String equipment,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception('Utente non loggato');
+    }
+    await _ensureCurrentUserIsAdminOrThrow();
+
+    final jamSnapshot = await _dbRef.child('jams').child(jamId).get();
+    if (!jamSnapshot.exists || jamSnapshot.value == null) {
+      throw Exception('Jam non trovata');
+    }
+
+    final jamData = Map<String, dynamic>.from(jamSnapshot.value as Map);
+    final creatorId = jamData['creator_id']?.toString() ?? '';
+    if (creatorId.isEmpty) {
+      throw Exception('Creatore jam non trovato');
+    }
+
+    final orderedSlots = List<String>.from(selectedSlotTimes)..sort();
+    if (orderedSlots.isEmpty) {
+      throw Exception('Seleziona almeno un orario');
+    }
+
+    final proposerName = _currentUsernameFromMap(
+      await _loadUserData(user.uid),
+      user.uid,
+    );
+    final notificationId = _dbRef
+        .child('user_notifications')
+        .child(creatorId)
+        .push()
+        .key;
+    final senderNotificationId = _dbRef
+        .child('user_notifications')
+        .child(user.uid)
+        .push()
+        .key;
+    if (notificationId == null || senderNotificationId == null) {
+      throw Exception('Impossibile creare la proposta');
+    }
+
+    await _dbRef.update({
+      '/user_notifications/$creatorId/$notificationId': {
+        'type': 'jam_update_proposal',
+        'jam_id': jamId,
+        'creator_id': user.uid,
+        'username': proposerName,
+        'data': date,
+        'ora_inizio': orderedSlots.first,
+        'ora_fine': _calculateEndTime(orderedSlots.last),
+        'selected_slot_times': orderedSlots,
+        'group_id': groupId,
+        'titolo': title.trim(),
+        'persone_presenti': presentPeople,
+        'persone_richieste': requiredPeople,
+        'descrizione': description.trim(),
+        'pagamento': payment,
+        'attrezzatura': equipment.trim(),
+        'target_status': jamData['stato']?.toString(),
+        'proposal_status': 'pending',
+        'timestamp': ServerValue.timestamp,
+        'read': false,
+      },
+      '/user_notifications/${user.uid}/$senderNotificationId': {
+        'type': 'admin_jam_update_proposed',
+        'jam_id': jamId,
+        'creator_id': user.uid,
+        'username': proposerName,
+        'data': date,
+        'ora_inizio': orderedSlots.first,
+        'ora_fine': _calculateEndTime(orderedSlots.last),
+        'timestamp': ServerValue.timestamp,
+        'read': false,
+      },
+    });
+  }
+
+  Future<void> _applyJamUpdate({
+    required String jamId,
+    required String date,
+    required List<String> selectedSlotTimes,
+    String? groupId,
+    required String title,
+    required int presentPeople,
+    required int requiredPeople,
+    required String description,
+    required String payment,
+    required String equipment,
+    required String actingUserId,
+    required bool allowAdmin,
+    required bool notifyAdmins,
+    String? overrideStatus,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception('Utente non loggato');
+    }
+
     final snapshot = await _dbRef.child('jams').child(jamId).get();
     if (!snapshot.exists || snapshot.value == null) {
       throw Exception('Jam non trovata');
@@ -1832,7 +2345,7 @@ class DatabaseService {
     final creatorId = jamData['creator_id']?.toString() ?? '';
     final previousDate = jamData['data']?.toString() ?? '';
     final isAdmin = await _isCurrentUserAdmin();
-    if (creatorId != user.uid && !isAdmin) {
+    if (creatorId != actingUserId && !(allowAdmin && isAdmin)) {
       throw Exception('Solo il creatore puo modificare questa jam');
     }
 
@@ -1871,14 +2384,15 @@ class DatabaseService {
         previousDate != date ||
         (jamData['ora_inizio']?.toString() ?? '') != orderedSlots.first ||
         (jamData['ora_fine']?.toString() ?? '') != newEndTime;
-    final nextStatus = scheduleChanged
+    final nextStatus =
+      overrideStatus?.trim().isNotEmpty == true
+        ? overrideStatus!.trim()
+        : scheduleChanged
         ? JamStatus.inElaborazione.name
         : jamData['stato']?.toString() ?? JamStatus.inElaborazione.name;
     final oldSlots = previousDate.isEmpty
         ? <String, dynamic>{}
         : await _findSlotsByBookingId(previousDate, jamId);
-
-    final adminIds = await _getAdminUserIds();
 
     final updates = <String, dynamic>{
       '/jams/$jamId/data': date,
@@ -1895,16 +2409,19 @@ class DatabaseService {
       '/jams/$jamId/stato': nextStatus,
     };
 
-    await _addAdminNotifications(
-      updates,
-      adminIds,
-      'admin_jam_modified',
-      date,
-      orderedSlots.first,
-      end: newEndTime,
-      subjectId: jamId,
-      requesterId: creatorId,
-    );
+    if (notifyAdmins) {
+      final adminIds = await _getAdminUserIds();
+      await _addAdminNotifications(
+        updates,
+        adminIds,
+        'admin_jam_modified',
+        date,
+        orderedSlots.first,
+        end: newEndTime,
+        subjectId: jamId,
+        requesterId: creatorId,
+      );
+    }
 
     for (final key in oldSlots.keys) {
       updates['/slots/$previousDate/$key/status'] = 'libero';

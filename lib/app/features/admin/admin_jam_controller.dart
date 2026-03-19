@@ -86,6 +86,39 @@ class AdminJamController extends ChangeNotifier {
     }
   }
 
+  Future<void> proposeJamUpdate({
+    required String jamId,
+    required DateTime selectedDate,
+    required List<String> selectedSlots,
+    String? groupId,
+    required String title,
+    required int presentPeople,
+    required int requiredPeople,
+    required String description,
+    required String payment,
+    required String equipment,
+  }) async {
+    isSubmitting = true;
+    notifyListeners();
+    try {
+      await _repository.proposeJamUpdate(
+        jamId: jamId,
+        date: selectedDate.toIso8601String().split('T').first,
+        selectedSlotTimes: selectedSlots,
+        groupId: groupId,
+        title: title,
+        presentPeople: presentPeople,
+        requiredPeople: requiredPeople,
+        description: description,
+        payment: payment,
+        equipment: equipment,
+      );
+    } finally {
+      isSubmitting = false;
+      notifyListeners();
+    }
+  }
+
   @override
   void dispose() {
     _pendingSubscription?.cancel();

@@ -64,6 +64,22 @@ class NotificationsController extends ChangeNotifier {
     return _repository.rejectGroupInvite(groupId);
   }
 
+  Future<void> acceptBookingUpdateProposal(String notificationId) {
+    return _repository.acceptBookingUpdateProposal(notificationId);
+  }
+
+  Future<void> rejectBookingUpdateProposal(String notificationId) {
+    return _repository.rejectBookingUpdateProposal(notificationId);
+  }
+
+  Future<void> acceptJamUpdateProposal(String notificationId) {
+    return _repository.acceptJamUpdateProposal(notificationId);
+  }
+
+  Future<void> rejectJamUpdateProposal(String notificationId) {
+    return _repository.rejectJamUpdateProposal(notificationId);
+  }
+
   @override
   void dispose() {
     _subscription?.cancel();

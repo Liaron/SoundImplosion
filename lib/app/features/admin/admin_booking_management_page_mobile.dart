@@ -110,13 +110,36 @@ class _AdminBookingManagementPageMobileState
   Future<void> _rescheduleBooking(BookingListItem item) async {
     final result = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) => BookNowPageMobile(initialBooking: item),
+        builder: (_) => BookNowPageMobile(
+          initialBooking: item,
+          onEditSubmit: ({
+            required DateTime selectedDate,
+            required List<String> selectedSlots,
+            String? groupId,
+            required int peopleCount,
+            required String equipment,
+          }) {
+            return _controller.proposeBookingUpdate(
+              bookingId: item.id,
+              selectedDate: selectedDate,
+              selectedSlots: selectedSlots,
+              groupId: groupId,
+              peopleCount: peopleCount,
+              equipment: equipment,
+            );
+          },
+          editAppBarTitle: 'Proponi modifica prenotazione',
+          editSubmitLabel: 'INVIA PROPOSTA',
+          editSuccessTitle: 'Proposta inviata',
+          editSuccessMessage:
+              'La proposta di modifica e stata inviata all\'utente.',
+        ),
       ),
     );
 
     if (result == true && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Prenotazione riprogrammata')),
+        const SnackBar(content: Text('Proposta di modifica inviata')),
       );
     }
   }
@@ -268,15 +291,27 @@ class _AdminBookingManagementPageMobileState
                     ),
                   ),
                 ] else
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: _controller.isSubmitting
-                          ? null
-                          : () => _deleteBooking(item.id),
-                      icon: const Icon(Icons.delete_outline),
-                      label: const Text('Elimina prenotazione'),
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: _controller.isSubmitting
+                              ? null
+                              : () => _rescheduleBooking(item),
+                          child: const Text('Proponi modifica'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _controller.isSubmitting
+                              ? null
+                              : () => _deleteBooking(item.id),
+                          icon: const Icon(Icons.delete_outline),
+                          label: const Text('Elimina'),
+                        ),
+                      ),
+                    ],
                   ),
               ],
             ),

@@ -4,10 +4,31 @@ import 'package:soundimplosion/app/features/app_scaffold_mobile.dart';
 import 'package:soundimplosion/app/features/book/book_now_controller.dart';
 import 'package:soundimplosion/app/features/book/booking_repository.dart';
 
+typedef BookingEditSubmitCallback = Future<void> Function({
+  required DateTime selectedDate,
+  required List<String> selectedSlots,
+  String? groupId,
+  required int peopleCount,
+  required String equipment,
+});
+
 class BookNowPageMobile extends StatefulWidget {
-  const BookNowPageMobile({super.key, this.initialBooking});
+  const BookNowPageMobile({
+    super.key,
+    this.initialBooking,
+    this.onEditSubmit,
+    this.editSuccessTitle,
+    this.editSuccessMessage,
+    this.editSubmitLabel,
+    this.editAppBarTitle,
+  });
 
   final BookingListItem? initialBooking;
+  final BookingEditSubmitCallback? onEditSubmit;
+  final String? editSuccessTitle;
+  final String? editSuccessMessage;
+  final String? editSubmitLabel;
+  final String? editAppBarTitle;
 
   @override
   State<BookNowPageMobile> createState() => _BookNowPageMobileState();
@@ -377,10 +398,20 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
     }
 
     try {
-      await _controller.submitBooking(
-        peopleCount: int.parse(_peopleController.text),
-        equipment: _equipmentController.text,
-      );
+      if (_isEditing && widget.onEditSubmit != null) {
+        await widget.onEditSubmit!(
+          selectedDate: _controller.selectedDate!,
+          selectedSlots: List<String>.from(_controller.selectedSlots),
+          groupId: _controller.selectedGroupId,
+          peopleCount: int.parse(_peopleController.text),
+          equipment: _equipmentController.text,
+        );
+      } else {
+        await _controller.submitBooking(
+          peopleCount: int.parse(_peopleController.text),
+          equipment: _equipmentController.text,
+        );
+      }
 
       if (mounted) {
         if (loadingDialogShown) {
@@ -393,11 +424,14 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
           barrierDismissible: true,
           builder: (_) => AlertDialog(
             title: Text(
-              _isEditing ? 'Prenotazione aggiornata' : 'Prenotazione inviata',
+              _isEditing
+                  ? (widget.editSuccessTitle ?? 'Prenotazione aggiornata')
+                  : 'Prenotazione inviata',
             ),
             content: Text(
               _isEditing
-                  ? 'Le modifiche alla prenotazione sono state salvate.'
+                  ? (widget.editSuccessMessage ??
+                        'Le modifiche alla prenotazione sono state salvate.')
                   : 'La prenotazione è stata registrata con successo.',
             ),
             actions: [
@@ -449,7 +483,11 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
 
     return Scaffold(
       appBar: _isEditing
-          ? AppBar(title: const Text('Modifica Prenotazione'))
+          ? AppBar(
+              title: Text(
+                widget.editAppBarTitle ?? 'Modifica Prenotazione',
+              ),
+            )
           : null,
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
@@ -576,7 +614,9 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
                   child: _controller.isLoading
                       ? const CircularProgressIndicator(color: Colors.white)
                       : Text(
-                          _isEditing ? 'SALVA MODIFICHE' : 'INVIA PRENOTAZIONE',
+                        _isEditing
+                          ? (widget.editSubmitLabel ?? 'SALVA MODIFICHE')
+                          : 'INVIA PRENOTAZIONE',
                           style: const TextStyle(
                             fontSize: 16,
                             color: Colors.white,

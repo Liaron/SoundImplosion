@@ -4,10 +4,35 @@ import 'package:soundimplosion/app/features/app_scaffold_mobile.dart';
 import 'package:soundimplosion/app/features/jam/organize_jam_controller.dart';
 import 'package:soundimplosion/app/features/jam/jam_repository.dart';
 
+typedef JamEditSubmitCallback = Future<void> Function({
+  required DateTime selectedDate,
+  required List<String> selectedSlots,
+  String? groupId,
+  required String title,
+  required int presentPeople,
+  required int requiredPeople,
+  required String description,
+  required String payment,
+  required String equipment,
+});
+
 class OrganizeJamPageMobile extends StatefulWidget {
-  const OrganizeJamPageMobile({super.key, this.initialJam});
+  const OrganizeJamPageMobile({
+    super.key,
+    this.initialJam,
+    this.onEditSubmit,
+    this.editSuccessTitle,
+    this.editSuccessMessage,
+    this.editSubmitLabel,
+    this.editAppBarTitle,
+  });
 
   final JamListItem? initialJam;
+  final JamEditSubmitCallback? onEditSubmit;
+  final String? editSuccessTitle;
+  final String? editSuccessMessage;
+  final String? editSubmitLabel;
+  final String? editAppBarTitle;
 
   @override
   State<OrganizeJamPageMobile> createState() => _OrganizeJamPageMobileState();
@@ -280,13 +305,27 @@ class _OrganizeJamPageMobileState extends State<OrganizeJamPageMobile> {
     }
 
     try {
-      await _controller.submitJam(
-        title: _titleController.text,
-        presentPeople: int.parse(_presentPeopleController.text),
-        requiredPeople: int.parse(_requiredPeopleController.text),
-        description: _descriptionController.text,
-        equipment: _equipmentController.text,
-      );
+      if (_isEditing && widget.onEditSubmit != null) {
+        await widget.onEditSubmit!(
+          selectedDate: _controller.selectedDate!,
+          selectedSlots: List<String>.from(_controller.selectedSlots),
+          groupId: _controller.selectedGroupId,
+          title: _titleController.text,
+          presentPeople: int.parse(_presentPeopleController.text),
+          requiredPeople: int.parse(_requiredPeopleController.text),
+          description: _descriptionController.text,
+          payment: _controller.selectedPayment ?? '',
+          equipment: _equipmentController.text,
+        );
+      } else {
+        await _controller.submitJam(
+          title: _titleController.text,
+          presentPeople: int.parse(_presentPeopleController.text),
+          requiredPeople: int.parse(_requiredPeopleController.text),
+          description: _descriptionController.text,
+          equipment: _equipmentController.text,
+        );
+      }
 
       if (mounted) {
         if (loadingDialogShown) {
@@ -298,10 +337,15 @@ class _OrganizeJamPageMobileState extends State<OrganizeJamPageMobile> {
           context: context,
           barrierDismissible: true,
           builder: (_) => AlertDialog(
-            title: Text(_isEditing ? 'Jam aggiornata!' : 'Jam Organizzata!'),
+            title: Text(
+              _isEditing
+                  ? (widget.editSuccessTitle ?? 'Jam aggiornata!')
+                  : 'Jam Organizzata!',
+            ),
             content: Text(
               _isEditing
-                  ? 'Le modifiche alla tua Jam Session sono state salvate.'
+                  ? (widget.editSuccessMessage ??
+                        'Le modifiche alla tua Jam Session sono state salvate.')
                   : 'La tua Jam Session è stata inviata per approvazione.',
             ),
             actions: [
@@ -352,7 +396,9 @@ class _OrganizeJamPageMobileState extends State<OrganizeJamPageMobile> {
     final showJamForm = _controller.selectedDate != null;
 
     return Scaffold(
-      appBar: _isEditing ? AppBar(title: const Text('Modifica Jam')) : null,
+        appBar: _isEditing
+          ? AppBar(title: Text(widget.editAppBarTitle ?? 'Modifica Jam'))
+          : null,
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Form(
@@ -554,7 +600,9 @@ class _OrganizeJamPageMobileState extends State<OrganizeJamPageMobile> {
                   child: _controller.isLoading
                       ? const CircularProgressIndicator(color: Colors.white)
                       : Text(
-                          _isEditing ? 'SALVA MODIFICHE' : 'PUBBLICA JAM',
+                        _isEditing
+                          ? (widget.editSubmitLabel ?? 'SALVA MODIFICHE')
+                          : 'PUBBLICA JAM',
                           style: const TextStyle(
                             fontSize: 16,
                             color: Colors.white,

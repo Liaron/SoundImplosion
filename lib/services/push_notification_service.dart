@@ -55,7 +55,13 @@ class PushNotificationService {
       final token = await _messaging.getToken();
       if (user == null) {
         if (_lastSyncedUid != null && token != null) {
-          await _databaseService.removeDeviceToken(_lastSyncedUid!, token);
+          try {
+            await _databaseService.removeDeviceToken(_lastSyncedUid!, token);
+          } catch (error) {
+            debugPrint(
+              'Push token cleanup skipped after sign-out: $error',
+            );
+          }
         }
         _lastSyncedUid = null;
         return;
@@ -103,6 +109,19 @@ class PushNotificationService {
     });
 
     _initialized = true;
+  }
+
+  Future<void> unregisterCurrentDeviceToken() async {
+    final user = _auth.currentUser;
+    final token = await _messaging.getToken();
+    if (user == null || token == null || token.isEmpty) {
+      return;
+    }
+
+    await _databaseService.removeDeviceToken(user.uid, token);
+    if (_lastSyncedUid == user.uid) {
+      _lastSyncedUid = null;
+    }
   }
 
   Future<void> _syncTokenForCurrentUser() async {

@@ -89,6 +89,31 @@ class AdminBookingController extends ChangeNotifier {
     }
   }
 
+  Future<void> proposeBookingUpdate({
+    required String bookingId,
+    required DateTime selectedDate,
+    required List<String> selectedSlots,
+    String? groupId,
+    required int peopleCount,
+    required String equipment,
+  }) async {
+    isSubmitting = true;
+    notifyListeners();
+    try {
+      await _repository.proposeBookingUpdate(
+        bookingId: bookingId,
+        date: selectedDate.toIso8601String().split('T').first,
+        selectedSlotTimes: selectedSlots,
+        groupId: groupId,
+        peopleCount: peopleCount,
+        equipment: equipment,
+      );
+    } finally {
+      isSubmitting = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> _loadUserNames() async {
     final userIds = {
       ...pendingBookings.map((item) => item.booking.userId),

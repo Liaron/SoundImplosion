@@ -17,6 +17,7 @@ class NotificationsPageMobile extends StatefulWidget {
 class _NotificationsPageMobileState extends State<NotificationsPageMobile> {
   final NotificationsController _controller = NotificationsController();
   final Set<String> _processingInvites = <String>{};
+  final Set<String> _processingProposals = <String>{};
   final Set<String> _selectedNotificationIds = <String>{};
 
   @override
@@ -53,7 +54,7 @@ class _NotificationsPageMobileState extends State<NotificationsPageMobile> {
   }
 
   bool _isDeletable(AppNotificationItem notification) {
-    return !notification.isPendingGroupInvite;
+    return !notification.isPendingAction;
   }
 
   bool get _isSelectionMode => _selectedNotificationIds.isNotEmpty;
@@ -257,6 +258,59 @@ class _NotificationsPageMobileState extends State<NotificationsPageMobile> {
     }
   }
 
+  Future<void> _respondToProposal(
+    AppNotificationItem notification, {
+    required bool accept,
+  }) async {
+    setState(() {
+      _processingProposals.add(notification.id);
+    });
+
+    try {
+      if (notification.isPendingBookingUpdateProposal) {
+        if (accept) {
+          await _controller.acceptBookingUpdateProposal(notification.id);
+        } else {
+          await _controller.rejectBookingUpdateProposal(notification.id);
+        }
+      } else if (notification.isPendingJamUpdateProposal) {
+        if (accept) {
+          await _controller.acceptJamUpdateProposal(notification.id);
+        } else {
+          await _controller.rejectJamUpdateProposal(notification.id);
+        }
+      }
+
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            accept ? 'Proposta accettata' : 'Proposta rifiutata',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Errore: ${e.toString().replaceAll('Exception: ', '')}',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _processingProposals.remove(notification.id);
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_controller.isLoading) {
@@ -319,6 +373,9 @@ class _NotificationsPageMobileState extends State<NotificationsPageMobile> {
               itemBuilder: (context, index) {
                 final notification = _controller.notifications[index];
                 final isProcessing = _processingInvites.contains(notification.id);
+                final isProcessingProposal = _processingProposals.contains(
+                  notification.id,
+                );
                 return Card(
                   color: notification.isRead
                       ? null
@@ -334,7 +391,7 @@ class _NotificationsPageMobileState extends State<NotificationsPageMobile> {
                         ? (_isDeletable(notification)
                               ? () => _toggleSelection(notification)
                               : null)
-                        : notification.isPendingGroupInvite
+                      : notification.isPendingAction
                         ? null
                         : () => _openNotification(notification),
                     selected: _selectedNotificationIds.contains(notification.id),
@@ -381,6 +438,37 @@ class _NotificationsPageMobileState extends State<NotificationsPageMobile> {
                             ],
                           ),
                         ],
+                        if (notification.isPendingBookingUpdateProposal ||
+                            notification.isPendingJamUpdateProposal) ...[
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton(
+                                  onPressed: isProcessingProposal
+                                      ? null
+                                      : () => _respondToProposal(
+                                          notification,
+                                          accept: false,
+                                        ),
+                                  child: const Text('Rifiuta'),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: ElevatedButton(
+                                  onPressed: isProcessingProposal
+                                      ? null
+                                      : () => _respondToProposal(
+                                          notification,
+                                          accept: true,
+                                        ),
+                                  child: const Text('Accetta'),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                         if (notification.timestamp > 0) ...[
                           const SizedBox(height: 6),
                           Text(
@@ -392,7 +480,7 @@ class _NotificationsPageMobileState extends State<NotificationsPageMobile> {
                     ),
                     trailing: _isSelectionMode
                         ? null
-                        : notification.isPendingGroupInvite
+                      : notification.isPendingAction
                         ? null
                         : PopupMenuButton<String>(
                             onSelected: (value) {

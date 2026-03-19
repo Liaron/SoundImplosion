@@ -74,6 +74,9 @@ class AppNotificationItem {
     this.inviterUsername,
     this.username,
     this.inviteStatus,
+    this.proposalStatus,
+    this.bookingId,
+    this.jamId,
     this.expiresAt = 0,
   });
 
@@ -88,6 +91,9 @@ class AppNotificationItem {
   final String? inviterUsername;
   final String? username;
   final String? inviteStatus;
+  final String? proposalStatus;
+  final String? bookingId;
+  final String? jamId;
   final int expiresAt;
 
   NotificationCategory get category {
@@ -98,12 +104,20 @@ class AppNotificationItem {
       case 'admin_booking_created':
       case 'admin_booking_modified':
       case 'admin_booking_cancelled':
+      case 'admin_booking_update_accepted':
+      case 'admin_booking_update_rejected':
+      case 'admin_booking_update_proposed':
+      case 'booking_update_proposal':
         return NotificationCategory.bookings;
       case 'jam_approved':
       case 'jam_rejected':
       case 'admin_jam_created':
       case 'admin_jam_modified':
       case 'admin_jam_cancelled':
+      case 'admin_jam_update_accepted':
+      case 'admin_jam_update_rejected':
+      case 'admin_jam_update_proposed':
+      case 'jam_update_proposal':
         return NotificationCategory.jams;
       case 'group_invite':
       case 'group_invite_accepted':
@@ -120,9 +134,12 @@ class AppNotificationItem {
     }
     switch (category) {
       case NotificationCategory.bookings:
-        return NotificationRouteTarget(pageIndex: 1, bookingId: id);
+        return NotificationRouteTarget(
+          pageIndex: 1,
+          bookingId: bookingId ?? id,
+        );
       case NotificationCategory.jams:
-        return NotificationRouteTarget(pageIndex: 2, jamId: id);
+        return NotificationRouteTarget(pageIndex: 2, jamId: jamId ?? id);
       case NotificationCategory.groups:
         return NotificationRouteTarget(pageIndex: 3, groupId: groupId);
       case NotificationCategory.system:
@@ -138,6 +155,20 @@ class AppNotificationItem {
       !isExpiredGroupInvite &&
       groupId != null &&
       groupId!.isNotEmpty;
+    bool get isPendingBookingUpdateProposal =>
+      type == 'booking_update_proposal' &&
+      proposalStatus == 'pending' &&
+      bookingId != null &&
+      bookingId!.isNotEmpty;
+    bool get isPendingJamUpdateProposal =>
+      type == 'jam_update_proposal' &&
+      proposalStatus == 'pending' &&
+      jamId != null &&
+      jamId!.isNotEmpty;
+    bool get isPendingAction =>
+      isPendingGroupInvite ||
+      isPendingBookingUpdateProposal ||
+      isPendingJamUpdateProposal;
   bool get isExpiredGroupInvite =>
       expiresAt > 0 && DateTime.now().millisecondsSinceEpoch > expiresAt;
 
@@ -151,6 +182,9 @@ class AppNotificationItem {
     final inviterUsername = map['inviter_username']?.toString();
     final username = map['username']?.toString();
     final inviteStatus = map['invite_status']?.toString();
+    final proposalStatus = map['proposal_status']?.toString();
+    final bookingId = map['booking_id']?.toString() ?? map['subject_id']?.toString();
+    final jamId = map['jam_id']?.toString() ?? map['subject_id']?.toString();
     final expiresAt = _parseTimestamp(map['expires_at']);
 
     String title;
@@ -189,6 +223,33 @@ class AppNotificationItem {
         title = 'Prenotazione annullata';
         body = '${username ?? "Un utente"} ha annullato la prenotazione del $date alle $start.';
         break;
+      case 'admin_booking_update_proposed':
+        title = 'Proposta di modifica inviata';
+        body = 'Hai inviato una proposta di modifica per la prenotazione del $date alle $start.';
+        break;
+      case 'admin_booking_update_accepted':
+        title = 'Proposta prenotazione accettata';
+        body = '${username ?? "L'utente"} ha accettato la proposta di modifica per la prenotazione del $date alle $start.';
+        break;
+      case 'admin_booking_update_rejected':
+        title = 'Proposta prenotazione rifiutata';
+        body = '${username ?? "L'utente"} ha rifiutato la proposta di modifica per la prenotazione del $date alle $start.';
+        break;
+      case 'booking_update_proposal':
+        switch (proposalStatus) {
+          case 'accepted':
+            title = 'Modifica prenotazione accettata';
+            body = 'Hai accettato la proposta di modifica per la prenotazione del $date alle $start.';
+            break;
+          case 'rejected':
+            title = 'Modifica prenotazione rifiutata';
+            body = 'Hai rifiutato la proposta di modifica per la prenotazione del $date alle $start.';
+            break;
+          default:
+            title = 'Proposta modifica prenotazione';
+            body = '${username ?? "Un admin"} propone di modificare la tua prenotazione del $date alle $start.';
+        }
+        break;
       case 'admin_jam_created':
         title = 'Nuova richiesta di Jam Session';
         body = '${username ?? "Un utente"} ha richiesto una Jam Session per il $date alle $start.';
@@ -200,6 +261,33 @@ class AppNotificationItem {
       case 'admin_jam_cancelled':
         title = 'Jam Session annullata';
         body = '${username ?? "Un utente"} ha annullato la Jam Session del $date alle $start.';
+        break;
+      case 'admin_jam_update_proposed':
+        title = 'Proposta di modifica inviata';
+        body = 'Hai inviato una proposta di modifica per la jam del $date alle $start.';
+        break;
+      case 'admin_jam_update_accepted':
+        title = 'Proposta jam accettata';
+        body = '${username ?? "L'utente"} ha accettato la proposta di modifica per la jam del $date alle $start.';
+        break;
+      case 'admin_jam_update_rejected':
+        title = 'Proposta jam rifiutata';
+        body = '${username ?? "L'utente"} ha rifiutato la proposta di modifica per la jam del $date alle $start.';
+        break;
+      case 'jam_update_proposal':
+        switch (proposalStatus) {
+          case 'accepted':
+            title = 'Modifica jam accettata';
+            body = 'Hai accettato la proposta di modifica per la jam del $date alle $start.';
+            break;
+          case 'rejected':
+            title = 'Modifica jam rifiutata';
+            body = 'Hai rifiutato la proposta di modifica per la jam del $date alle $start.';
+            break;
+          default:
+            title = 'Proposta modifica jam';
+            body = '${username ?? "Un admin"} propone di modificare la tua jam del $date alle $start.';
+        }
         break;
       case 'group_invite':
         title = 'Invito a un gruppo';
@@ -234,6 +322,9 @@ class AppNotificationItem {
       inviterUsername: inviterUsername,
       username: username,
       inviteStatus: inviteStatus,
+      proposalStatus: proposalStatus,
+      bookingId: bookingId,
+      jamId: jamId,
       expiresAt: expiresAt,
     );
   }
@@ -308,6 +399,10 @@ abstract class NotificationsRepository {
   Future<void> deleteAllNotifications();
   Future<void> acceptGroupInvite(String groupId);
   Future<void> rejectGroupInvite(String groupId);
+  Future<void> acceptBookingUpdateProposal(String notificationId);
+  Future<void> rejectBookingUpdateProposal(String notificationId);
+  Future<void> acceptJamUpdateProposal(String notificationId);
+  Future<void> rejectJamUpdateProposal(String notificationId);
   Future<NotificationPreferences> loadPreferences();
   Future<void> savePreferences(NotificationPreferences preferences);
 }
@@ -358,6 +453,26 @@ class FirebaseNotificationsRepository implements NotificationsRepository {
   @override
   Future<void> rejectGroupInvite(String groupId) {
     return _databaseService.rejectGroupInvite(groupId);
+  }
+
+  @override
+  Future<void> acceptBookingUpdateProposal(String notificationId) {
+    return _databaseService.acceptBookingUpdateProposal(notificationId);
+  }
+
+  @override
+  Future<void> rejectBookingUpdateProposal(String notificationId) {
+    return _databaseService.rejectBookingUpdateProposal(notificationId);
+  }
+
+  @override
+  Future<void> acceptJamUpdateProposal(String notificationId) {
+    return _databaseService.acceptJamUpdateProposal(notificationId);
+  }
+
+  @override
+  Future<void> rejectJamUpdateProposal(String notificationId) {
+    return _databaseService.rejectJamUpdateProposal(notificationId);
   }
 
   @override

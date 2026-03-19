@@ -8,6 +8,18 @@ abstract class AdminJamRepository {
   Future<void> approveJam(String jamId);
   Future<void> rejectJam(String jamId);
   Future<void> deleteJam(String jamId);
+  Future<void> proposeJamUpdate({
+    required String jamId,
+    required String date,
+    required List<String> selectedSlotTimes,
+    String? groupId,
+    required String title,
+    required int presentPeople,
+    required int requiredPeople,
+    required String description,
+    required String payment,
+    required String equipment,
+  });
 }
 
 class FirebaseAdminJamRepository implements AdminJamRepository {
@@ -47,6 +59,33 @@ class FirebaseAdminJamRepository implements AdminJamRepository {
   @override
   Future<void> deleteJam(String jamId) {
     return _databaseService.deleteJam(jamId);
+  }
+
+  @override
+  Future<void> proposeJamUpdate({
+    required String jamId,
+    required String date,
+    required List<String> selectedSlotTimes,
+    String? groupId,
+    required String title,
+    required int presentPeople,
+    required int requiredPeople,
+    required String description,
+    required String payment,
+    required String equipment,
+  }) {
+    return _databaseService.proposeJamUpdate(
+      jamId: jamId,
+      date: date,
+      selectedSlotTimes: selectedSlotTimes,
+      groupId: groupId,
+      title: title,
+      presentPeople: presentPeople,
+      requiredPeople: requiredPeople,
+      description: description,
+      payment: payment,
+      equipment: equipment,
+    );
   }
 
   List<JamListItem> _parseJamItems(DatabaseEvent event) {
