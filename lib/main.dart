@@ -16,28 +16,12 @@ import 'package:soundimplosion/services/push_notification_service.dart';
 void main() async {
   runZonedGuarded(
     () async {
-      final binding = WidgetsFlutterBinding.ensureInitialized();
-      binding.deferFirstFrame();
+      WidgetsFlutterBinding.ensureInitialized();
       await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-      await AppTelemetryService.instance.initialize();
       FlutterError.onError = AppTelemetryService.instance.recordFlutterError;
-      PlatformDispatcher.instance.onError = (error, stackTrace) {
-        unawaited(
-          AppTelemetryService.instance.recordError(
-            error,
-            stackTrace,
-            reason: 'PlatformDispatcher.onError',
-            fatal: true,
-          ),
-        );
-        return true;
-      };
-      await LocalNotificationService.instance.initialize();
-      await PushNotificationService.instance.initialize();
-      AuthService().authStateChanges.listen(
-        AppTelemetryService.instance.syncCurrentUser,
-      );
-      runApp(MyApp(onFirstFrameReady: () => binding.allowFirstFrame()));
+      runApp(const MyApp());
+      _configureErrorHandling();
+      _initializeBackgroundServices();
     },
     (error, stackTrace) {
       unawaited(
@@ -52,32 +36,64 @@ void main() async {
   );
 }
 
-class MyApp extends StatefulWidget {
-  const MyApp({super.key, required this.onFirstFrameReady});
-
-  final VoidCallback onFirstFrameReady;
-
-  @override
-  State<MyApp> createState() => _MyAppState();
+void _configureErrorHandling() {
+  PlatformDispatcher.instance.onError = (error, stackTrace) {
+    unawaited(
+      AppTelemetryService.instance.recordError(
+        error,
+        stackTrace,
+        reason: 'PlatformDispatcher.onError',
+        fatal: true,
+      ),
+    );
+    return true;
+  };
 }
 
-class _MyAppState extends State<MyApp> {
-  bool _releasedFirstFrame = false;
+void _initializeBackgroundServices() {
+  unawaited(
+    _runStartupTask(
+      'app telemetry',
+      () => AppTelemetryService.instance.initialize(),
+    ),
+  );
+  AuthService().authStateChanges.listen(AppTelemetryService.instance.syncCurrentUser);
+  unawaited(
+    _runStartupTask(
+      'local notifications',
+      () => LocalNotificationService.instance.initialize().timeout(
+        const Duration(seconds: 5),
+      ),
+    ),
+  );
+  unawaited(
+    _runStartupTask(
+      'push notifications',
+      () => PushNotificationService.instance.initialize().timeout(
+        const Duration(seconds: 8),
+      ),
+    ),
+  );
+}
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _prepareFirstFrame();
+Future<void> _runStartupTask(
+  String label,
+  Future<void> Function() task,
+) async {
+  try {
+    await task();
+  } catch (error, stackTrace) {
+    debugPrint('Startup task failed ($label): $error');
+    await AppTelemetryService.instance.recordError(
+      error,
+      stackTrace,
+      reason: 'Startup task failed: $label',
+    );
   }
+}
 
-  Future<void> _prepareFirstFrame() async {
-    if (_releasedFirstFrame) {
-      return;
-    }
-    _releasedFirstFrame = true;
-    await precacheImage(const AssetImage(startupLogoAsset), context);
-    widget.onFirstFrameReady();
-  }
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
 
   ThemeData _buildTheme(Brightness brightness) {
     final prefs = AppPreferencesService.instance;

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:soundimplosion/app/features/notifications/notifications_repository.dart';
@@ -41,8 +42,13 @@ class LocalNotificationService {
     );
 
     tz.initializeTimeZones();
-    final timezoneInfo = await FlutterTimezone.getLocalTimezone();
-    tz.setLocalLocation(tz.getLocation(timezoneInfo.identifier));
+    try {
+      final timezoneInfo = await FlutterTimezone.getLocalTimezone();
+      tz.setLocalLocation(tz.getLocation(timezoneInfo.identifier));
+    } catch (error) {
+      debugPrint('Local notification timezone fallback: $error');
+      tz.setLocalLocation(tz.getLocation('UTC'));
+    }
 
     await _plugin.initialize(
       settings: initializationSettings,

@@ -23,6 +23,14 @@
           }
         },
         {
+          "client_id": "287016865087-8dnv4l21da31re0j2pkoo29tpku820c6.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "it.sinnodel.soundimplosion",
+            "certificate_hash": "c271888aaed52d98ad1ec377d5f911ce81ae74fd"
+          }
+        },
+        {
           "client_id": "287016865087-hnlkv64na9absaj0vnff0ikjh5pqhi4h.apps.googleusercontent.com",
           "client_type": 3
         }
