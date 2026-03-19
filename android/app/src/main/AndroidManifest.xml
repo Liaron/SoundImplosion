@@ -1,5 +1,4 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="it.sinnodel.soundimplosion">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Permission per accesso a Internet richiesto da Firebase/Google Sign-In -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />

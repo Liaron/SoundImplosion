@@ -75,3 +75,19 @@ flutter {
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
+
+val generatedPluginRegistrant = layout.projectDirectory.file(
+    "src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java"
+)
+
+tasks.configureEach {
+    if (
+        name == "preBuild" ||
+        name.startsWith("compile") ||
+        name.startsWith("kapt")
+    ) {
+        doFirst {
+            generatedPluginRegistrant.asFile.delete()
+        }
+    }
+}
