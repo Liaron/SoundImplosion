@@ -140,17 +140,26 @@ class _PublicHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isNarrow = MediaQuery.of(context).size.width < 640;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+      padding: EdgeInsets.fromLTRB(
+        isNarrow ? 14 : 20,
+        isNarrow ? 14 : 20,
+        isNarrow ? 14 : 20,
+        isNarrow ? 8 : 12,
+      ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(isNarrow ? 20 : 24),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+            padding: EdgeInsets.symmetric(
+              horizontal: isNarrow ? 12 : 18,
+              vertical: isNarrow ? 10 : 14,
+            ),
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.82),
-              borderRadius: BorderRadius.circular(24),
+              borderRadius: BorderRadius.circular(isNarrow ? 20 : 24),
               border: Border.all(color: Colors.white),
               boxShadow: [
                 BoxShadow(
@@ -235,10 +244,18 @@ class _CompactHeaderRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isNarrow = MediaQuery.of(context).size.width < 430;
     return Row(
       children: [
         const Expanded(child: _BrandLockup()),
-        TextButton(onPressed: onLoginPressed, child: const Text('Accedi')),
+        if (isNarrow)
+          IconButton(
+            onPressed: onLoginPressed,
+            icon: const Icon(Icons.login_rounded),
+            tooltip: 'Accedi',
+          )
+        else
+          TextButton(onPressed: onLoginPressed, child: const Text('Accedi')),
         PopupMenuButton<PublicSiteSection>(
           icon: const Icon(Icons.menu_rounded),
           initialValue: currentSection,
@@ -269,16 +286,19 @@ class _BrandLockup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final isNarrow = width < 430;
+    final hideTagline = width < 520;
     final theme = Theme.of(context);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 52,
-          height: 52,
+          width: isNarrow ? 42 : 52,
+          height: isNarrow ? 42 : 52,
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(isNarrow ? 12 : 16),
             boxShadow: [
               BoxShadow(
                 color: const Color(0xFF003B95).withValues(alpha: 0.12),
@@ -287,10 +307,10 @@ class _BrandLockup extends StatelessWidget {
               ),
             ],
           ),
-          padding: const EdgeInsets.all(8),
+          padding: EdgeInsets.all(isNarrow ? 6 : 8),
           child: Image.asset(startupLogoAsset),
         ),
-        const SizedBox(width: 12),
+        SizedBox(width: isNarrow ? 10 : 12),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -298,17 +318,19 @@ class _BrandLockup extends StatelessWidget {
             Text(
               PublicSiteContent.brandName,
               style: theme.textTheme.titleLarge?.copyWith(
+                fontSize: isNarrow ? 20 : null,
                 fontWeight: FontWeight.w800,
                 color: const Color(0xFF10233E),
               ),
             ),
-            Text(
-              PublicSiteContent.brandTagline,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: const Color(0xFF60738B),
-                letterSpacing: 0.2,
+            if (!hideTagline)
+              Text(
+                PublicSiteContent.brandTagline,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: const Color(0xFF60738B),
+                  letterSpacing: 0.2,
+                ),
               ),
-            ),
           ],
         ),
       ],
@@ -504,7 +526,7 @@ class _ContactPublicPage extends StatelessWidget {
           _PageIntroCard(
             eyebrow: PublicSiteContent.contactEyebrow,
             title: PublicSiteContent.contactTitle,
-            description: PublicSiteContent.contactDescription,
+            descriptionLines: PublicSiteContent.contactDescription,
             actionLabel: PublicSiteContent.contactActionButton,
             onActionPressed: onLoginPressed,
           ),
@@ -527,11 +549,17 @@ class _ScrollablePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isNarrow = MediaQuery.of(context).size.width < 640;
     return SingleChildScrollView(
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+            padding: EdgeInsets.fromLTRB(
+              isNarrow ? 14 : 20,
+              isNarrow ? 4 : 8,
+              isNarrow ? 14 : 20,
+              isNarrow ? 20 : 24,
+            ),
             child: Center(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 1180),
@@ -557,8 +585,11 @@ class _HeroSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isCompact = MediaQuery.of(context).size.width < 980;
+    final width = MediaQuery.of(context).size.width;
+    final isCompact = width < 980;
+    final isNarrow = width < 640;
     final theme = Theme.of(context);
+    final downloadCard = const _HeroDownloadCard();
     final details = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -574,69 +605,102 @@ class _HeroSection extends StatelessWidget {
               style: TextStyle(
                 color: Color(0xFF003B95),
                 fontWeight: FontWeight.w700,
+                fontSize: 13,
               ),
             ),
           ),
-        const SizedBox(height: 20),
+        SizedBox(height: isNarrow ? 16 : 20),
         Text(
           PublicSiteContent.heroTitle,
-          style: theme.textTheme.displaySmall?.copyWith(
+          style: (isNarrow
+                  ? theme.textTheme.headlineMedium
+                  : theme.textTheme.displaySmall)
+              ?.copyWith(
             fontWeight: FontWeight.w900,
             height: 1.1,
             color: const Color(0xFF10233E),
           ),
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: isNarrow ? 14 : 16),
         Text(
           PublicSiteContent.heroDescription,
-          style: theme.textTheme.titleMedium?.copyWith(
+          style: (isNarrow
+                  ? theme.textTheme.bodyLarge
+                  : theme.textTheme.titleMedium)
+              ?.copyWith(
             color: const Color(0xFF4C6078),
             height: 1.5,
           ),
         ),
-        const SizedBox(height: 24),
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: [
-            ElevatedButton(
-              onPressed: onPrimaryPressed,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF003B95),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 22,
-                  vertical: 16,
+        SizedBox(height: isNarrow ? 20 : 24),
+        if (isNarrow)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ElevatedButton(
+                onPressed: onPrimaryPressed,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF003B95),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
+                child: const Text(PublicSiteContent.heroPrimaryButton),
               ),
-              child: const Text(PublicSiteContent.heroPrimaryButton),
-            ),
-            OutlinedButton(
-              onPressed: onSecondaryPressed,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFF003B95),
-                side: const BorderSide(color: Color(0xFF003B95)),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 22,
-                  vertical: 16,
+              const SizedBox(height: 12),
+              OutlinedButton(
+                onPressed: onSecondaryPressed,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF003B95),
+                  side: const BorderSide(color: Color(0xFF003B95)),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
+                child: const Text(PublicSiteContent.heroSecondaryButton),
               ),
-              child: const Text(PublicSiteContent.heroSecondaryButton),
-            ),
-          ],
-        ),
+            ],
+          )
+        else
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              ElevatedButton(
+                onPressed: onPrimaryPressed,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF003B95),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 22,
+                    vertical: 16,
+                  ),
+                ),
+                child: const Text(PublicSiteContent.heroPrimaryButton),
+              ),
+              OutlinedButton(
+                onPressed: onSecondaryPressed,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF003B95),
+                  side: const BorderSide(color: Color(0xFF003B95)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 22,
+                    vertical: 16,
+                  ),
+                ),
+                child: const Text(PublicSiteContent.heroSecondaryButton),
+              ),
+            ],
+          ),
       ],
     );
 
     return Container(
-      padding: EdgeInsets.all(isCompact ? 24 : 36),
+      padding: EdgeInsets.all(isNarrow ? 20 : (isCompact ? 24 : 36)),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [Color(0xFFFAFCFF), Color(0xFFEAF4FF), Color(0xFFFDF8EE)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(36),
+        borderRadius: BorderRadius.circular(isNarrow ? 28 : 36),
         border: Border.all(color: const Color(0xFFDDE8F6)),
         boxShadow: [
           BoxShadow(
@@ -646,60 +710,110 @@ class _HeroSection extends StatelessWidget {
           ),
         ],
       ),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 760),
-        child: details,
-      ),
+      child: isCompact
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                details,
+                const SizedBox(height: 20),
+                downloadCard,
+              ],
+            )
+          : Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 6,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 760),
+                    child: details,
+                  ),
+                ),
+                const SizedBox(width: 24),
+                const Expanded(
+                  flex: 5,
+                  child: _HeroDownloadCard(),
+                ),
+              ],
+            ),
     );
   }
 }
 
-class _HeroPreviewCard extends StatelessWidget {
-  const _HeroPreviewCard();
+class _HeroDownloadCard extends StatelessWidget {
+  const _HeroDownloadCard();
 
   @override
   Widget build(BuildContext context) {
-    if (PublicSiteContent.heroImagePath.isNotEmpty) {
-      return Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(30),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.1),
-              blurRadius: 20,
-              offset: const Offset(0, 10),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(30),
-          child: Image.asset(
-            PublicSiteContent.heroImagePath,
-            fit: BoxFit.cover,
-          ),
-        ),
-      );
-    }
-
+    final isNarrow = MediaQuery.of(context).size.width < 640;
+    final hasDownload = PublicSiteContent.heroDownloadUrl.trim().isNotEmpty;
     final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(isNarrow ? 20 : 24),
       decoration: BoxDecoration(
         color: const Color(0xFF112540),
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(isNarrow ? 24 : 30),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF112540).withValues(alpha: 0.18),
+            blurRadius: 22,
+            offset: const Offset(0, 14),
+          ),
+        ],
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            children: const [
-              _Dot(color: Color(0xFFFF6B6B)),
-              SizedBox(width: 8),
-              _Dot(color: Color(0xFFFFD166)),
-              SizedBox(width: 8),
-              _Dot(color: Color(0xFF06D6A0)),
+            children: [
+              Container(
+                width: 54,
+                height: 54,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF39D98A).withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: const Icon(
+                  Icons.android_rounded,
+                  color: Color(0xFF8AF0D0),
+                  size: 28,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      PublicSiteContent.heroDownloadEyebrow.toUpperCase(),
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: const Color(0xFF8AF0D0),
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.1,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      PublicSiteContent.heroDownloadTitle,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 22),
+          const SizedBox(height: 18),
+          Text(
+            PublicSiteContent.heroDownloadDescription,
+            style: theme.textTheme.bodyLarge?.copyWith(
+              color: const Color(0xFFD5E3F5),
+              height: 1.6,
+            ),
+          ),
+          const SizedBox(height: 18),
           Container(
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
@@ -707,86 +821,66 @@ class _HeroPreviewCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(22),
             ),
             child: Column(
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Dashboard booking',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF06D6A0).withValues(alpha: 0.16),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: const Text(
-                        'Live',
-                        style: TextStyle(
-                          color: Color(0xFF8AF0D0),
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                const _PreviewLine(label: 'Sale disponibili', value: '12'),
-                const _PreviewLine(label: 'Jam in programma', value: '8'),
-                const _PreviewLine(label: 'Richieste confermate', value: '94%'),
-                const SizedBox(height: 18),
-                Container(
-                  height: 160,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(18),
-                    gradient: const LinearGradient(
-                      colors: [
-                        Color(0xFF0E86D4),
-                        Color(0xFF46B1C9),
-                        Color(0xFFF3A712),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(18),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Flusso semplificato',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
+              children: PublicSiteContent.heroDownloadHighlights
+                  .map(
+                    (item) => Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Padding(
+                            padding: EdgeInsets.only(top: 2),
+                            child: Icon(
+                              Icons.check_circle_rounded,
+                              size: 18,
+                              color: Color(0xFF8AF0D0),
+                            ),
                           ),
-                        ),
-                        const Spacer(),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: const [
-                            _GraphBar(height: 54),
-                            SizedBox(width: 10),
-                            _GraphBar(height: 88),
-                            SizedBox(width: 10),
-                            _GraphBar(height: 68),
-                            SizedBox(width: 10),
-                            _GraphBar(height: 116),
-                          ],
-                        ),
-                      ],
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              item,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: Colors.white,
+                                height: 1.5,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ),
-              ],
+                  )
+                  .toList(),
+            ),
+          ),
+          const SizedBox(height: 18),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: hasDownload
+                  ? () => _launchPublicLink(PublicSiteContent.heroDownloadUrl)
+                  : null,
+              icon: const Icon(Icons.download_rounded),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF39D98A),
+                foregroundColor: const Color(0xFF10233E),
+                disabledBackgroundColor: Colors.white.withValues(alpha: 0.14),
+                disabledForegroundColor: const Color(0xFFD5E3F5),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+              label: Text(
+                hasDownload
+                    ? PublicSiteContent.heroDownloadPrimaryButton
+                    : 'APK disponibile a breve',
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            PublicSiteContent.heroDownloadSecondaryText,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: const Color(0xFFB9CAE0),
+              height: 1.5,
             ),
           ),
         ],
@@ -802,36 +896,28 @@ class _HighlightsSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final isCompact = MediaQuery.of(context).size.width < 920;
     if (isCompact) {
-      return Wrap(
-        spacing: 20,
-        runSpacing: 20,
-        children: const [
-          SizedBox(
-            width: double.infinity,
-            child: _HighlightCard(
-              icon: Icons.speaker_group_rounded,
-              title: PublicSiteContent.highlight1Title,
-              description: PublicSiteContent.highlight1Description,
-              accent: Color(0xFF003B95),
-            ),
+      return const Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _HighlightCard(
+            icon: Icons.speaker_group_rounded,
+            title: PublicSiteContent.highlight1Title,
+            description: PublicSiteContent.highlight1Description,
+            accent: Color(0xFF003B95),
           ),
-          SizedBox(
-            width: double.infinity,
-            child: _HighlightCard(
-              icon: Icons.graphic_eq_rounded,
-              title: PublicSiteContent.highlight2Title,
-              description: PublicSiteContent.highlight2Description,
-              accent: Color(0xFFB7410E),
-            ),
+          SizedBox(height: 20),
+          _HighlightCard(
+            icon: Icons.graphic_eq_rounded,
+            title: PublicSiteContent.highlight2Title,
+            description: PublicSiteContent.highlight2Description,
+            accent: Color(0xFFB7410E),
           ),
-          SizedBox(
-            width: double.infinity,
-            child: _HighlightCard(
-              icon: Icons.local_cafe_rounded,
-              title: PublicSiteContent.highlight3Title,
-              description: PublicSiteContent.highlight3Description,
-              accent: Color(0xFF0E9F6E),
-            ),
+          SizedBox(height: 20),
+          _HighlightCard(
+            icon: Icons.local_cafe_rounded,
+            title: PublicSiteContent.highlight3Title,
+            description: PublicSiteContent.highlight3Description,
+            accent: Color(0xFF0E9F6E),
           ),
         ],
       );
@@ -888,13 +974,13 @@ class _HighlightCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isNarrow = MediaQuery.of(context).size.width < 640;
     final theme = Theme.of(context);
     return Container(
-      height: double.infinity,
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(isNarrow ? 20 : 24),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(26),
+        borderRadius: BorderRadius.circular(isNarrow ? 22 : 26),
         border: Border.all(color: accent.withValues(alpha: 0.18)),
       ),
       child: Column(
@@ -935,7 +1021,9 @@ class _StatsBand extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isCompact = MediaQuery.of(context).size.width < 900;
+    final width = MediaQuery.of(context).size.width;
+    final isCompact = width < 900;
+    final isNarrow = width < 640;
     final statTiles = const [
       _StatTile(
         value: PublicSiteContent.stat1Value,
@@ -952,10 +1040,10 @@ class _StatsBand extends StatelessWidget {
     ];
 
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(isNarrow ? 20 : 24),
       decoration: BoxDecoration(
         color: const Color(0xFF10233E),
-        borderRadius: BorderRadius.circular(32),
+        borderRadius: BorderRadius.circular(isNarrow ? 24 : 32),
       ),
       child: isCompact
           ? Column(
@@ -986,13 +1074,14 @@ class _StatTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isNarrow = MediaQuery.of(context).size.width < 640;
     final theme = Theme.of(context);
     return SizedBox(
-      height: 88,
+      height: isNarrow ? 96 : 88,
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
+        children: [
           SizedBox(
             height: 36,
             child: Center(
@@ -1002,19 +1091,21 @@ class _StatTile extends StatelessWidget {
                 style: theme.textTheme.headlineMedium?.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.w900,
+                  fontSize: isNarrow ? 26 : null,
                 ),
               ),
             ),
           ),
           const SizedBox(height: 8),
           SizedBox(
-            height: 44,
+            height: isNarrow ? 52 : 44,
             child: Center(
               child: Text(
                 label,
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodyLarge?.copyWith(
                   color: const Color(0xFFC9D8EA),
+                  fontSize: isNarrow ? 15 : null,
                 ),
               ),
             ),
@@ -1129,28 +1220,34 @@ class _PageIntroCard extends StatelessWidget {
   const _PageIntroCard({
     required this.eyebrow,
     required this.title,
-    required this.description,
+    this.description,
+    this.descriptionLines,
     required this.actionLabel,
     required this.onActionPressed,
     this.actionEnabled = true,
-  });
+  }) : assert(
+         description != null || descriptionLines != null,
+         'Either description or descriptionLines must be provided.',
+       );
 
   final String eyebrow;
   final String title;
-  final String description;
+  final String? description;
+  final List<String>? descriptionLines;
   final String actionLabel;
   final VoidCallback onActionPressed;
   final bool actionEnabled;
 
   @override
   Widget build(BuildContext context) {
+    final isNarrow = MediaQuery.of(context).size.width < 640;
     final theme = Theme.of(context);
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(28),
+      padding: EdgeInsets.all(isNarrow ? 22 : 28),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(isNarrow ? 24 : 30),
         border: Border.all(color: const Color(0xFFDDE8F5)),
       ),
       child: Column(
@@ -1167,29 +1264,53 @@ class _PageIntroCard extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             title,
-            style: theme.textTheme.headlineMedium?.copyWith(
+            style: (isNarrow
+                    ? theme.textTheme.titleLarge
+                    : theme.textTheme.headlineMedium)
+                ?.copyWith(
               color: const Color(0xFF10233E),
               fontWeight: FontWeight.w900,
               height: 1.15,
             ),
           ),
           const SizedBox(height: 14),
-          Text(
-            description,
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: const Color(0xFF52657D),
-              height: 1.6,
+          if (descriptionLines != null)
+            ...descriptionLines!.asMap().entries.map(
+              (entry) => Padding(
+                padding: EdgeInsets.only(bottom: entry.key == descriptionLines!.length - 1 ? 0 : 10),
+                child: Text(
+                  entry.value,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    color: const Color(0xFF52657D),
+                    height: 1.6,
+                  ),
+                ),
+              ),
+            )
+          else
+            Text(
+              description!,
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: const Color(0xFF52657D),
+                height: 1.6,
+              ),
             ),
-          ),
           const SizedBox(height: 20),
           if (actionEnabled)
-            ElevatedButton(
-              onPressed: onActionPressed,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF003B95),
-                foregroundColor: Colors.white,
+            SizedBox(
+              width: isNarrow ? double.infinity : null,
+              child: ElevatedButton(
+                onPressed: onActionPressed,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF003B95),
+                  foregroundColor: Colors.white,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isNarrow ? 16 : 20,
+                    vertical: 14,
+                  ),
+                ),
+                child: Text(actionLabel),
               ),
-              child: Text(actionLabel),
             )
           else
             Container(
@@ -1218,19 +1339,36 @@ class _StoryGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isCompact = MediaQuery.of(context).size.width < 900;
+    if (isCompact) {
+      return const Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _NarrativeCard(
+            title: PublicSiteContent.story1Title,
+            description: PublicSiteContent.story1Description,
+          ),
+          SizedBox(height: 20),
+          _NarrativeCard(
+            title: PublicSiteContent.story2Title,
+            description: PublicSiteContent.story2Description,
+          ),
+        ],
+      );
+    }
+
     return Wrap(
       spacing: 20,
       runSpacing: 20,
       children: [
         SizedBox(
-          width: isCompact ? double.infinity : 560,
+          width: 560,
           child: const _NarrativeCard(
             title: PublicSiteContent.story1Title,
             description: PublicSiteContent.story1Description,
           ),
         ),
         SizedBox(
-          width: isCompact ? double.infinity : 560,
+          width: 560,
           child: const _NarrativeCard(
             title: PublicSiteContent.story2Title,
             description: PublicSiteContent.story2Description,
@@ -1249,16 +1387,17 @@ class _NarrativeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isNarrow = MediaQuery.of(context).size.width < 640;
     final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.all(26),
+      padding: EdgeInsets.all(isNarrow ? 20 : 26),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [Color(0xFFFFFFFF), Color(0xFFF3F8FE)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(isNarrow ? 22 : 28),
         border: Border.all(color: const Color(0xFFDDE8F5)),
       ),
       child: Column(
@@ -1290,26 +1429,48 @@ class _ValuesSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isCompact = MediaQuery.of(context).size.width < 920;
+    if (isCompact) {
+      return const Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _ValueTile(
+            title: PublicSiteContent.value1Title,
+            body: PublicSiteContent.value1Description,
+          ),
+          SizedBox(height: 20),
+          _ValueTile(
+            title: PublicSiteContent.value2Title,
+            body: PublicSiteContent.value2Description,
+          ),
+          SizedBox(height: 20),
+          _ValueTile(
+            title: PublicSiteContent.value3Title,
+            body: PublicSiteContent.value3Description,
+          ),
+        ],
+      );
+    }
+
     return Wrap(
       spacing: 20,
       runSpacing: 20,
       children: [
         SizedBox(
-          width: isCompact ? double.infinity : 360,
+          width: 360,
           child: const _ValueTile(
             title: PublicSiteContent.value1Title,
             body: PublicSiteContent.value1Description,
           ),
         ),
         SizedBox(
-          width: isCompact ? double.infinity : 360,
+          width: 360,
           child: const _ValueTile(
             title: PublicSiteContent.value2Title,
             body: PublicSiteContent.value2Description,
           ),
         ),
         SizedBox(
-          width: isCompact ? double.infinity : 360,
+          width: 360,
           child: const _ValueTile(
             title: PublicSiteContent.value3Title,
             body: PublicSiteContent.value3Description,
@@ -1328,12 +1489,13 @@ class _ValueTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isNarrow = MediaQuery.of(context).size.width < 640;
     final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(isNarrow ? 20 : 24),
       decoration: BoxDecoration(
         color: const Color(0xFF10233E),
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(isNarrow ? 22 : 28),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1366,13 +1528,40 @@ class _PricingGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isCompact = MediaQuery.of(context).size.width < 980;
+    if (isCompact) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < PublicSiteContent.pricingPlans.length; i++) ...[
+            _PricingCard(
+              title: PublicSiteContent.pricingPlans[i]['title'] as String,
+              price: PublicSiteContent.pricingPlans[i]['price'] as String,
+              cadence: PublicSiteContent.pricingPlans[i]['period'] as String,
+              description: PublicSiteContent.pricingPlans[i]['description'] as String,
+              accent: (PublicSiteContent.pricingPlans[i]['popular'] as bool)
+                  ? const Color(0xFFB7410E)
+                  : const Color(0xFF003B95),
+              features: List<String>.from(
+                PublicSiteContent.pricingPlans[i]['features'] as List,
+              ),
+              actionLabel: PublicSiteContent.pricingPlans[i]['cta'] as String,
+              onActionPressed: onLoginPressed,
+              highlighted: PublicSiteContent.pricingPlans[i]['popular'] as bool,
+            ),
+            if (i != PublicSiteContent.pricingPlans.length - 1)
+              const SizedBox(height: 20),
+          ],
+        ],
+      );
+    }
+
     return Wrap(
       spacing: 20,
       runSpacing: 20,
       children: PublicSiteContent.pricingPlans.map((plan) {
         final isPopular = plan['popular'] as bool;
         return SizedBox(
-          width: isCompact ? double.infinity : 360,
+          width: 360,
           child: _PricingCard(
             title: plan['title'] as String,
             price: plan['price'] as String,
@@ -1415,12 +1604,13 @@ class _PricingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isNarrow = MediaQuery.of(context).size.width < 640;
     final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.all(26),
+      padding: EdgeInsets.all(isNarrow ? 20 : 26),
       decoration: BoxDecoration(
         color: highlighted ? accent : Colors.white.withValues(alpha: 0.94),
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(isNarrow ? 24 : 30),
         border: Border.all(color: accent.withValues(alpha: 0.2)),
         boxShadow: highlighted
             ? [
@@ -1537,12 +1727,13 @@ class _PricingFaqSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isNarrow = MediaQuery.of(context).size.width < 640;
     final faqs = PublicSiteContent.pricingFaqs;
     return Container(
-      padding: const EdgeInsets.all(28),
+      padding: EdgeInsets.all(isNarrow ? 22 : 28),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(isNarrow ? 24 : 30),
         border: Border.all(color: const Color(0xFFDDE8F5)),
       ),
       child: Column(
@@ -1568,45 +1759,69 @@ class _ContactGrid extends StatelessWidget {
     final isCompact = MediaQuery.of(context).size.width < 980;
     final categoryCards = <Widget>[
       if (PublicSiteContent.contactPhones.isNotEmpty)
-        SizedBox(
-          width: isCompact ? double.infinity : 560,
-          child: const _ContactCategoryCard(
-            title: 'Numeri di telefono',
-            icon: Icons.phone_in_talk_rounded,
-            accent: Color(0xFF003B95),
-            items: PublicSiteContent.contactPhones,
-          ),
+        const _ContactCategoryCard(
+          title: 'Numeri di telefono',
+          icon: Icons.phone_in_talk_rounded,
+          accent: Color(0xFF003B95),
+          items: PublicSiteContent.contactPhones,
         ),
       if (PublicSiteContent.contactEmails.isNotEmpty)
-        SizedBox(
-          width: isCompact ? double.infinity : 560,
-          child: const _ContactCategoryCard(
-            title: 'Email',
-            icon: Icons.alternate_email_rounded,
-            accent: Color(0xFF0E9F6E),
-            items: PublicSiteContent.contactEmails,
-          ),
+        const _ContactCategoryCard(
+          title: 'Email',
+          icon: Icons.alternate_email_rounded,
+          accent: Color(0xFF0E9F6E),
+          items: PublicSiteContent.contactEmails,
         ),
       if (PublicSiteContent.contactSocials.isNotEmpty)
-        SizedBox(
-          width: isCompact ? double.infinity : 560,
-          child: const _ContactCategoryCard(
-            title: 'Social',
-            icon: Icons.campaign_rounded,
-            accent: Color(0xFFB7410E),
-            items: PublicSiteContent.contactSocials,
-          ),
+        const _ContactCategoryCard(
+          title: 'Social',
+          icon: Icons.campaign_rounded,
+          accent: Color(0xFFB7410E),
+          items: PublicSiteContent.contactSocials,
         ),
-      SizedBox(
-        width: isCompact ? double.infinity : 560,
-        child: const _ContactInfoCard(),
-      ),
+      const _ContactInfoCard(),
     ];
 
-    return Wrap(
-      spacing: 20,
-      runSpacing: 20,
-      children: categoryCards,
+    if (isCompact) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < categoryCards.length; i++) ...[
+            categoryCards[i],
+            if (i != categoryCards.length - 1) const SizedBox(height: 20),
+          ],
+        ],
+      );
+    }
+
+    final rows = <Widget>[];
+    for (var i = 0; i < categoryCards.length; i += 2) {
+      final hasPair = i + 1 < categoryCards.length;
+      if (!hasPair) {
+        rows.add(categoryCards[i]);
+        continue;
+      }
+
+      rows.add(
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: categoryCards[i]),
+            const SizedBox(width: 20),
+            Expanded(child: categoryCards[i + 1]),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var i = 0; i < rows.length; i++) ...[
+          rows[i],
+          if (i != rows.length - 1) const SizedBox(height: 20),
+        ],
+      ],
     );
   }
 }
@@ -1626,13 +1841,14 @@ class _ContactCategoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isNarrow = MediaQuery.of(context).size.width < 640;
     final theme = Theme.of(context);
 
     return Container(
-      padding: const EdgeInsets.all(26),
+      padding: EdgeInsets.all(isNarrow ? 20 : 26),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(isNarrow ? 22 : 28),
         border: Border.all(color: accent.withValues(alpha: 0.18)),
       ),
       child: Column(
@@ -1694,6 +1910,7 @@ class _ContactActionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isNarrow = MediaQuery.of(context).size.width < 640;
     final theme = Theme.of(context);
 
     return Material(
@@ -1702,7 +1919,7 @@ class _ContactActionTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         onTap: onTap,
         child: Ink(
-          padding: const EdgeInsets.all(18),
+          padding: EdgeInsets.all(isNarrow ? 16 : 18),
           decoration: BoxDecoration(
             color: const Color(0xFFF7FAFE),
             borderRadius: BorderRadius.circular(18),
@@ -1746,17 +1963,18 @@ class _ContactInfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isNarrow = MediaQuery.of(context).size.width < 640;
     final theme = Theme.of(context);
 
     return Container(
-      padding: const EdgeInsets.all(26),
+      padding: EdgeInsets.all(isNarrow ? 20 : 26),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [Color(0xFF10233E), Color(0xFF17345A)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(isNarrow ? 22 : 28),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1850,13 +2068,15 @@ class _Footer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isCompact = MediaQuery.of(context).size.width < 900;
+    final width = MediaQuery.of(context).size.width;
+    final isCompact = width < 900;
+    final isNarrow = width < 640;
 
     return Container(
       color: const Color(0xFF10233E),
       padding: EdgeInsets.symmetric(
-        horizontal: isCompact ? 20 : 40,
-        vertical: 40,
+        horizontal: isCompact ? (isNarrow ? 16 : 20) : 40,
+        vertical: isNarrow ? 28 : 40,
       ),
       child: Center(
         child: ConstrainedBox(
@@ -1908,12 +2128,15 @@ class _Footer extends StatelessWidget {
 class _FooterBrand extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final isCompact = MediaQuery.of(context).size.width < 900;
     final theme = Theme.of(context);
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment:
+          isCompact ? CrossAxisAlignment.center : CrossAxisAlignment.start,
       children: [
         Text(
           PublicSiteContent.brandName,
+          textAlign: isCompact ? TextAlign.center : TextAlign.start,
           style: theme.textTheme.titleLarge?.copyWith(
             color: Colors.white,
             fontWeight: FontWeight.w800,
@@ -1922,6 +2145,7 @@ class _FooterBrand extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           PublicSiteContent.brandTagline,
+          textAlign: isCompact ? TextAlign.center : TextAlign.start,
           style: theme.textTheme.bodyLarge?.copyWith(
             color: const Color(0xFFC9D8EA),
           ),
@@ -1993,6 +2217,16 @@ class _FooterContactItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final content = Text(
+      text,
+      textAlign: centered ? TextAlign.center : TextAlign.start,
+      style: const TextStyle(
+        color: Color(0xFFC9D8EA),
+        fontSize: 14,
+        height: 1.5,
+      ),
+    );
+
     return Row(
       mainAxisAlignment:
           centered ? MainAxisAlignment.center : MainAxisAlignment.start,
@@ -2000,16 +2234,10 @@ class _FooterContactItem extends StatelessWidget {
       children: [
         Icon(icon, color: const Color(0xFF6BA3E5), size: 18),
         const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            text,
-            style: const TextStyle(
-              color: Color(0xFFC9D8EA),
-              fontSize: 14,
-              height: 1.5,
-            ),
-          ),
-        ),
+        if (centered)
+          Flexible(child: content)
+        else
+          Expanded(child: content),
       ],
     );
   }

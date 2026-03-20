@@ -25,12 +25,16 @@ class PublicSiteContent {
 
   static const String contactEyebrow = 'Contatti';
   static const String contactTitle = 'Parliamone prima di accendere gli ampli.';
-  static const String contactDescription =
-      'Qui puoi configurare tutti i riferimenti pubblici della tua attività: telefoni, email e social. Aggiorna le liste qui sotto e la pagina Contatti verrà aggiornata automaticamente.';
+  static const List<String> contactDescription = [
+      'Non ci conosci? Esplora le nostre pagine social per scoprire chi siamo e cosa facciamo.',
+      'Hai domande sulle sale o la strumentazione? Siamo qui per te!',
+      'Contattaci tramite telefono per ricevere maggiori informazioni.\nSiamo pronti ad aiutarti!',
+      'Accettiamo le prenotazioni solo tramite il sistema online o tramite app, scaricala o fai accesso tramite browser per prenotare la tua prossima prova.',
+  ];
   static const String contactActionButton = 'Accedi e prenota';
   static const String contactInfoTitle = 'Dove trovarci';
   static const String contactInfoDescription =
-      'Siamo disponibili per prenotazioni, informazioni sulle sale e collaborazioni. Rispondiamo più rapidamente durante gli orari di apertura indicati sotto.';
+      'Siamo a Bracciano 2, sotto il bar Lo Stregatto. Rampa sulla destra, in fondo al corridoio sulla destra. Puoi parcheggiare facilmente su strada nelle vicinanze. Ti aspettiamo!';
 
   static const List<Map<String, String>> contactPhones = [
     {
@@ -65,6 +69,19 @@ class PublicSiteContent {
   
   static const String heroPrimaryButton = 'Accedi e Prenota';
   static const String heroSecondaryButton = 'Vedi le Tariffe';
+
+  static const String heroDownloadEyebrow = 'App Android';
+  static const String heroDownloadTitle = 'Scarica l\'APK e prenota dal telefono';
+  static const String heroDownloadDescription =
+      'Installa l\'app Android per controllare disponibilita, gestire le prenotazioni e avere SoundImplosion sempre a portata di mano.';
+  static const List<String> heroDownloadHighlights = [
+    'Installazione manuale per dispositivi Android',
+    'Accesso rapido a prenotazioni e disponibilita',
+    'Esperienza ottimizzata per smartphone',
+  ];
+  static const String heroDownloadPrimaryButton = 'Scarica APK';
+  static const String heroDownloadSecondaryText = 'Download diretto dal sito, compatibile con Android';
+  static const String heroDownloadUrl = '/soundimplosion-android.apk';
   
   // Immagine principale della Home
   // Inserisci qui il percorso della tua immagine (es: 'assets/images/hero_room.jpg')
@@ -161,7 +178,7 @@ class PublicSiteContent {
     },
     {
       'title': 'Band Residente (Mensile)',
-      'price': '190€',
+      'price': '200€',
       'period': '/ mese',
       'description': 'L\'opzione più scelta dalle band fisse per avere una sala garantita.',
       'popular': true,
@@ -174,7 +191,7 @@ class PublicSiteContent {
     },
     {
       'title': 'Mezza Giornata',
-      'price': '60€',
+      'price': '70€',
       'period': '/ 4 ore',
       'description': 'Un pacchetto orario lungo per chi organizza pre-produzioni e date live.',
       'popular': false,
