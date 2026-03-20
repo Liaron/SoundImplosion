@@ -109,12 +109,30 @@ function buildNotificationContent(payload) {
   const date = (payload && payload.data) || "";
   const start = (payload && payload.ora_inizio) || "";
   const end = (payload && payload.ora_fine) || "";
+  const username = (payload && payload.username) || "Un utente";
+  const jamTitle = payload && payload.titolo ? String(payload.titolo).trim() : "";
+  const jamTitleText = jamTitle ? ` \"${jamTitle}\" ` : " ";
 
   switch (type) {
     case "booking_created":
       return {
         title: "Nuova prenotazione di gruppo",
         body: `Nuova prenotazione per ${date} ${start}${end ? ` - ${end}` : ""}`.trim(),
+      };
+    case "group_booking_modified":
+      return {
+        title: "Prenotazione di gruppo modificata",
+        body: `${username} ha modificato la prenotazione del ${date} alle ${start}.`,
+      };
+    case "group_booking_confirmed":
+      return {
+        title: "Prenotazione di gruppo confermata",
+        body: `La prenotazione di gruppo del ${date} alle ${start} e stata confermata.`,
+      };
+    case "group_booking_cancelled":
+      return {
+        title: "Prenotazione di gruppo annullata",
+        body: `La prenotazione di gruppo del ${date} alle ${start} e stata annullata.`,
       };
     case "booking_confirmed":
       return {
@@ -136,6 +154,111 @@ function buildNotificationContent(payload) {
         title: "Jam rifiutata",
         body: `La tua jam del ${date} alle ${start} e stata annullata.`,
       };
+    case "group_jam_created":
+      return {
+        title: "Nuova jam di gruppo",
+        body: `${username} ha creato la jam${jamTitleText}per il ${date} alle ${start}.`,
+      };
+    case "group_jam_modified":
+      return {
+        title: "Jam di gruppo modificata",
+        body: `${username} ha modificato la jam${jamTitleText}del ${date} alle ${start}.`,
+      };
+    case "group_jam_approved":
+      return {
+        title: "Jam di gruppo approvata",
+        body: `La jam di gruppo${jamTitleText}del ${date} alle ${start} e ora pubblicata.`,
+      };
+    case "group_jam_rejected":
+      return {
+        title: "Jam di gruppo annullata",
+        body: `La jam di gruppo${jamTitleText}del ${date} alle ${start} e stata annullata.`,
+      };
+    case "admin_booking_created":
+      return {
+        title: "Nuova richiesta di prenotazione",
+        body: `${username} ha richiesto una prenotazione per il ${date} alle ${start}.`,
+      };
+    case "admin_booking_modified":
+      return {
+        title: "Prenotazione modificata",
+        body: `${username} ha modificato la prenotazione del ${date} alle ${start}.`,
+      };
+    case "admin_booking_cancelled":
+      return {
+        title: "Prenotazione annullata",
+        body: `${username} ha annullato la prenotazione del ${date} alle ${start}.`,
+      };
+    case "admin_booking_update_proposed":
+      return {
+        title: "Proposta di modifica inviata",
+        body: `Hai inviato una proposta di modifica per la prenotazione del ${date} alle ${start}.`,
+      };
+    case "admin_booking_update_accepted":
+      return {
+        title: "Proposta prenotazione accettata",
+        body: `${username} ha accettato la proposta di modifica per la prenotazione del ${date} alle ${start}.`,
+      };
+    case "admin_booking_update_rejected":
+      return {
+        title: "Proposta prenotazione rifiutata",
+        body: `${username} ha rifiutato la proposta di modifica per la prenotazione del ${date} alle ${start}.`,
+      };
+    case "booking_update_proposal":
+      return {
+        title: "Proposta modifica prenotazione",
+        body: `${username} propone di modificare la tua prenotazione del ${date} alle ${start}.`,
+      };
+    case "admin_jam_created":
+      return {
+        title: "Nuova richiesta di Jam Session",
+        body: `${username} ha richiesto una Jam Session per il ${date} alle ${start}.`,
+      };
+    case "admin_jam_modified":
+      return {
+        title: "Jam Session modificata",
+        body: `${username} ha modificato la Jam Session del ${date} alle ${start}.`,
+      };
+    case "admin_jam_cancelled":
+      return {
+        title: "Jam Session annullata",
+        body: `${username} ha annullato la Jam Session del ${date} alle ${start}.`,
+      };
+    case "admin_jam_update_proposed":
+      return {
+        title: "Proposta di modifica inviata",
+        body: `Hai inviato una proposta di modifica per la jam del ${date} alle ${start}.`,
+      };
+    case "admin_jam_update_accepted":
+      return {
+        title: "Proposta jam accettata",
+        body: `${username} ha accettato la proposta di modifica per la jam del ${date} alle ${start}.`,
+      };
+    case "admin_jam_update_rejected":
+      return {
+        title: "Proposta jam rifiutata",
+        body: `${username} ha rifiutato la proposta di modifica per la jam del ${date} alle ${start}.`,
+      };
+    case "jam_update_proposal":
+      return {
+        title: "Proposta modifica jam",
+        body: `${username} propone di modificare la tua jam del ${date} alle ${start}.`,
+      };
+    case "group_invite":
+      return {
+        title: "Invito a un gruppo",
+        body: `${(payload && payload.inviter_username) || "Un utente"} ti ha invitato in un gruppo.`,
+      };
+    case "group_invite_accepted":
+      return {
+        title: "Invito gruppo accettato",
+        body: `${username} ha accettato l'invito al gruppo.`,
+      };
+    case "group_invite_rejected":
+      return {
+        title: "Invito gruppo rifiutato",
+        body: `${username} ha rifiutato l'invito al gruppo.`,
+      };
     default:
       return {
         title: "Nuova notifica",
@@ -147,11 +270,32 @@ function buildNotificationContent(payload) {
 function notificationCategory(type) {
   switch (type) {
     case "booking_created":
+    case "group_booking_modified":
+    case "group_booking_confirmed":
+    case "group_booking_cancelled":
     case "booking_confirmed":
     case "booking_cancelled":
+    case "admin_booking_created":
+    case "admin_booking_modified":
+    case "admin_booking_cancelled":
+    case "admin_booking_update_proposed":
+    case "admin_booking_update_accepted":
+    case "admin_booking_update_rejected":
+    case "booking_update_proposal":
       return "booking";
+    case "group_jam_created":
+    case "group_jam_modified":
+    case "group_jam_approved":
+    case "group_jam_rejected":
     case "jam_approved":
     case "jam_rejected":
+    case "admin_jam_created":
+    case "admin_jam_modified":
+    case "admin_jam_cancelled":
+    case "admin_jam_update_proposed":
+    case "admin_jam_update_accepted":
+    case "admin_jam_update_rejected":
+    case "jam_update_proposal":
       return "jam";
     case "group_invite":
     case "group_invite_accepted":
@@ -202,6 +346,9 @@ async function sendPushToUser(uid, notificationId, payload) {
       notification_id: notificationId,
       type: (payload && payload.type ? String(payload.type) : "generic"),
       group_id: (payload && payload.group_id ? String(payload.group_id) : ""),
+      booking_id: (payload && payload.booking_id ? String(payload.booking_id) : ""),
+      jam_id: (payload && payload.jam_id ? String(payload.jam_id) : ""),
+      subject_id: (payload && payload.subject_id ? String(payload.subject_id) : ""),
     },
     android: {
       priority: "high",

@@ -214,18 +214,303 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
             }
 
             if (preferences.inAppEnabled && mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('${item.title}: ${item.body}'),
-                  action: SnackBarAction(
-                    label: 'Apri',
-                    onPressed: () => _openNotificationTarget(item.routeTarget),
-                  ),
-                ),
-              );
+              _showInAppNotificationBanner(item);
             }
           }
         });
+  }
+
+  void _showInAppNotificationBanner(AppNotificationItem item) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final accentColor = _notificationAccentColor(item, colorScheme);
+    final stateLabel = _notificationStateLabel(item);
+    final stateColor = _notificationStateColor(item, colorScheme);
+    final messenger = ScaffoldMessenger.of(context);
+    final isAdminNotification = item.type.startsWith('admin_');
+
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          elevation: 8,
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+          padding: EdgeInsets.zero,
+          duration: _notificationDisplayDuration(item),
+          backgroundColor: Colors.transparent,
+          content: IntrinsicHeight(
+            child: Container(
+              decoration: BoxDecoration(
+                color: colorScheme.surface,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: accentColor.withValues(alpha: 0.22)),
+                boxShadow: <BoxShadow>[
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.12),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 6,
+                    decoration: BoxDecoration(
+                      color: accentColor,
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(18),
+                        bottomLeft: Radius.circular(18),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 14, 8, 14),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 38,
+                            height: 38,
+                            decoration: BoxDecoration(
+                              color: accentColor.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(
+                              _notificationIcon(item),
+                              color: accentColor,
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  item.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  item.body,
+                                  maxLines: 3,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.bodyMedium,
+                                ),
+                                const SizedBox(height: 10),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: [
+                                    if (isAdminNotification)
+                                      _InAppNotificationChip(
+                                        label: 'Admin',
+                                        backgroundColor: colorScheme.error
+                                            .withValues(alpha: 0.12),
+                                        foregroundColor: colorScheme.error,
+                                      ),
+                                    _InAppNotificationChip(
+                                      label: _categoryLabel(item),
+                                      backgroundColor: accentColor.withValues(
+                                        alpha: 0.12,
+                                      ),
+                                      foregroundColor: accentColor,
+                                    ),
+                                    if (stateLabel != null)
+                                      _InAppNotificationChip(
+                                        label: stateLabel,
+                                        backgroundColor: stateColor.withValues(
+                                          alpha: 0.12,
+                                        ),
+                                        foregroundColor: stateColor,
+                                      ),
+                                    TextButton(
+                                      onPressed: () {
+                                        messenger.hideCurrentSnackBar();
+                                        _openNotificationTarget(item.routeTarget);
+                                      },
+                                      style: TextButton.styleFrom(
+                                        foregroundColor: accentColor,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 0,
+                                        ),
+                                        minimumSize: const Size(0, 32),
+                                        tapTargetSize:
+                                            MaterialTapTargetSize.shrinkWrap,
+                                      ),
+                                      child: Text(
+                                        _notificationActionLabel(item),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+  }
+
+  Color _notificationAccentColor(
+    AppNotificationItem item,
+    ColorScheme colorScheme,
+  ) {
+    if (item.type.startsWith('admin_')) {
+      return colorScheme.error;
+    }
+
+    switch (item.category) {
+      case NotificationCategory.bookings:
+        return colorScheme.primary;
+      case NotificationCategory.jams:
+        return colorScheme.secondary;
+      case NotificationCategory.groups:
+        return const Color(0xFF2E7D32);
+      case NotificationCategory.system:
+        return colorScheme.tertiary;
+    }
+  }
+
+  IconData _notificationIcon(AppNotificationItem item) {
+    if (item.isPendingAction) {
+      return Icons.pending_actions_outlined;
+    }
+    if (item.type.startsWith('admin_')) {
+      return Icons.admin_panel_settings_outlined;
+    }
+    if (item.type.contains('accepted') ||
+        item.type.contains('confirmed') ||
+        item.type.contains('approved')) {
+      return Icons.check_circle_outline;
+    }
+    if (item.type.contains('rejected') || item.type.contains('cancelled')) {
+      return Icons.cancel_outlined;
+    }
+    if (item.type.contains('modified')) {
+      return Icons.edit_calendar_outlined;
+    }
+
+    switch (item.category) {
+      case NotificationCategory.bookings:
+        return Icons.event_available_outlined;
+      case NotificationCategory.jams:
+        return Icons.music_note_outlined;
+      case NotificationCategory.groups:
+        return Icons.groups_2_outlined;
+      case NotificationCategory.system:
+        return Icons.notifications_active_outlined;
+    }
+  }
+
+  String? _notificationStateLabel(AppNotificationItem item) {
+    if (item.isPendingAction) {
+      return 'Da gestire';
+    }
+    if (item.type.contains('accepted')) {
+      return 'Accettata';
+    }
+    if (item.type.contains('confirmed')) {
+      return 'Confermata';
+    }
+    if (item.type.contains('approved')) {
+      return 'Approvata';
+    }
+    if (item.type.contains('rejected')) {
+      return 'Rifiutata';
+    }
+    if (item.type.contains('cancelled')) {
+      return 'Annullata';
+    }
+    if (item.type.contains('modified')) {
+      return 'Aggiornata';
+    }
+    if (item.type.contains('created')) {
+      return 'Nuova';
+    }
+    return null;
+  }
+
+  Color _notificationStateColor(
+    AppNotificationItem item,
+    ColorScheme colorScheme,
+  ) {
+    if (item.isPendingAction) {
+      return const Color(0xFFB26A00);
+    }
+    if (item.type.contains('accepted') ||
+        item.type.contains('confirmed') ||
+        item.type.contains('approved')) {
+      return const Color(0xFF2E7D32);
+    }
+    if (item.type.contains('rejected') || item.type.contains('cancelled')) {
+      return colorScheme.error;
+    }
+    if (item.type.contains('modified')) {
+      return colorScheme.secondary;
+    }
+    return _notificationAccentColor(item, colorScheme);
+  }
+
+  String _notificationActionLabel(AppNotificationItem item) {
+    if (item.isPendingAction) {
+      return 'Apri richiesta';
+    }
+    switch (item.routeTarget.pageIndex) {
+      case 1:
+      case 2:
+      case 3:
+        return 'Apri dettagli';
+      case 4:
+        return 'Vai ad Admin';
+      case 5:
+        return 'Apri centro';
+      default:
+        return 'Apri';
+    }
+  }
+
+  Duration _notificationDisplayDuration(AppNotificationItem item) {
+    if (item.isPendingAction) {
+      return const Duration(seconds: 8);
+    }
+    if (item.type.startsWith('admin_')) {
+      return const Duration(seconds: 7);
+    }
+    return const Duration(seconds: 6);
+  }
+
+  String _categoryLabel(AppNotificationItem item) {
+    if (item.type.startsWith('admin_')) {
+      return 'Moderazione';
+    }
+
+    switch (item.category) {
+      case NotificationCategory.bookings:
+        return 'Prenotazioni';
+      case NotificationCategory.jams:
+        return 'Jam';
+      case NotificationCategory.groups:
+        return 'Gruppi';
+      case NotificationCategory.system:
+        return 'Sistema';
+    }
   }
 
   Future<void> _handleNotificationPayload(String payload) async {
@@ -269,6 +554,11 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
                 GroupsPageMobile(initialGroupIdToOpen: target.groupId),
           ),
         );
+        break;
+      case 4:
+        if (_controller.isAdmin) {
+          _navigateToPage(4, closeDrawer: false);
+        }
         break;
       case 5:
         _navigateToPage(5, closeDrawer: false);
@@ -513,6 +803,36 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _InAppNotificationChip extends StatelessWidget {
+  const _InAppNotificationChip({
+    required this.label,
+    required this.backgroundColor,
+    required this.foregroundColor,
+  });
+
+  final String label;
+  final Color backgroundColor;
+  final Color foregroundColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+          color: foregroundColor,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );

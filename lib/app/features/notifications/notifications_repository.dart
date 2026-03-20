@@ -99,6 +99,9 @@ class AppNotificationItem {
   NotificationCategory get category {
     switch (type) {
       case 'booking_created':
+      case 'group_booking_modified':
+      case 'group_booking_confirmed':
+      case 'group_booking_cancelled':
       case 'booking_confirmed':
       case 'booking_cancelled':
       case 'admin_booking_created':
@@ -111,6 +114,10 @@ class AppNotificationItem {
         return NotificationCategory.bookings;
       case 'jam_approved':
       case 'jam_rejected':
+      case 'group_jam_created':
+      case 'group_jam_modified':
+      case 'group_jam_approved':
+      case 'group_jam_rejected':
       case 'admin_jam_created':
       case 'admin_jam_modified':
       case 'admin_jam_cancelled':
@@ -203,6 +210,18 @@ class AppNotificationItem {
         title = 'Prenotazione annullata';
         body = 'La tua prenotazione del $date alle $start e stata annullata.';
         break;
+      case 'group_booking_modified':
+        title = 'Prenotazione di gruppo modificata';
+        body = '${username ?? "Un utente"} ha modificato la prenotazione del $date alle $start.';
+        break;
+      case 'group_booking_confirmed':
+        title = 'Prenotazione di gruppo confermata';
+        body = 'La prenotazione di gruppo del $date alle $start e stata confermata.';
+        break;
+      case 'group_booking_cancelled':
+        title = 'Prenotazione di gruppo annullata';
+        body = 'La prenotazione di gruppo del $date alle $start e stata annullata.';
+        break;
       case 'jam_approved':
         title = 'Jam approvata';
         body = 'La tua jam del $date alle $start e ora pubblicata.';
@@ -210,6 +229,22 @@ class AppNotificationItem {
       case 'jam_rejected':
         title = 'Jam rifiutata';
         body = 'La tua jam del $date alle $start e stata annullata.';
+        break;
+      case 'group_jam_created':
+        title = 'Nuova jam di gruppo';
+        body = '${username ?? "Un utente"} ha creato la jam ${map['titolo']?.toString().trim().isNotEmpty == true ? '"${map['titolo']}" ' : ''}per il $date alle $start.';
+        break;
+      case 'group_jam_modified':
+        title = 'Jam di gruppo modificata';
+        body = '${username ?? "Un utente"} ha modificato la jam ${map['titolo']?.toString().trim().isNotEmpty == true ? '"${map['titolo']}" ' : ''}del $date alle $start.';
+        break;
+      case 'group_jam_approved':
+        title = 'Jam di gruppo approvata';
+        body = 'La jam di gruppo ${map['titolo']?.toString().trim().isNotEmpty == true ? '"${map['titolo']}" ' : ''}del $date alle $start e ora pubblicata.';
+        break;
+      case 'group_jam_rejected':
+        title = 'Jam di gruppo annullata';
+        body = 'La jam di gruppo ${map['titolo']?.toString().trim().isNotEmpty == true ? '"${map['titolo']}" ' : ''}del $date alle $start e stata annullata.';
         break;
       case 'admin_booking_created':
         title = 'Nuova richiesta di prenotazione';

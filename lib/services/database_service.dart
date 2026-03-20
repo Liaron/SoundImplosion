@@ -1274,7 +1274,18 @@ class DatabaseService {
       await _dbRef.update(updates);
 
       if (booking.groupId != null && booking.groupId!.isNotEmpty) {
-        await _notifyGroupMembers(booking.groupId!, newBookingKey, booking);
+        await _notifyGroupBookingMembers(
+          groupId: booking.groupId!,
+          bookingId: newBookingKey,
+          type: 'booking_created',
+          actorUserId: booking.userId,
+          date: booking.data,
+          start: booking.oraInizio,
+          end: booking.oraFine,
+          groupName: groupName,
+          excludeUserIds: {booking.userId},
+          saveGroupNotificationRecord: true,
+        );
       }
       debugPrint("Prenotazione completata con successo.");
     } catch (e) {
@@ -1577,53 +1588,148 @@ class DatabaseService {
     }
 
     await _dbRef.update(updates);
+
+    if (groupId != null && groupId.isNotEmpty) {
+      await _notifyGroupBookingMembers(
+        groupId: groupId,
+        bookingId: bookingId,
+        type: 'group_booking_modified',
+        actorUserId: actingUserId,
+        date: date,
+        start: orderedSlots.first,
+        end: newEndTime,
+        groupName: groupName,
+        excludeUserIds: {actingUserId},
+      );
+    }
   }
 
-  Future<void> _notifyGroupMembers(
-    String groupId,
-    String bookingId,
-    Booking booking,
-  ) async {
+  Future<void> _notifyGroupBookingMembers({
+    required String groupId,
+    required String bookingId,
+    required String type,
+    required String actorUserId,
+    required String date,
+    required String start,
+    required String end,
+    String? groupName,
+    Iterable<String> excludeUserIds = const [],
+    bool saveGroupNotificationRecord = false,
+  }) async {
+    final actorUsername = _currentUsernameFromMap(
+      await _loadUserData(actorUserId),
+      actorUserId,
+    );
+
+    final payload = <String, dynamic>{
+      'type': type,
+      'booking_id': bookingId,
+      'group_id': groupId,
+      if (groupName?.trim().isNotEmpty == true) 'group_name': groupName!.trim(),
+      'creator_id': actorUserId,
+      'username': actorUsername,
+      'data': date,
+      'ora_inizio': start,
+      'ora_fine': end,
+      'timestamp': ServerValue.timestamp,
+      'read': false,
+    };
+
+    await _fanOutGroupNotification(
+      groupId: groupId,
+      payload: payload,
+      excludeUserIds: excludeUserIds,
+      groupNotificationPath: saveGroupNotificationRecord
+          ? '/group_booking_notifications/$groupId/$bookingId'
+          : null,
+    );
+  }
+
+  Future<void> _notifyGroupJamMembers({
+    required String groupId,
+    required String jamId,
+    required String type,
+    required String actorUserId,
+    required String date,
+    required String start,
+    required String end,
+    required String title,
+    String? groupName,
+    Iterable<String> excludeUserIds = const [],
+  }) async {
+    final actorUsername = _currentUsernameFromMap(
+      await _loadUserData(actorUserId),
+      actorUserId,
+    );
+
+    final payload = <String, dynamic>{
+      'type': type,
+      'jam_id': jamId,
+      'group_id': groupId,
+      if (groupName?.trim().isNotEmpty == true) 'group_name': groupName!.trim(),
+      'creator_id': actorUserId,
+      'username': actorUsername,
+      'titolo': title,
+      'data': date,
+      'ora_inizio': start,
+      'ora_fine': end,
+      'timestamp': ServerValue.timestamp,
+      'read': false,
+    };
+
+    await _fanOutGroupNotification(
+      groupId: groupId,
+      payload: payload,
+      excludeUserIds: excludeUserIds,
+    );
+  }
+
+  Future<void> _fanOutGroupNotification({
+    required String groupId,
+    required Map<String, dynamic> payload,
+    Iterable<String> excludeUserIds = const [],
+    String? groupNotificationPath,
+  }) async {
     try {
       final groupSnapshot = await _dbRef
           .child('groups_info')
           .child(groupId)
           .get();
 
-      final notificationPayload = {
-        'type': 'booking_created',
-        'booking_id': bookingId,
-        'group_id': groupId,
-        'creator_id': booking.userId,
-        'data': booking.data,
-        'ora_inizio': booking.oraInizio,
-        'ora_fine': booking.oraFine,
-        'timestamp': ServerValue.timestamp,
-        'read': false,
-      };
-
       final updates = <String, dynamic>{
-        '/group_booking_notifications/$groupId/$bookingId': notificationPayload,
+        if (groupNotificationPath != null) groupNotificationPath: payload,
       };
 
       if (groupSnapshot.exists && groupSnapshot.value != null) {
         final groupData = Map<String, dynamic>.from(groupSnapshot.value as Map);
+        final excludedIds = excludeUserIds
+            .map((userId) => userId.trim())
+            .where((userId) => userId.isNotEmpty)
+            .toSet();
         final memberIds = <String>{
           ..._extractIds(groupData['members']),
           ..._extractIds(groupData['membri']),
           ..._extractIds(groupData['users']),
           ..._extractIds(groupData['user_ids']),
-        }..remove(booking.userId);
+        }..removeWhere(excludedIds.contains);
 
         for (final memberId in memberIds) {
-          updates['/user_notifications/$memberId/$bookingId'] =
-              notificationPayload;
+          final notificationId = _dbRef
+              .child('user_notifications')
+              .child(memberId)
+              .push()
+              .key;
+          if (notificationId != null) {
+            updates['/user_notifications/$memberId/$notificationId'] = payload;
+          }
         }
       }
 
-      await _dbRef.update(updates);
+      if (updates.isNotEmpty) {
+        await _dbRef.update(updates);
+      }
     } catch (e) {
-      debugPrint("Errore notifica gruppo $groupId per booking $bookingId: $e");
+      debugPrint("Errore notifica gruppo $groupId: $e");
     }
   }
 
@@ -1800,6 +1906,10 @@ class DatabaseService {
 
   Future<void> confirmBooking(String bookingId) async {
     await _ensureCurrentUserIsAdminOrThrow();
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception('Utente non loggato');
+    }
 
     final snapshot = await _dbRef.child('bookings').child(bookingId).get();
     if (!snapshot.exists || snapshot.value == null) {
@@ -1809,10 +1919,16 @@ class DatabaseService {
     final bookingData = Map<String, dynamic>.from(snapshot.value as Map);
     final ownerId = bookingData['user_id']?.toString() ?? '';
     final groupId = bookingData['group_id']?.toString();
+    final ownerNotificationId = _dbRef
+        .child('user_notifications')
+        .child(ownerId)
+        .push()
+        .key;
     final updates = <String, dynamic>{
       '/bookings/$bookingId/stato': BookingStatus.confermata.name,
       '/user_bookings/$ownerId/$bookingId/stato': BookingStatus.confermata.name,
-      '/user_notifications/$ownerId/$bookingId': {
+      if (ownerNotificationId != null)
+        '/user_notifications/$ownerId/$ownerNotificationId': {
         'type': 'booking_confirmed',
         'booking_id': bookingId,
         'data': bookingData['data'],
@@ -1829,10 +1945,30 @@ class DatabaseService {
     }
 
     await _dbRef.update(updates);
+
+    if (groupId != null && groupId.isNotEmpty) {
+      final groupName = bookingData['group_name']?.toString() ??
+          await _resolveGroupName(groupId);
+      await _notifyGroupBookingMembers(
+        groupId: groupId,
+        bookingId: bookingId,
+        type: 'group_booking_confirmed',
+        actorUserId: user.uid,
+        date: bookingData['data']?.toString() ?? '',
+        start: bookingData['ora_inizio']?.toString() ?? '',
+        end: bookingData['ora_fine']?.toString() ?? '',
+        groupName: groupName,
+        excludeUserIds: {ownerId},
+      );
+    }
   }
 
   Future<void> cancelBooking(String bookingId) async {
     await _ensureCurrentUserIsAdminOrThrow();
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception('Utente non loggato');
+    }
 
     final snapshot = await _dbRef.child('bookings').child(bookingId).get();
     if (!snapshot.exists || snapshot.value == null) {
@@ -1843,10 +1979,16 @@ class DatabaseService {
     final ownerId = bookingData['user_id']?.toString() ?? '';
     final groupId = bookingData['group_id']?.toString();
     final date = bookingData['data']?.toString() ?? '';
+    final ownerNotificationId = _dbRef
+        .child('user_notifications')
+        .child(ownerId)
+        .push()
+        .key;
     final updates = <String, dynamic>{
       '/bookings/$bookingId/stato': BookingStatus.annullata.name,
       '/user_bookings/$ownerId/$bookingId/stato': BookingStatus.annullata.name,
-      '/user_notifications/$ownerId/$bookingId': {
+      if (ownerNotificationId != null)
+        '/user_notifications/$ownerId/$ownerNotificationId': {
         'type': 'booking_cancelled',
         'booking_id': bookingId,
         'data': bookingData['data'],
@@ -1873,6 +2015,22 @@ class DatabaseService {
     }
 
     await _dbRef.update(updates);
+
+    if (groupId != null && groupId.isNotEmpty) {
+      final groupName = bookingData['group_name']?.toString() ??
+          await _resolveGroupName(groupId);
+      await _notifyGroupBookingMembers(
+        groupId: groupId,
+        bookingId: bookingId,
+        type: 'group_booking_cancelled',
+        actorUserId: user.uid,
+        date: bookingData['data']?.toString() ?? '',
+        start: bookingData['ora_inizio']?.toString() ?? '',
+        end: bookingData['ora_fine']?.toString() ?? '',
+        groupName: groupName,
+        excludeUserIds: {ownerId},
+      );
+    }
   }
 
   Future<void> createJam(Jam jam, List<String> selectedSlotTimes) async {
@@ -1924,6 +2082,20 @@ class DatabaseService {
 
     try {
       await _dbRef.update(updates);
+      if (jam.groupId != null && jam.groupId!.isNotEmpty) {
+        await _notifyGroupJamMembers(
+          groupId: jam.groupId!,
+          jamId: newJamKey,
+          type: 'group_jam_created',
+          actorUserId: jam.creatorId,
+          date: jam.data,
+          start: jam.oraInizio,
+          end: jam.oraFine,
+          title: jam.titolo,
+          groupName: updates[jamPath]['group_name']?.toString(),
+          excludeUserIds: {jam.creatorId},
+        );
+      }
       debugPrint("Jam creata in stato di approvazione.");
     } catch (e) {
       debugPrint("Errore durante createJam: $e");
@@ -1966,6 +2138,10 @@ class DatabaseService {
 
   Future<void> approveJam(String jamId) async {
     await _ensureCurrentUserIsAdminOrThrow();
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception('Utente non loggato');
+    }
 
     final snapshot = await _dbRef.child('jams').child(jamId).get();
     if (!snapshot.exists || snapshot.value == null) {
@@ -1978,7 +2154,13 @@ class DatabaseService {
       '/jams/$jamId/stato': JamStatus.pubblicata.name,
     };
     if (creatorId.isNotEmpty) {
-      updates['/user_notifications/$creatorId/$jamId'] = {
+      final creatorNotificationId = _dbRef
+          .child('user_notifications')
+          .child(creatorId)
+          .push()
+          .key;
+      if (creatorNotificationId != null) {
+        updates['/user_notifications/$creatorId/$creatorNotificationId'] = {
         'type': 'jam_approved',
         'jam_id': jamId,
         'data': jamData['data'],
@@ -1986,7 +2168,8 @@ class DatabaseService {
         'ora_fine': jamData['ora_fine'],
         'timestamp': ServerValue.timestamp,
         'read': false,
-      };
+        };
+      }
     }
 
     final feedSnapshot = await _dbRef
@@ -2021,10 +2204,30 @@ class DatabaseService {
     }
 
     await _dbRef.update(updates);
+
+    final groupId = jamData['group_id']?.toString();
+    if (groupId != null && groupId.isNotEmpty) {
+      await _notifyGroupJamMembers(
+        groupId: groupId,
+        jamId: jamId,
+        type: 'group_jam_approved',
+        actorUserId: user.uid,
+        date: jamData['data']?.toString() ?? '',
+        start: jamData['ora_inizio']?.toString() ?? '',
+        end: jamData['ora_fine']?.toString() ?? '',
+        title: jamData['titolo']?.toString() ?? '',
+        groupName: jamData['group_name']?.toString(),
+        excludeUserIds: {creatorId},
+      );
+    }
   }
 
   Future<void> rejectJam(String jamId) async {
     await _ensureCurrentUserIsAdminOrThrow();
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception('Utente non loggato');
+    }
 
     final snapshot = await _dbRef.child('jams').child(jamId).get();
     if (!snapshot.exists || snapshot.value == null) {
@@ -2041,7 +2244,13 @@ class DatabaseService {
       '/jams/$jamId/participant_usernames': null,
     };
     if (creatorId.isNotEmpty) {
-      updates['/user_notifications/$creatorId/$jamId'] = {
+      final creatorNotificationId = _dbRef
+          .child('user_notifications')
+          .child(creatorId)
+          .push()
+          .key;
+      if (creatorNotificationId != null) {
+        updates['/user_notifications/$creatorId/$creatorNotificationId'] = {
         'type': 'jam_rejected',
         'jam_id': jamId,
         'data': jamData['data'],
@@ -2049,7 +2258,8 @@ class DatabaseService {
         'ora_fine': jamData['ora_fine'],
         'timestamp': ServerValue.timestamp,
         'read': false,
-      };
+        };
+      }
     }
 
     if (dateStr.isNotEmpty) {
@@ -2079,6 +2289,22 @@ class DatabaseService {
     }
 
     await _dbRef.update(updates);
+
+    final groupId = jamData['group_id']?.toString();
+    if (groupId != null && groupId.isNotEmpty) {
+      await _notifyGroupJamMembers(
+        groupId: groupId,
+        jamId: jamId,
+        type: 'group_jam_rejected',
+        actorUserId: user.uid,
+        date: jamData['data']?.toString() ?? '',
+        start: jamData['ora_inizio']?.toString() ?? '',
+        end: jamData['ora_fine']?.toString() ?? '',
+        title: jamData['titolo']?.toString() ?? '',
+        groupName: jamData['group_name']?.toString(),
+        excludeUserIds: {creatorId},
+      );
+    }
   }
 
   Future<List<Map<String, dynamic>>> getPublishedJamsOnce() async {
@@ -2471,6 +2697,21 @@ class DatabaseService {
     }
 
     await _dbRef.update(updates);
+
+    if (groupId != null && groupId.isNotEmpty) {
+      await _notifyGroupJamMembers(
+        groupId: groupId,
+        jamId: jamId,
+        type: 'group_jam_modified',
+        actorUserId: actingUserId,
+        date: date,
+        start: orderedSlots.first,
+        end: newEndTime,
+        title: trimmedTitle,
+        groupName: groupName,
+        excludeUserIds: {actingUserId},
+      );
+    }
   }
 
   Future<void> _ensureSlotsExistForDate(String dateStr) async {

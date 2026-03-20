@@ -7,7 +7,6 @@ import 'package:flutter/foundation.dart';
 import 'package:soundimplosion/app/features/notifications/notifications_repository.dart';
 import 'package:soundimplosion/firebase_options.dart';
 import 'package:soundimplosion/services/database_service.dart';
-import 'package:soundimplosion/services/local_notification_service.dart';
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -22,8 +21,6 @@ class PushNotificationService {
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final DatabaseService _databaseService = DatabaseService();
-  final NotificationsRepository _notificationsRepository =
-      FirebaseNotificationsRepository();
   final StreamController<String> _openedPayloadController =
       StreamController<String>.broadcast();
 
@@ -49,6 +46,11 @@ class PushNotificationService {
 
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
     await _messaging.requestPermission(alert: true, badge: true, sound: true);
+    await _messaging.setForegroundNotificationPresentationOptions(
+      alert: false,
+      badge: false,
+      sound: false,
+    );
     await _syncTokenForCurrentUser();
 
     _authSubscription = _auth.authStateChanges().listen((user) async {
@@ -85,28 +87,6 @@ class PushNotificationService {
 
     final initialMessage = await _messaging.getInitialMessage();
     _initialPayload = _payloadFromMessage(initialMessage);
-
-    FirebaseMessaging.onMessage.listen((message) async {
-      final preferences = await _notificationsRepository.loadPreferences();
-      final payload = _payloadFromMessage(message);
-      final routeTarget = NotificationRouteTarget.fromPayload(payload);
-      final category = _categoryForType(message.data['type']);
-
-      if (routeTarget == null ||
-          !preferences.systemEnabled ||
-          !preferences.allowsCategory(category)) {
-        return;
-      }
-
-      final title = message.notification?.title ?? 'Nuova notifica';
-      final body = message.notification?.body ?? 'Hai un nuovo aggiornamento.';
-      await LocalNotificationService.instance.showRawNotification(
-        id: title.hashCode ^ body.hashCode,
-        title: title,
-        body: body,
-        payload: payload,
-      );
-    });
 
     _initialized = true;
   }
@@ -154,11 +134,32 @@ class PushNotificationService {
   NotificationCategory _categoryForType(String? type) {
     switch (type) {
       case 'booking_created':
+      case 'group_booking_modified':
+      case 'group_booking_confirmed':
+      case 'group_booking_cancelled':
       case 'booking_confirmed':
       case 'booking_cancelled':
+      case 'admin_booking_created':
+      case 'admin_booking_modified':
+      case 'admin_booking_cancelled':
+      case 'admin_booking_update_proposed':
+      case 'admin_booking_update_accepted':
+      case 'admin_booking_update_rejected':
+      case 'booking_update_proposal':
         return NotificationCategory.bookings;
+      case 'group_jam_created':
+      case 'group_jam_modified':
+      case 'group_jam_approved':
+      case 'group_jam_rejected':
       case 'jam_approved':
       case 'jam_rejected':
+      case 'admin_jam_created':
+      case 'admin_jam_modified':
+      case 'admin_jam_cancelled':
+      case 'admin_jam_update_proposed':
+      case 'admin_jam_update_accepted':
+      case 'admin_jam_update_rejected':
+      case 'jam_update_proposal':
         return NotificationCategory.jams;
       case 'group_invite':
       case 'group_invite_accepted':
@@ -170,6 +171,9 @@ class PushNotificationService {
   }
 
   int _pageIndexForType(String? type) {
+    if (type?.startsWith('admin_') == true) {
+      return 4;
+    }
     switch (_categoryForType(type)) {
       case NotificationCategory.bookings:
         return 1;
@@ -182,15 +186,17 @@ class PushNotificationService {
     }
   }
 
-  String? _bookingIdForType(String? type, String? notificationId) {
+  String? _bookingIdForType(Map<String, dynamic> data) {
+    final type = data['type'];
     return _categoryForType(type) == NotificationCategory.bookings
-        ? notificationId
+        ? data['booking_id'] ?? data['subject_id'] ?? data['notification_id']
         : null;
   }
 
-  String? _jamIdForType(String? type, String? notificationId) {
+  String? _jamIdForType(Map<String, dynamic> data) {
+    final type = data['type'];
     return _categoryForType(type) == NotificationCategory.jams
-        ? notificationId
+        ? data['jam_id'] ?? data['subject_id'] ?? data['notification_id']
         : null;
   }
 
@@ -201,11 +207,8 @@ class PushNotificationService {
 
     return NotificationRouteTarget(
       pageIndex: _pageIndexForType(message.data['type']),
-      bookingId: _bookingIdForType(
-        message.data['type'],
-        message.data['notification_id'],
-      ),
-      jamId: _jamIdForType(message.data['type'], message.data['notification_id']),
+      bookingId: _bookingIdForType(message.data),
+      jamId: _jamIdForType(message.data),
       groupId: message.data['group_id'],
     ).toPayload();
   }
