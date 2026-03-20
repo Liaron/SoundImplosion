@@ -40,8 +40,15 @@ class _PublicSiteWebState extends State<PublicSiteWeb> {
                   borderRadius: BorderRadius.circular(32),
                   border: Border.all(color: const Color(0xFFD4E3F8)),
                 ),
-                child: const SingleChildScrollView(
-                  child: AuthFormCard(maxWidth: 460),
+                child: SingleChildScrollView(
+                  child: AuthFormCard(
+                    maxWidth: 460,
+                    onAuthenticated: () {
+                      if (Navigator.of(dialogContext).canPop()) {
+                        Navigator.of(dialogContext).pop();
+                      }
+                    },
+                  ),
                 ),
               ),
             ),

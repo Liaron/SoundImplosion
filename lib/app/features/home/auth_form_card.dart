@@ -11,11 +11,13 @@ class AuthFormCard extends StatefulWidget {
     this.maxWidth = 460,
     this.showSurface = true,
     this.showLogo = true,
+    this.onAuthenticated,
   });
 
   final double maxWidth;
   final bool showSurface;
   final bool showLogo;
+  final VoidCallback? onAuthenticated;
 
   @override
   State<AuthFormCard> createState() => _AuthFormCardState();
@@ -33,6 +35,10 @@ class _AuthFormCardState extends State<AuthFormCard> {
   bool _isLoading = false;
   bool _isLogin = true;
   String? _pendingMessage;
+
+  void _handleAuthenticationSuccess() {
+    widget.onAuthenticated?.call();
+  }
 
   String _formatAuthError(Object error) {
     if (error is FirebaseAuthException) {
@@ -100,6 +106,8 @@ class _AuthFormCardState extends State<AuthFormCard> {
       } else {
         await AppTelemetryService.instance.logLogin(method: 'google');
       }
+
+      _handleAuthenticationSuccess();
     } catch (error, stackTrace) {
       await AppTelemetryService.instance.recordError(
         error,
@@ -141,6 +149,7 @@ class _AuthFormCardState extends State<AuthFormCard> {
           password: _passwordController.text.trim(),
         );
         await AppTelemetryService.instance.logLogin(method: 'password');
+        _handleAuthenticationSuccess();
       } else {
         final email = _emailController.text.trim();
         final username = _nicknameController.text.trim();
@@ -176,6 +185,7 @@ class _AuthFormCardState extends State<AuthFormCard> {
               await _authService.sendEmailVerification();
             } catch (_) {}
             await AppTelemetryService.instance.logSignUp(method: 'password');
+            _handleAuthenticationSuccess();
           } catch (error) {
             await userCredential.user?.delete();
             rethrow;
