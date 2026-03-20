@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:soundimplosion/app/features/app_scaffold_mobile.dart';
@@ -12,12 +13,15 @@ import 'package:soundimplosion/services/firebase_auth.dart';
 import 'package:soundimplosion/services/local_notification_service.dart';
 import 'package:soundimplosion/services/app_telemetry_service.dart';
 import 'package:soundimplosion/services/push_notification_service.dart';
+import 'package:soundimplosion/web/public/public_site_web.dart';
 
 void main() async {
   runZonedGuarded(
     () async {
       WidgetsFlutterBinding.ensureInitialized();
-      await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
       FlutterError.onError = AppTelemetryService.instance.recordFlutterError;
       runApp(const MyApp());
       _configureErrorHandling();
@@ -57,7 +61,9 @@ void _initializeBackgroundServices() {
       () => AppTelemetryService.instance.initialize(),
     ),
   );
-  AuthService().authStateChanges.listen(AppTelemetryService.instance.syncCurrentUser);
+  AuthService().authStateChanges.listen(
+    AppTelemetryService.instance.syncCurrentUser,
+  );
   unawaited(
     _runStartupTask(
       'local notifications',
@@ -76,10 +82,7 @@ void _initializeBackgroundServices() {
   );
 }
 
-Future<void> _runStartupTask(
-  String label,
-  Future<void> Function() task,
-) async {
+Future<void> _runStartupTask(String label, Future<void> Function() task) async {
   try {
     await task();
   } catch (error, stackTrace) {
@@ -104,9 +107,13 @@ class MyApp extends StatelessWidget {
     final surface = isDark
         ? const Color(0xFF1B1D29)
         : (prefs.highContrast ? Colors.white : Colors.white);
-    final textColor = isDark ? const Color(0xFFE0E6ED) : const Color(0xFF1A1A24);
+    final textColor = isDark
+        ? const Color(0xFFE0E6ED)
+        : const Color(0xFF1A1A24);
     final primary = isDark ? const Color(0xFF00E5FF) : const Color(0xFF0044CC);
-    final secondary = isDark ? const Color(0xFFFF2A5F) : const Color(0xFFD60036);
+    final secondary = isDark
+        ? const Color(0xFFFF2A5F)
+        : const Color(0xFFD60036);
     return ThemeData(
       brightness: brightness,
       primaryColor: primary,
@@ -123,21 +130,73 @@ class MyApp extends StatelessWidget {
       ),
       scaffoldBackgroundColor: background,
       textTheme: TextTheme(
-        displayLarge: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 32),
-        displayMedium: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 24),
-        displaySmall: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 20),
-        headlineLarge: TextStyle(color: textColor, fontWeight: FontWeight.w600, fontSize: 22),
-        headlineMedium: TextStyle(color: textColor, fontWeight: FontWeight.w600, fontSize: 18),
-        headlineSmall: TextStyle(color: textColor, fontWeight: FontWeight.w600, fontSize: 16),
-        titleLarge: TextStyle(color: textColor, fontWeight: FontWeight.w500, fontSize: 18),
-        titleMedium: TextStyle(color: textColor, fontWeight: FontWeight.w500, fontSize: 16),
-        titleSmall: TextStyle(color: textColor, fontWeight: FontWeight.w500, fontSize: 14),
+        displayLarge: TextStyle(
+          color: textColor,
+          fontWeight: FontWeight.bold,
+          fontSize: 32,
+        ),
+        displayMedium: TextStyle(
+          color: textColor,
+          fontWeight: FontWeight.bold,
+          fontSize: 24,
+        ),
+        displaySmall: TextStyle(
+          color: textColor,
+          fontWeight: FontWeight.bold,
+          fontSize: 20,
+        ),
+        headlineLarge: TextStyle(
+          color: textColor,
+          fontWeight: FontWeight.w600,
+          fontSize: 22,
+        ),
+        headlineMedium: TextStyle(
+          color: textColor,
+          fontWeight: FontWeight.w600,
+          fontSize: 18,
+        ),
+        headlineSmall: TextStyle(
+          color: textColor,
+          fontWeight: FontWeight.w600,
+          fontSize: 16,
+        ),
+        titleLarge: TextStyle(
+          color: textColor,
+          fontWeight: FontWeight.w500,
+          fontSize: 18,
+        ),
+        titleMedium: TextStyle(
+          color: textColor,
+          fontWeight: FontWeight.w500,
+          fontSize: 16,
+        ),
+        titleSmall: TextStyle(
+          color: textColor,
+          fontWeight: FontWeight.w500,
+          fontSize: 14,
+        ),
         bodyLarge: TextStyle(color: textColor, fontSize: 16, height: 1.5),
         bodyMedium: TextStyle(color: textColor, fontSize: 14, height: 1.5),
-        bodySmall: TextStyle(color: isDark ? Colors.white70 : Colors.black87, fontSize: 12, height: 1.4),
-        labelLarge: TextStyle(color: textColor, fontWeight: FontWeight.w500, fontSize: 14),
-        labelMedium: TextStyle(color: textColor, fontWeight: FontWeight.w500, fontSize: 12),
-        labelSmall: TextStyle(color: isDark ? Colors.white70 : Colors.black87, fontWeight: FontWeight.w500, fontSize: 11),
+        bodySmall: TextStyle(
+          color: isDark ? Colors.white70 : Colors.black87,
+          fontSize: 12,
+          height: 1.4,
+        ),
+        labelLarge: TextStyle(
+          color: textColor,
+          fontWeight: FontWeight.w500,
+          fontSize: 14,
+        ),
+        labelMedium: TextStyle(
+          color: textColor,
+          fontWeight: FontWeight.w500,
+          fontSize: 12,
+        ),
+        labelSmall: TextStyle(
+          color: isDark ? Colors.white70 : Colors.black87,
+          fontWeight: FontWeight.w500,
+          fontSize: 11,
+        ),
       ),
       cardTheme: CardThemeData(
         color: surface,
@@ -150,7 +209,9 @@ class MyApp extends StatelessWidget {
           backgroundColor: primary,
           foregroundColor: isDark ? Colors.black : Colors.white,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
       ),
@@ -159,22 +220,36 @@ class MyApp extends StatelessWidget {
           foregroundColor: primary,
           side: BorderSide(color: primary),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
       ),
       switchTheme: SwitchThemeData(
-        thumbColor: WidgetStateProperty.resolveWith<Color>((Set<WidgetState> states) {
+        thumbColor: WidgetStateProperty.resolveWith<Color>((
+          Set<WidgetState> states,
+        ) {
           if (states.contains(WidgetState.selected)) {
-            return isDark ? const Color(0xFF69F0AE) : const Color(0xFF4CAF50); // Green
+            return isDark
+                ? const Color(0xFF69F0AE)
+                : const Color(0xFF4CAF50); // Green
           }
-          return isDark ? const Color(0xFFFF5252) : const Color(0xFFF44336); // Red
+          return isDark
+              ? const Color(0xFFFF5252)
+              : const Color(0xFFF44336); // Red
         }),
-        trackColor: WidgetStateProperty.resolveWith<Color>((Set<WidgetState> states) {
+        trackColor: WidgetStateProperty.resolveWith<Color>((
+          Set<WidgetState> states,
+        ) {
           if (states.contains(WidgetState.selected)) {
-            return isDark ? const Color(0xFF69F0AE).withValues(alpha: 0.3) : const Color(0xFF4CAF50).withValues(alpha: 0.3);
+            return isDark
+                ? const Color(0xFF69F0AE).withValues(alpha: 0.3)
+                : const Color(0xFF4CAF50).withValues(alpha: 0.3);
           }
-          return isDark ? const Color(0xFFFF5252).withValues(alpha: 0.3) : const Color(0xFFF44336).withValues(alpha: 0.3);
+          return isDark
+              ? const Color(0xFFFF5252).withValues(alpha: 0.3)
+              : const Color(0xFFF44336).withValues(alpha: 0.3);
         }),
         trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
       ),
@@ -192,9 +267,13 @@ class MyApp extends StatelessWidget {
       navigationRailTheme: NavigationRailThemeData(
         backgroundColor: surface,
         selectedIconTheme: IconThemeData(color: primary),
-        unselectedIconTheme: IconThemeData(color: textColor.withValues(alpha: 0.6)),
+        unselectedIconTheme: IconThemeData(
+          color: textColor.withValues(alpha: 0.6),
+        ),
         selectedLabelTextStyle: TextStyle(color: primary),
-        unselectedLabelTextStyle: TextStyle(color: textColor.withValues(alpha: 0.6)),
+        unselectedLabelTextStyle: TextStyle(
+          color: textColor.withValues(alpha: 0.6),
+        ),
       ),
       pageTransitionsTheme: prefs.reduceMotion
           ? const PageTransitionsTheme(
@@ -238,6 +317,9 @@ class MyApp extends StatelessWidget {
               if (snapshot.connectionState == ConnectionState.active) {
                 if (snapshot.hasData) {
                   return const AppScaffoldMobile();
+                }
+                if (kIsWeb) {
+                  return const PublicSiteWeb();
                 }
                 return const AuthPageMobile();
               }

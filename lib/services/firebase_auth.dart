@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:soundimplosion/services/push_notification_service.dart';
@@ -48,6 +49,15 @@ class AuthService {
   }
 
   Future<UserCredential> signInWithGoogle() async {
+    if (kIsWeb) {
+      final provider = GoogleAuthProvider()
+        ..addScope('email')
+        ..addScope('profile')
+        ..setCustomParameters(<String, String>{'prompt': 'select_account'});
+
+      return _firebaseAuth.signInWithPopup(provider);
+    }
+
     await _ensureGoogleInitialized();
     final googleUser = await _googleSignIn.authenticate();
     final googleAuth = googleUser.authentication;
@@ -160,6 +170,15 @@ class AuthService {
     }
 
     if (isGoogleProviderLinked) {
+      if (kIsWeb) {
+        final provider = GoogleAuthProvider()
+          ..addScope('email')
+          ..addScope('profile')
+          ..setCustomParameters(<String, String>{'prompt': 'select_account'});
+        await user.reauthenticateWithPopup(provider);
+        return;
+      }
+
       await _ensureGoogleInitialized();
       final googleUser = await _googleSignIn.authenticate();
       final googleAuth = googleUser.authentication;
