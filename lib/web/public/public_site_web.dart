@@ -3,8 +3,18 @@ import 'package:flutter/material.dart';
 import 'package:soundimplosion/app/features/home/auth_form_card.dart';
 import 'package:soundimplosion/app/startup_loading_screen.dart';
 import 'package:soundimplosion/web/public/public_site_content.dart';
+import 'package:url_launcher/url_launcher.dart';
 
-enum PublicSiteSection { home, about, pricing }
+enum PublicSiteSection { home, about, pricing, contact }
+
+Future<void> _launchPublicLink(String url) async {
+  final uri = Uri.tryParse(url);
+  if (uri == null) {
+    return;
+  }
+
+  await launchUrl(uri);
+}
 
 class PublicSiteWeb extends StatefulWidget {
   const PublicSiteWeb({super.key});
@@ -200,6 +210,11 @@ class _DesktopHeaderRow extends StatelessWidget {
           selected: currentSection == PublicSiteSection.pricing,
           onTap: () => onSelectSection(PublicSiteSection.pricing),
         ),
+        _NavItem(
+          label: 'Contatti',
+          selected: currentSection == PublicSiteSection.contact,
+          onTap: () => onSelectSection(PublicSiteSection.contact),
+        ),
         const SizedBox(width: 8),
         TextButton(onPressed: onLoginPressed, child: const Text('Accedi')),
       ],
@@ -237,6 +252,10 @@ class _CompactHeaderRow extends StatelessWidget {
             PopupMenuItem(
               value: PublicSiteSection.pricing,
               child: Text('Pricing'),
+            ),
+            PopupMenuItem(
+              value: PublicSiteSection.contact,
+              child: Text('Contatti'),
             ),
           ],
         ),
@@ -353,9 +372,20 @@ class _PublicPageView extends StatelessWidget {
           onLoginPressed: onLoginPressed,
         );
       case PublicSiteSection.about:
-        return _AboutPublicPage(onLoginPressed: onLoginPressed);
+        return _AboutPublicPage(
+          onLoginPressed: onLoginPressed,
+          onSelectSection: onSelectSection,
+        );
       case PublicSiteSection.pricing:
-        return _PricingPublicPage(onLoginPressed: onLoginPressed);
+        return _PricingPublicPage(
+          onLoginPressed: onLoginPressed,
+          onSelectSection: onSelectSection,
+        );
+      case PublicSiteSection.contact:
+        return _ContactPublicPage(
+          onLoginPressed: onLoginPressed,
+          onSelectSection: onSelectSection,
+        );
     }
   }
 }
@@ -372,6 +402,7 @@ class _HomePublicPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _ScrollablePage(
+      onSelectSection: onSelectSection,
       child: Column(
         children: [
           _HeroSection(
@@ -392,13 +423,18 @@ class _HomePublicPage extends StatelessWidget {
 }
 
 class _AboutPublicPage extends StatelessWidget {
-  const _AboutPublicPage({required this.onLoginPressed});
+  const _AboutPublicPage({
+    required this.onLoginPressed,
+    required this.onSelectSection,
+  });
 
   final VoidCallback onLoginPressed;
+  final ValueChanged<PublicSiteSection> onSelectSection;
 
   @override
   Widget build(BuildContext context) {
     return _ScrollablePage(
+      onSelectSection: onSelectSection,
       child: Column(
         children: [
           _PageIntroCard(
@@ -419,13 +455,18 @@ class _AboutPublicPage extends StatelessWidget {
 }
 
 class _PricingPublicPage extends StatelessWidget {
-  const _PricingPublicPage({required this.onLoginPressed});
+  const _PricingPublicPage({
+    required this.onLoginPressed,
+    required this.onSelectSection,
+  });
 
   final VoidCallback onLoginPressed;
+  final ValueChanged<PublicSiteSection> onSelectSection;
 
   @override
   Widget build(BuildContext context) {
     return _ScrollablePage(
+      onSelectSection: onSelectSection,
       child: Column(
         children: [
           _PageIntroCard(
@@ -445,10 +486,44 @@ class _PricingPublicPage extends StatelessWidget {
   }
 }
 
+class _ContactPublicPage extends StatelessWidget {
+  const _ContactPublicPage({
+    required this.onLoginPressed,
+    required this.onSelectSection,
+  });
+
+  final VoidCallback onLoginPressed;
+  final ValueChanged<PublicSiteSection> onSelectSection;
+
+  @override
+  Widget build(BuildContext context) {
+    return _ScrollablePage(
+      onSelectSection: onSelectSection,
+      child: Column(
+        children: [
+          _PageIntroCard(
+            eyebrow: PublicSiteContent.contactEyebrow,
+            title: PublicSiteContent.contactTitle,
+            description: PublicSiteContent.contactDescription,
+            actionLabel: PublicSiteContent.contactActionButton,
+            onActionPressed: onLoginPressed,
+          ),
+          const SizedBox(height: 28),
+          const _ContactGrid(),
+        ],
+      ),
+    );
+  }
+}
+
 class _ScrollablePage extends StatelessWidget {
-  const _ScrollablePage({required this.child});
+  const _ScrollablePage({
+    required this.child,
+    required this.onSelectSection,
+  });
 
   final Widget child;
+  final ValueChanged<PublicSiteSection> onSelectSection;
 
   @override
   Widget build(BuildContext context) {
@@ -464,7 +539,7 @@ class _ScrollablePage extends StatelessWidget {
               ),
             ),
           ),
-          const _Footer(),
+          _Footer(onSelectSection: onSelectSection),
         ],
       ),
     );
@@ -571,23 +646,10 @@ class _HeroSection extends StatelessWidget {
           ),
         ],
       ),
-      child: isCompact
-          ? Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                details,
-                const SizedBox(height: 24),
-                const _HeroPreviewCard(),
-              ],
-            )
-          : Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(flex: 6, child: details),
-                const SizedBox(width: 24),
-                const Expanded(flex: 5, child: _HeroPreviewCard()),
-              ],
-            ),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: details,
+      ),
     );
   }
 }
@@ -739,38 +801,74 @@ class _HighlightsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isCompact = MediaQuery.of(context).size.width < 920;
-    return Wrap(
-      spacing: 20,
-      runSpacing: 20,
-      children: [
-        SizedBox(
-          width: isCompact ? double.infinity : 360,
-          child: const _HighlightCard(
-            icon: Icons.speaker_group_rounded,
-            title: PublicSiteContent.highlight1Title,
-            description: PublicSiteContent.highlight1Description,
-            accent: Color(0xFF003B95),
+    if (isCompact) {
+      return Wrap(
+        spacing: 20,
+        runSpacing: 20,
+        children: const [
+          SizedBox(
+            width: double.infinity,
+            child: _HighlightCard(
+              icon: Icons.speaker_group_rounded,
+              title: PublicSiteContent.highlight1Title,
+              description: PublicSiteContent.highlight1Description,
+              accent: Color(0xFF003B95),
+            ),
           ),
-        ),
-        SizedBox(
-          width: isCompact ? double.infinity : 360,
-          child: const _HighlightCard(
-            icon: Icons.graphic_eq_rounded,
-            title: PublicSiteContent.highlight2Title,
-            description: PublicSiteContent.highlight2Description,
-            accent: Color(0xFFB7410E),
+          SizedBox(
+            width: double.infinity,
+            child: _HighlightCard(
+              icon: Icons.graphic_eq_rounded,
+              title: PublicSiteContent.highlight2Title,
+              description: PublicSiteContent.highlight2Description,
+              accent: Color(0xFFB7410E),
+            ),
           ),
-        ),
-        SizedBox(
-          width: isCompact ? double.infinity : 360,
-          child: const _HighlightCard(
-            icon: Icons.local_cafe_rounded,
-            title: PublicSiteContent.highlight3Title,
-            description: PublicSiteContent.highlight3Description,
-            accent: Color(0xFF0E9F6E),
+          SizedBox(
+            width: double.infinity,
+            child: _HighlightCard(
+              icon: Icons.local_cafe_rounded,
+              title: PublicSiteContent.highlight3Title,
+              description: PublicSiteContent.highlight3Description,
+              accent: Color(0xFF0E9F6E),
+            ),
           ),
-        ),
-      ],
+        ],
+      );
+    }
+
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: const [
+          Expanded(
+            child: _HighlightCard(
+              icon: Icons.speaker_group_rounded,
+              title: PublicSiteContent.highlight1Title,
+              description: PublicSiteContent.highlight1Description,
+              accent: Color(0xFF003B95),
+            ),
+          ),
+          SizedBox(width: 20),
+          Expanded(
+            child: _HighlightCard(
+              icon: Icons.graphic_eq_rounded,
+              title: PublicSiteContent.highlight2Title,
+              description: PublicSiteContent.highlight2Description,
+              accent: Color(0xFFB7410E),
+            ),
+          ),
+          SizedBox(width: 20),
+          Expanded(
+            child: _HighlightCard(
+              icon: Icons.local_cafe_rounded,
+              title: PublicSiteContent.highlight3Title,
+              description: PublicSiteContent.highlight3Description,
+              accent: Color(0xFF0E9F6E),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -792,6 +890,7 @@ class _HighlightCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
+      height: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.92),
@@ -837,39 +936,44 @@ class _StatsBand extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isCompact = MediaQuery.of(context).size.width < 900;
+    final statTiles = const [
+      _StatTile(
+        value: PublicSiteContent.stat1Value,
+        label: PublicSiteContent.stat1Label,
+      ),
+      _StatTile(
+        value: PublicSiteContent.stat2Value,
+        label: PublicSiteContent.stat2Label,
+      ),
+      _StatTile(
+        value: PublicSiteContent.stat3Value,
+        label: PublicSiteContent.stat3Label,
+      ),
+    ];
+
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: const Color(0xFF10233E),
         borderRadius: BorderRadius.circular(32),
       ),
-      child: Wrap(
-        spacing: 20,
-        runSpacing: 20,
-        children: [
-          SizedBox(
-            width: isCompact ? double.infinity : 340,
-            child: const _StatTile(
-              value: PublicSiteContent.stat1Value,
-              label: PublicSiteContent.stat1Label,
+      child: isCompact
+          ? Column(
+              children: [
+                for (var i = 0; i < statTiles.length; i++) ...[
+                  statTiles[i],
+                  if (i != statTiles.length - 1) const SizedBox(height: 20),
+                ],
+              ],
+            )
+          : Row(
+              children: [
+                for (var i = 0; i < statTiles.length; i++) ...[
+                  Expanded(child: statTiles[i]),
+                  if (i != statTiles.length - 1) const SizedBox(width: 20),
+                ],
+              ],
             ),
-          ),
-          SizedBox(
-            width: isCompact ? double.infinity : 340,
-            child: const _StatTile(
-              value: PublicSiteContent.stat2Value,
-              label: PublicSiteContent.stat2Label,
-            ),
-          ),
-          SizedBox(
-            width: isCompact ? double.infinity : 340,
-            child: const _StatTile(
-              value: PublicSiteContent.stat3Value,
-              label: PublicSiteContent.stat3Label,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -883,24 +987,40 @@ class _StatTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return SizedBox(
+      height: 88,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Text(
-          value,
-          style: theme.textTheme.headlineMedium?.copyWith(
-            color: Colors.white,
-            fontWeight: FontWeight.w900,
+          SizedBox(
+            height: 36,
+            child: Center(
+              child: Text(
+                value,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.headlineMedium?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
           ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          label,
-          style: theme.textTheme.bodyLarge?.copyWith(
-            color: const Color(0xFFC9D8EA),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 44,
+            child: Center(
+              child: Text(
+                label,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  color: const Color(0xFFC9D8EA),
+                ),
+              ),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -1417,6 +1537,7 @@ class _PricingFaqSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final faqs = PublicSiteContent.pricingFaqs;
     return Container(
       padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
@@ -1425,28 +1546,279 @@ class _PricingFaqSection extends StatelessWidget {
         border: Border.all(color: const Color(0xFFDDE8F5)),
       ),
       child: Column(
-        children: PublicSiteContent.pricingFaqs.map((faq) {
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: List.generate(faqs.length, (index) {
+          final faq = faqs[index];
           return _FaqRow(
             question: faq['question']!,
             answer: faq['answer']!,
+            isFirst: index == 0,
           );
-        }).toList(),
+        }),
+      ),
+    );
+  }
+}
+
+class _ContactGrid extends StatelessWidget {
+  const _ContactGrid();
+
+  @override
+  Widget build(BuildContext context) {
+    final isCompact = MediaQuery.of(context).size.width < 980;
+    final categoryCards = <Widget>[
+      if (PublicSiteContent.contactPhones.isNotEmpty)
+        SizedBox(
+          width: isCompact ? double.infinity : 560,
+          child: const _ContactCategoryCard(
+            title: 'Numeri di telefono',
+            icon: Icons.phone_in_talk_rounded,
+            accent: Color(0xFF003B95),
+            items: PublicSiteContent.contactPhones,
+          ),
+        ),
+      if (PublicSiteContent.contactEmails.isNotEmpty)
+        SizedBox(
+          width: isCompact ? double.infinity : 560,
+          child: const _ContactCategoryCard(
+            title: 'Email',
+            icon: Icons.alternate_email_rounded,
+            accent: Color(0xFF0E9F6E),
+            items: PublicSiteContent.contactEmails,
+          ),
+        ),
+      if (PublicSiteContent.contactSocials.isNotEmpty)
+        SizedBox(
+          width: isCompact ? double.infinity : 560,
+          child: const _ContactCategoryCard(
+            title: 'Social',
+            icon: Icons.campaign_rounded,
+            accent: Color(0xFFB7410E),
+            items: PublicSiteContent.contactSocials,
+          ),
+        ),
+      SizedBox(
+        width: isCompact ? double.infinity : 560,
+        child: const _ContactInfoCard(),
+      ),
+    ];
+
+    return Wrap(
+      spacing: 20,
+      runSpacing: 20,
+      children: categoryCards,
+    );
+  }
+}
+
+class _ContactCategoryCard extends StatelessWidget {
+  const _ContactCategoryCard({
+    required this.title,
+    required this.icon,
+    required this.accent,
+    required this.items,
+  });
+
+  final String title;
+  final IconData icon;
+  final Color accent;
+  final List<Map<String, String>> items;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.all(26),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: accent.withValues(alpha: 0.18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(icon, color: accent),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  title,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFF10233E),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          ...items.map(
+            (item) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _ContactActionTile(
+                label: item['label'] ?? '',
+                value: item['value'] ?? '',
+                accent: accent,
+                onTap: () => _launchPublicLink(item['url'] ?? ''),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ContactActionTile extends StatelessWidget {
+  const _ContactActionTile({
+    required this.label,
+    required this.value,
+    required this.accent,
+    required this.onTap,
+  });
+
+  final String label;
+  final String value;
+  final Color accent;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: Ink(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF7FAFE),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFDDE8F5)),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        color: const Color(0xFF60738B),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      value,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: const Color(0xFF10233E),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.arrow_outward_rounded, color: accent),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ContactInfoCard extends StatelessWidget {
+  const _ContactInfoCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.all(26),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF10233E), Color(0xFF17345A)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(28),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            PublicSiteContent.contactInfoTitle,
+            style: theme.textTheme.titleLarge?.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            PublicSiteContent.contactInfoDescription,
+            style: theme.textTheme.bodyLarge?.copyWith(
+              color: const Color(0xFFD7E4F5),
+              height: 1.6,
+            ),
+          ),
+          const SizedBox(height: 20),
+          const _FooterContactItem(
+            icon: Icons.location_on_rounded,
+            text: PublicSiteContent.footerAddress,
+          ),
+          const SizedBox(height: 12),
+          const _FooterContactItem(
+            icon: Icons.schedule_rounded,
+            text: PublicSiteContent.footerHours,
+          ),
+        ],
       ),
     );
   }
 }
 
 class _FaqRow extends StatelessWidget {
-  const _FaqRow({required this.question, required this.answer});
+  const _FaqRow({
+    required this.question,
+    required this.answer,
+    this.isFirst = false,
+  });
 
   final String question;
   final String answer;
+  final bool isFirst;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.only(
+        top: isFirst ? 4 : 20,
+        bottom: 20,
+      ),
+      decoration: BoxDecoration(
+        border: isFirst
+            ? null
+            : const Border(
+                top: BorderSide(color: Color(0xFFE5EDF7)),
+              ),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1462,6 +1834,7 @@ class _FaqRow extends StatelessWidget {
             answer,
             style: theme.textTheme.bodyLarge?.copyWith(
               color: const Color(0xFF52657D),
+              height: 1.55,
             ),
           ),
         ],
@@ -1471,7 +1844,9 @@ class _FaqRow extends StatelessWidget {
 }
 
 class _Footer extends StatelessWidget {
-  const _Footer();
+  const _Footer({this.onSelectSection});
+
+  final ValueChanged<PublicSiteSection>? onSelectSection;
 
   @override
   Widget build(BuildContext context) {
@@ -1494,7 +1869,7 @@ class _Footer extends StatelessWidget {
                     const SizedBox(height: 32),
                     _FooterContactSection(),
                     const SizedBox(height: 32),
-                    _FooterLinksSection(),
+                    _FooterLinksSection(onSelectSection: onSelectSection),
                     const SizedBox(height: 32),
                     const _FooterCopyright(),
                   ],
@@ -1508,7 +1883,11 @@ class _Footer extends StatelessWidget {
                         const SizedBox(width: 60),
                         Expanded(child: _FooterContactSection()),
                         const SizedBox(width: 60),
-                        Expanded(child: _FooterLinksSection()),
+                        Expanded(
+                          child: _FooterLinksSection(
+                            onSelectSection: onSelectSection,
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 32),
@@ -1557,6 +1936,7 @@ class _FooterContactSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final isCompact = MediaQuery.of(context).size.width < 900;
     final theme = Theme.of(context);
+    final hasFooterEmail = PublicSiteContent.footerEmail.trim().isNotEmpty;
 
     return Column(
       crossAxisAlignment:
@@ -1575,12 +1955,14 @@ class _FooterContactSection extends StatelessWidget {
           text: PublicSiteContent.footerPhone,
           centered: isCompact,
         ),
-        const SizedBox(height: 12),
-        _FooterContactItem(
-          icon: Icons.email_rounded,
-          text: PublicSiteContent.footerEmail,
-          centered: isCompact,
-        ),
+        if (hasFooterEmail) ...[
+          const SizedBox(height: 12),
+          _FooterContactItem(
+            icon: Icons.email_rounded,
+            text: PublicSiteContent.footerEmail,
+            centered: isCompact,
+          ),
+        ],
         const SizedBox(height: 12),
         _FooterContactItem(
           icon: Icons.location_on_rounded,
@@ -1634,6 +2016,10 @@ class _FooterContactItem extends StatelessWidget {
 }
 
 class _FooterLinksSection extends StatelessWidget {
+  const _FooterLinksSection({this.onSelectSection});
+
+  final ValueChanged<PublicSiteSection>? onSelectSection;
+
   @override
   Widget build(BuildContext context) {
     final isCompact = MediaQuery.of(context).size.width < 900;
@@ -1656,12 +2042,21 @@ class _FooterLinksSection extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: 10),
             child: MouseRegion(
               cursor: SystemMouseCursors.click,
-              child: Text(
-                link['label']!,
-                style: const TextStyle(
-                  color: Color(0xFF6BA3E5),
-                  fontSize: 14,
-                  decoration: TextDecoration.underline,
+              child: GestureDetector(
+                onTap: () {
+                  if (link['url'] == '/contact') {
+                    onSelectSection?.call(PublicSiteSection.contact);
+                    return;
+                  }
+                  _launchPublicLink(link['url'] ?? '');
+                },
+                child: Text(
+                  link['label']!,
+                  style: const TextStyle(
+                    color: Color(0xFF6BA3E5),
+                    fontSize: 14,
+                    decoration: TextDecoration.underline,
+                  ),
                 ),
               ),
             ),
@@ -1677,13 +2072,29 @@ class _FooterCopyright extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      PublicSiteContent.footerText,
-      textAlign: TextAlign.center,
-      style: const TextStyle(
-        color: Color(0xFF7A8FA8),
-        fontSize: 12,
-      ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          PublicSiteContent.footerText,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: Color(0xFF7A8FA8),
+            fontSize: 12,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          PublicSiteContent.footerPoweredByText,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: Color(0xFF90A1B6),
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+            letterSpacing: 0.2,
+          ),
+        ),
+      ],
     );
   }
 }

@@ -3,21 +3,55 @@ class PublicSiteContent {
   // BRAND & FOOTER
   // ---------------------------------------------------------
   static const String brandName = 'SoundImplosion';
-  static const String brandTagline = 'Sale prove professionali per band e solisti';
-  static const String footerText = 'SoundImplosion | Prenotazioni, jam session e sale prove. \nTutti i diritti riservati.';
+  static const String brandTagline = 'Sale prove professionali per band, solisti e podcaster';
+  static const String footerText = 'SoundImplosion | Sale prove, jam session e podcast.';
+  static const String footerPoweredByText = 'Powered by Liaron';
+  static String get footerPoweredBy => footerPoweredByText;
 
   // ---------------------------------------------------------
   // CONTATTI E INDIRIZZO
   // ---------------------------------------------------------
-  static const String footerPhone = '+39 02 1234 5678';
-  static const String footerEmail = 'info@soundimplosion.it';
-  static const String footerAddress = 'Via della Musica, 42 - Milano, MI 20100';
-  static const String footerHours = 'Aperto: Lunedì - Domenica, 9:00 - 23:00';
+  static const String footerPhone = '+39 379 209 3805';
+  static const String footerEmail = '';
+  static const String footerAddress = 'Via delle palme, 5 - Bracciano, RM 00062\n Sotto il bar Lo Stregatto, rampa sulla destra';
+  static const String footerHours = 'Aperto: Lunedì - Sabato, 10:00 - 00:00';
 
   static const List<Map<String, String>> footerLinks = [
     {
       'label': 'Contatti',
       'url': '/contact',
+    },
+  ];
+
+  static const String contactEyebrow = 'Contatti';
+  static const String contactTitle = 'Parliamone prima di accendere gli ampli.';
+  static const String contactDescription =
+      'Qui puoi configurare tutti i riferimenti pubblici della tua attività: telefoni, email e social. Aggiorna le liste qui sotto e la pagina Contatti verrà aggiornata automaticamente.';
+  static const String contactActionButton = 'Accedi e prenota';
+  static const String contactInfoTitle = 'Dove trovarci';
+  static const String contactInfoDescription =
+      'Siamo disponibili per prenotazioni, informazioni sulle sale e collaborazioni. Rispondiamo più rapidamente durante gli orari di apertura indicati sotto.';
+
+  static const List<Map<String, String>> contactPhones = [
+    {
+      'label': 'Informazioni',
+      'value': '+39 379 209 3805',
+      'url': 'tel:+393792093805',
+    },
+  ];
+  static const List<Map<String, String>> contactEmails = [];
+
+  // Lascia vuota questa lista finché non hai un'email pubblica da mostrare.
+  static const List<Map<String, String>> contactSocials = [
+    {
+      'label': 'Instagram',
+      'value': 'sound_implosion',
+      'url': 'https://www.instagram.com/sound_implosion',
+    },
+    {
+      'label': 'TikTok',
+      'value': '@soundimplosion',
+      'url': 'https://www.tiktok.com/@sound_implosion',
     },
   ];
 
@@ -27,7 +61,7 @@ class PublicSiteContent {
   static const String heroBadge = 'Il tuo spazio per suonare e creare';
   static const String heroTitle = 'La tua musica merita il suono e lo spazio migliore.';
   static const String heroDescription = 
-      'Scopri le nostre sale prove progettate per musicisti, band e produttori. Strumentazione backline di altissima qualità, acustica su misura e un ambiente pronto a spingere la tua creatività al massimo.';
+      'Scopri le nostre sale prove progettate per musicisti, band, produttori e podcaster. Strumentazione backline di altissima qualità, acustica su misura e un ambiente pronto a spingere la tua creatività al massimo.';
   
   static const String heroPrimaryButton = 'Accedi e Prenota';
   static const String heroSecondaryButton = 'Vedi le Tariffe';
@@ -51,14 +85,14 @@ class PublicSiteContent {
   // ---------------------------------------------------------
   // HOME - STATISTICHE
   // ---------------------------------------------------------
-  static const String stat1Value = '4';
-  static const String stat1Label = 'Sale Prove Attrezzate';
+  static const String stat1Value = '1';
+  static const String stat1Label = 'Sale Prova Attrezzata';
   
-  static const String stat2Value = 'Aperto 7/7';
-  static const String stat2Label = 'Anche in orari serali e festivi';
+  static const String stat2Value = 'Aperto 6/7';
+  static const String stat2Label = 'Anche in orari serali';
   
-  static const String stat3Value = '100+';
-  static const String stat3Label = 'Band residenti soddisfatte';
+  static const String stat3Value = '1';
+  static const String stat3Label = 'Sala registrazione podcast e live streaming';
 
   // ---------------------------------------------------------
   // HOME - COME FUNZIONA (WORKFLOW)
@@ -100,7 +134,7 @@ class PublicSiteContent {
   static const String value2Description = 'Strumentazione tenuta maniacalmente e staff sempre pronto a intervenire o consigliarti.';
   
   static const String value3Title = 'Punto di Incontro';
-  static const String value3Description = 'Oltre alla sala, troverai una comoda area relax, un bar e altre band con cui confrontarti.';
+  static const String value3Description = 'Oltre alla sala, troverai una comoda area relax e altre band con cui confrontarti.';
 
   // ---------------------------------------------------------
   // TARIFFE E PREZZI (PRICING)
@@ -160,11 +194,11 @@ class PublicSiteContent {
     },
     {
       'question': 'La strumentazione è inclusa?',
-      'answer': 'Sì, tutte le sale hanno batteria (piatti esclusi), 2 ampli chitarra, 1 ampli basso e impianto voce con 2 microfoni.',
+      'answer': 'Sì, in parte. La nostra sala registrazione podcast e live streaming dispone di batteria, 2 ampli chitarra, 1 ampli basso e impianto voce con 2 microfoni.',
     },
     {
       'question': 'Come funziona l\'abbonamento mensile?',
-      'answer': 'Dà diritto a 4 sessioni in giorni/orari fissi, oltre a sconti su ore aggiuntive e un armadietto dedicato in struttura.',
+      'answer': 'Dà diritto a 4 sessioni in giorni/orari fissi.',
     },
   ];
 }
