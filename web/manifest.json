@@ -1,11 +1,11 @@
 {
-    "name": "soundimplosion",
-    "short_name": "soundimplosion",
+    "name": "SoundImplosion",
+    "short_name": "SoundImplosion",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "SoundImplosion App",
+    "description": "SoundImplosion: sale prove professionali, prenotazioni online e jam session.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
