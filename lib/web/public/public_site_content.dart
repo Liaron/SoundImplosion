@@ -164,7 +164,7 @@ class PublicSiteContent {
   // Puoi configurare i piani tariffari qui
   static const List<Map<String, dynamic>> pricingPlans = [
     {
-      'title': 'Orario Singolo',
+      'title': 'Slot Singolo',
       'price': '20€',
       'period': '/ ora',
       'description': 'Per chi vuole provare occasionalmente senza vincoli.',

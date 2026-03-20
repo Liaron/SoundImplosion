@@ -73,6 +73,21 @@ class _PublicSiteWebState extends State<PublicSiteWeb> {
     final isCompact = MediaQuery.of(context).size.width < 960;
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7FB),
+      endDrawer: isCompact
+          ? _PublicMobileMenu(
+              currentSection: _section,
+              onSelectSection: (section) {
+                Navigator.of(context).maybePop();
+                setState(() {
+                  _section = section;
+                });
+              },
+              onLoginPressed: () {
+                Navigator.of(context).maybePop();
+                _openAuthPanel();
+              },
+            )
+          : null,
       body: Stack(
         children: [
           const _PublicBackground(),
@@ -256,27 +271,183 @@ class _CompactHeaderRow extends StatelessWidget {
           )
         else
           TextButton(onPressed: onLoginPressed, child: const Text('Accedi')),
-        PopupMenuButton<PublicSiteSection>(
-          icon: const Icon(Icons.menu_rounded),
-          initialValue: currentSection,
-          onSelected: onSelectSection,
-          itemBuilder: (context) => const [
-            PopupMenuItem(value: PublicSiteSection.home, child: Text('Home')),
-            PopupMenuItem(
-              value: PublicSiteSection.about,
-              child: Text('Chi siamo'),
-            ),
-            PopupMenuItem(
-              value: PublicSiteSection.pricing,
-              child: Text('Pricing'),
-            ),
-            PopupMenuItem(
-              value: PublicSiteSection.contact,
-              child: Text('Contatti'),
-            ),
-          ],
+        const SizedBox(width: 6),
+        Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF003B95),
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF003B95).withValues(alpha: 0.2),
+                blurRadius: 18,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: IconButton(
+            onPressed: () => Scaffold.of(context).openEndDrawer(),
+            tooltip: 'Apri menu',
+            icon: const Icon(Icons.menu_rounded),
+            color: Colors.white,
+          ),
         ),
       ],
+    );
+  }
+}
+
+class _PublicMobileMenu extends StatelessWidget {
+  const _PublicMobileMenu({
+    required this.currentSection,
+    required this.onSelectSection,
+    required this.onLoginPressed,
+  });
+
+  final PublicSiteSection currentSection;
+  final ValueChanged<PublicSiteSection> onSelectSection;
+  final VoidCallback onLoginPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Drawer(
+      width: 300,
+      backgroundColor: const Color(0xFFF7FAFD),
+      surfaceTintColor: Colors.transparent,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(28),
+          bottomLeft: Radius.circular(28),
+        ),
+      ),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Expanded(child: _BrandLockup()),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).maybePop(),
+                    icon: const Icon(Icons.close_rounded),
+                    tooltip: 'Chiudi menu',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Menu',
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: const Color(0xFF60738B),
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.1,
+                ),
+              ),
+              const SizedBox(height: 12),
+              _MobileDrawerItem(
+                label: 'Home',
+                icon: Icons.home_rounded,
+                selected: currentSection == PublicSiteSection.home,
+                onTap: () => onSelectSection(PublicSiteSection.home),
+              ),
+              _MobileDrawerItem(
+                label: 'Chi siamo',
+                icon: Icons.groups_rounded,
+                selected: currentSection == PublicSiteSection.about,
+                onTap: () => onSelectSection(PublicSiteSection.about),
+              ),
+              _MobileDrawerItem(
+                label: 'Pricing',
+                icon: Icons.sell_rounded,
+                selected: currentSection == PublicSiteSection.pricing,
+                onTap: () => onSelectSection(PublicSiteSection.pricing),
+              ),
+              _MobileDrawerItem(
+                label: 'Contatti',
+                icon: Icons.call_rounded,
+                selected: currentSection == PublicSiteSection.contact,
+                onTap: () => onSelectSection(PublicSiteSection.contact),
+              ),
+              const Spacer(),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: onLoginPressed,
+                  icon: const Icon(Icons.login_rounded),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF003B95),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  label: const Text('Accedi'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MobileDrawerItem extends StatelessWidget {
+  const _MobileDrawerItem({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: selected ? const Color(0xFFDCEAFF) : const Color(0xFFF5F8FC),
+        borderRadius: BorderRadius.circular(18),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(18),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              children: [
+                Icon(
+                  icon,
+                  color: selected
+                      ? const Color(0xFF003B95)
+                      : const Color(0xFF60738B),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      color: selected
+                          ? const Color(0xFF003B95)
+                          : const Color(0xFF10233E),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                if (selected)
+                  const Icon(
+                    Icons.check_rounded,
+                    color: Color(0xFF003B95),
+                    size: 18,
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -437,7 +608,7 @@ class _HomePublicPage extends StatelessWidget {
           const SizedBox(height: 28),
           const _StatsBand(),
           const SizedBox(height: 28),
-          const _WorkflowSection(),
+          _WorkflowSection(onActionPressed: onLoginPressed),
         ],
       ),
     );
@@ -1117,7 +1288,9 @@ class _StatTile extends StatelessWidget {
 }
 
 class _WorkflowSection extends StatelessWidget {
-  const _WorkflowSection();
+  const _WorkflowSection({required this.onActionPressed});
+
+  final VoidCallback onActionPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -1127,8 +1300,7 @@ class _WorkflowSection extends StatelessWidget {
       title: PublicSiteContent.workflowTitle,
       description: PublicSiteContent.workflowDescription,
       actionLabel: PublicSiteContent.workflowActionLabel,
-      onActionPressed: () {},
-      actionEnabled: false,
+      onActionPressed: onActionPressed,
     );
     final checklistCard = Container(
       padding: const EdgeInsets.all(24),
@@ -1224,7 +1396,6 @@ class _PageIntroCard extends StatelessWidget {
     this.descriptionLines,
     required this.actionLabel,
     required this.onActionPressed,
-    this.actionEnabled = true,
   }) : assert(
          description != null || descriptionLines != null,
          'Either description or descriptionLines must be provided.',
@@ -1236,7 +1407,6 @@ class _PageIntroCard extends StatelessWidget {
   final List<String>? descriptionLines;
   final String actionLabel;
   final VoidCallback onActionPressed;
-  final bool actionEnabled;
 
   @override
   Widget build(BuildContext context) {
@@ -1296,37 +1466,21 @@ class _PageIntroCard extends StatelessWidget {
               ),
             ),
           const SizedBox(height: 20),
-          if (actionEnabled)
-            SizedBox(
-              width: isNarrow ? double.infinity : null,
-              child: ElevatedButton(
-                onPressed: onActionPressed,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF003B95),
-                  foregroundColor: Colors.white,
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isNarrow ? 16 : 20,
-                    vertical: 14,
-                  ),
-                ),
-                child: Text(actionLabel),
-              ),
-            )
-          else
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: const Color(0xFFEAF1FA),
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Text(
-                actionLabel,
-                style: const TextStyle(
-                  color: Color(0xFF40556E),
-                  fontWeight: FontWeight.w700,
+          SizedBox(
+            width: isNarrow ? double.infinity : null,
+            child: ElevatedButton(
+              onPressed: onActionPressed,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF003B95),
+                foregroundColor: Colors.white,
+                padding: EdgeInsets.symmetric(
+                  horizontal: isNarrow ? 16 : 20,
+                  vertical: 14,
                 ),
               ),
+              child: Text(actionLabel),
             ),
+          ),
         ],
       ),
     );
@@ -2368,74 +2522,6 @@ class _PublicBackground extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _Dot extends StatelessWidget {
-  const _Dot({required this.color});
-
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 12,
-      height: 12,
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(999),
-      ),
-    );
-  }
-}
-
-class _PreviewLine extends StatelessWidget {
-  const _PreviewLine({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            color: Color(0xFFB8D4FF),
-            fontSize: 13,
-          ),
-        ),
-        Text(
-          value,
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w700,
-            fontSize: 14,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _GraphBar extends StatelessWidget {
-  const _GraphBar({required this.height});
-
-  final double height;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        height: height,
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.2),
-          borderRadius: BorderRadius.circular(4),
-        ),
       ),
     );
   }
