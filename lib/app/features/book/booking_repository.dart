@@ -28,7 +28,11 @@ class BookingListItem {
   }
 
   String get groupLabel {
-    final groupId = booking.groupId;
+    final groupName = booking.groupName?.trim();
+    if (groupName != null && groupName.isNotEmpty) {
+      return 'Gruppo: $groupName';
+    }
+    final groupId = booking.groupId?.trim();
     if (groupId == null || groupId.isEmpty) {
       return 'Nessun gruppo';
     }
@@ -218,13 +222,24 @@ class FirebaseBookingRepository implements BookingRepository {
       throw Exception('Gli orari selezionati devono essere consecutivi.');
     }
 
+    final availableGroups = selectedGroupId == null
+        ? const <Map<String, String>>[]
+        : await loadUserGroups();
+
     final startSlot = orderedSlots.first;
     final endTime = calculateEndTime(orderedSlots.last);
     final dateStr = DateFormat('yyyy-MM-dd').format(selectedDate);
+    final selectedGroupName = selectedGroupId == null
+        ? null
+        : availableGroups
+              .where((group) => group['id'] == selectedGroupId)
+              .map((group) => group['name']?.trim())
+              .firstWhere((name) => name != null && name.isNotEmpty, orElse: () => null);
 
     final booking = Booking(
       userId: user.uid,
       groupId: selectedGroupId,
+      groupName: selectedGroupName,
       data: dateStr,
       oraInizio: startSlot,
       oraFine: endTime,
@@ -238,9 +253,22 @@ class FirebaseBookingRepository implements BookingRepository {
 
   @override
   Stream<List<BookingListItem>> watchUserBookings() {
-    return _databaseService.getBookingsStream().map((event) {
-      return _parseBookingCollection(event.snapshot.value);
-    });
+    final controller = StreamController<List<BookingListItem>>();
+    late final StreamSubscription<DatabaseEvent> subscription;
+
+    subscription = _databaseService.getBookingsStream().listen((event) async {
+      try {
+        controller.add(await _parseBookingCollection(event.snapshot.value));
+      } catch (error, stackTrace) {
+        controller.addError(error, stackTrace);
+      }
+    }, onError: controller.addError);
+
+    controller.onCancel = () async {
+      await subscription.cancel();
+    };
+
+    return controller.stream;
   }
 
   @override
@@ -267,9 +295,13 @@ class FirebaseBookingRepository implements BookingRepository {
       controller.add(merged);
     }
 
-    ownSubscription = _databaseService.getBookingsStream().listen((event) {
-      ownBookings = _parseBookingCollection(event.snapshot.value);
-      emitMerged();
+    ownSubscription = _databaseService.getBookingsStream().listen((event) async {
+      try {
+        ownBookings = await _parseBookingCollection(event.snapshot.value);
+        emitMerged();
+      } catch (error, stackTrace) {
+        controller.addError(error, stackTrace);
+      }
     }, onError: controller.addError);
 
     groupIdsSubscription = _databaseService.getUserGroupIdsStream().listen((
@@ -285,11 +317,15 @@ class FirebaseBookingRepository implements BookingRepository {
       for (final groupId in groupIds) {
         final subscription = _databaseService
             .getGroupBookingsStream(groupId)
-            .listen((groupEvent) {
-              groupBookings[groupId] = _parseBookingCollection(
-                groupEvent.snapshot.value,
-              );
-              emitMerged();
+            .listen((groupEvent) async {
+              try {
+                groupBookings[groupId] = await _parseBookingCollection(
+                  groupEvent.snapshot.value,
+                );
+                emitMerged();
+              } catch (error, stackTrace) {
+                controller.addError(error, stackTrace);
+              }
             }, onError: controller.addError);
         groupSubscriptions.add(subscription);
       }
@@ -356,7 +392,7 @@ class FirebaseBookingRepository implements BookingRepository {
     return int.parse(parts[0]) * 60 + int.parse(parts[1]);
   }
 
-  List<BookingListItem> _parseBookingCollection(dynamic rawData) {
+  Future<List<BookingListItem>> _parseBookingCollection(dynamic rawData) async {
     final bookings = <BookingListItem>[];
 
     if (rawData is Map) {
@@ -366,10 +402,7 @@ class FirebaseBookingRepository implements BookingRepository {
           continue;
         }
         bookings.add(
-          BookingListItem(
-            id: entry.key.toString(),
-            booking: Booking.fromMap(entry.key.toString(), bookingData),
-          ),
+          await _buildBookingListItem(entry.key.toString(), bookingData),
         );
       }
     } else if (rawData is List) {
@@ -382,16 +415,34 @@ class FirebaseBookingRepository implements BookingRepository {
         if (bookingData == null) {
           continue;
         }
-        bookings.add(
-          BookingListItem(
-            id: index.toString(),
-            booking: Booking.fromMap(index.toString(), bookingData),
-          ),
-        );
+        bookings.add(await _buildBookingListItem(index.toString(), bookingData));
       }
     }
 
     return bookings;
+  }
+
+  Future<BookingListItem> _buildBookingListItem(
+    String id,
+    Map<String, dynamic> bookingData,
+  ) async {
+    final booking = Booking.fromMap(id, bookingData);
+    if (booking.groupId == null || booking.groupId!.trim().isEmpty) {
+      return BookingListItem(id: id, booking: booking);
+    }
+    if (booking.groupName?.trim().isNotEmpty == true) {
+      return BookingListItem(id: id, booking: booking);
+    }
+
+    final resolvedGroupName = await _databaseService.resolveGroupName(
+      booking.groupId,
+    );
+    return BookingListItem(
+      id: id,
+      booking: booking.copyWith(
+        groupName: resolvedGroupName.trim().isEmpty ? null : resolvedGroupName,
+      ),
+    );
   }
 
   List<String> _parseIdCollection(dynamic rawData) {

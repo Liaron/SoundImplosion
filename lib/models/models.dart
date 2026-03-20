@@ -176,6 +176,7 @@ class Booking {
   String? id;
   final String userId;
   final String? groupId;
+  final String? groupName;
   final String data;
   final String oraInizio;
   final String oraFine;
@@ -187,6 +188,7 @@ class Booking {
     this.id,
     required this.userId,
     this.groupId,
+    this.groupName,
     required this.data,
     required this.oraInizio,
     required this.oraFine,
@@ -195,10 +197,37 @@ class Booking {
     this.stato = BookingStatus.inElaborazione,
   });
 
+  Booking copyWith({
+    String? id,
+    String? userId,
+    String? groupId,
+    String? groupName,
+    String? data,
+    String? oraInizio,
+    String? oraFine,
+    int? numeroUtenti,
+    String? attrezzatura,
+    BookingStatus? stato,
+  }) {
+    return Booking(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      groupId: groupId ?? this.groupId,
+      groupName: groupName ?? this.groupName,
+      data: data ?? this.data,
+      oraInizio: oraInizio ?? this.oraInizio,
+      oraFine: oraFine ?? this.oraFine,
+      numeroUtenti: numeroUtenti ?? this.numeroUtenti,
+      attrezzatura: attrezzatura ?? this.attrezzatura,
+      stato: stato ?? this.stato,
+    );
+  }
+
   Map<String, dynamic> toMap() {
     return {
       'user_id': userId,
       'group_id': groupId,
+      'group_name': groupName,
       'data': data,
       'ora_inizio': oraInizio,
       'ora_fine': oraFine,
@@ -221,6 +250,7 @@ class Booking {
       id: id,
       userId: map['user_id'] as String? ?? '',
       groupId: map['group_id'] as String?,
+      groupName: map['group_name'] as String?,
       data: map['data'] as String? ?? '',
       oraInizio: map['ora_inizio'] as String? ?? '',
       oraFine: map['ora_fine'] as String? ?? '',

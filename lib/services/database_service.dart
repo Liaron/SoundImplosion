@@ -1232,16 +1232,22 @@ class DatabaseService {
     }
 
     final adminIds = await _getAdminUserIds();
+    final groupName = booking.groupName?.trim().isNotEmpty == true
+        ? booking.groupName!.trim()
+        : await _resolveGroupName(booking.groupId);
+    final bookingMap = {
+      ...booking.toMap(),
+      'group_name': groupName.isEmpty ? null : groupName,
+    };
 
     final Map<String, dynamic> updates = {};
     final bookingPath = '/bookings/$newBookingKey';
     final userBookingPath = '/user_bookings/${booking.userId}/$newBookingKey';
 
-    updates[bookingPath] = booking.toMap();
-    updates[userBookingPath] = booking.toMap();
+    updates[bookingPath] = bookingMap;
+    updates[userBookingPath] = bookingMap;
     if (booking.groupId != null && booking.groupId!.isNotEmpty) {
-      updates['/group_bookings/${booking.groupId}/$newBookingKey'] = booking
-          .toMap();
+      updates['/group_bookings/${booking.groupId}/$newBookingKey'] = bookingMap;
     }
 
     await _addAdminNotifications(
@@ -1372,6 +1378,7 @@ class DatabaseService {
       await _loadUserData(user.uid),
       user.uid,
     );
+    final groupName = await _resolveGroupName(groupId);
     final notificationId = _dbRef
         .child('user_notifications')
         .child(bookingOwnerId)
@@ -1397,6 +1404,7 @@ class DatabaseService {
         'ora_fine': _calculateEndTime(orderedSlots.last),
         'selected_slot_times': orderedSlots,
         'group_id': groupId,
+        'group_name': groupName.isEmpty ? null : groupName,
         'numero_utenti': peopleCount,
         'attrezzatura': equipment.trim(),
         'target_status': bookingData['stato']?.toString(),
@@ -1479,6 +1487,7 @@ class DatabaseService {
     }
 
     final trimmedEquipment = equipment.trim();
+    final groupName = await _resolveGroupName(groupId);
     final newEndTime = _calculateEndTime(orderedSlots.last);
     final scheduleChanged =
         previousDate != date ||
@@ -1499,6 +1508,7 @@ class DatabaseService {
       '/bookings/$bookingId/ora_inizio': orderedSlots.first,
       '/bookings/$bookingId/ora_fine': newEndTime,
       '/bookings/$bookingId/group_id': groupId,
+        '/bookings/$bookingId/group_name': groupName.isEmpty ? null : groupName,
       '/bookings/$bookingId/numero_utenti': peopleCount,
       '/bookings/$bookingId/attrezzatura': trimmedEquipment,
       '/bookings/$bookingId/stato': nextStatus,
@@ -1507,6 +1517,8 @@ class DatabaseService {
           orderedSlots.first,
       '/user_bookings/$bookingOwnerId/$bookingId/ora_fine': newEndTime,
       '/user_bookings/$bookingOwnerId/$bookingId/group_id': groupId,
+        '/user_bookings/$bookingOwnerId/$bookingId/group_name':
+          groupName.isEmpty ? null : groupName,
       '/user_bookings/$bookingOwnerId/$bookingId/numero_utenti': peopleCount,
       '/user_bookings/$bookingOwnerId/$bookingId/attrezzatura':
           trimmedEquipment,
@@ -1539,6 +1551,8 @@ class DatabaseService {
           orderedSlots.first;
       updates['/group_bookings/$groupId/$bookingId/ora_fine'] = newEndTime;
       updates['/group_bookings/$groupId/$bookingId/group_id'] = groupId;
+        updates['/group_bookings/$groupId/$bookingId/group_name'] =
+          groupName.isEmpty ? null : groupName;
       updates['/group_bookings/$groupId/$bookingId/numero_utenti'] =
           peopleCount;
       updates['/group_bookings/$groupId/$bookingId/attrezzatura'] =
