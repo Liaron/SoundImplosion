@@ -758,7 +758,8 @@ exports.fanoutSupportChatAdminNotifications = functions.database
         return null;
       }
 
-      if (String(payload.sender_role || "") !== "user") {
+      const senderRole = String(payload.sender_role || "").trim();
+      if (senderRole !== "user" && senderRole !== "admin") {
         return null;
       }
 
@@ -778,36 +779,67 @@ exports.fanoutSupportChatAdminNotifications = functions.database
 
       const adminsSnapshot = await db.ref("users").orderByChild("role").equalTo("admin").get();
       if (!adminsSnapshot.exists()) {
-        return null;
+        if (senderRole !== "admin") {
+          return null;
+        }
       }
 
       const updates = {};
-      adminsSnapshot.forEach((child) => {
-        const adminId = String(child.key || "").trim();
-        if (!adminId) {
-          return false;
-        }
+      const preview = String(payload.text || "").trim().slice(0, 140);
+      const subject = String(chat.subject || "Richiesta assistenza");
+      const requesterId = String(chat.user_id || "").trim();
 
-        const notificationId = db.ref(`user_notifications/${adminId}`).push().key;
-        if (!notificationId) {
-          return false;
-        }
+      if (senderRole === "user" && adminsSnapshot.exists()) {
+        adminsSnapshot.forEach((child) => {
+          const adminId = String(child.key || "").trim();
+          if (!adminId) {
+            return false;
+          }
 
-        updates[`/user_notifications/${adminId}/${notificationId}`] = {
-          type: "support_chat_message",
-          timestamp: admin.database.ServerValue.TIMESTAMP,
-          read: false,
-          chat_id: chatId,
-          subject: String(chat.subject || "Richiesta assistenza"),
-          message_preview: String(payload.text || "").trim().slice(0, 140),
-          username: String(
-              payload.sender_display_name || chat.user_nickname || "Utente",
-          ),
-          requester_id: String(chat.user_id || ""),
-          creator_id: String(chat.user_id || ""),
-        };
-        return false;
-      });
+          const notificationId = db.ref(`user_notifications/${adminId}`).push().key;
+          if (!notificationId) {
+            return false;
+          }
+
+          updates[`/user_notifications/${adminId}/${notificationId}`] = {
+            type: "support_chat_message",
+            timestamp: admin.database.ServerValue.TIMESTAMP,
+            read: false,
+            chat_id: chatId,
+            subject,
+            message_preview: preview,
+            username: String(
+                payload.sender_display_name || chat.user_nickname || "Utente",
+            ),
+            requester_id: requesterId,
+            creator_id: requesterId,
+          };
+          return false;
+        });
+      }
+
+      if (
+        senderRole === "admin" &&
+        requesterId &&
+        !requesterId.startsWith("guest:")
+      ) {
+        const notificationId = db.ref(`user_notifications/${requesterId}`).push().key;
+        if (notificationId) {
+          updates[`/user_notifications/${requesterId}/${notificationId}`] = {
+            type: "support_chat_message",
+            timestamp: admin.database.ServerValue.TIMESTAMP,
+            read: false,
+            chat_id: chatId,
+            subject,
+            message_preview: preview,
+            username: String(
+                payload.sender_display_name || chat.assigned_admin_nickname || "Assistenza",
+            ),
+            requester_id: requesterId,
+            creator_id: String(payload.sender_id || "").trim(),
+          };
+        }
+      }
 
       if (!Object.keys(updates).length) {
         return null;
