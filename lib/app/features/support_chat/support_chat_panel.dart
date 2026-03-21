@@ -225,6 +225,7 @@ class _SupportChatPanelState extends State<SupportChatPanel> {
         final selectedChatMessages = _controller.messages;
         final colorScheme = Theme.of(context).colorScheme;
         final narrow = widget.compact || MediaQuery.of(context).size.width < 900;
+        final showThreadOnNarrow = narrow && selectedChat != null;
 
         final shell = Container(
           decoration: widget.embedded
@@ -237,20 +238,13 @@ class _SupportChatPanelState extends State<SupportChatPanel> {
                   ),
                 ),
           child: narrow
-              ? Column(
-                  children: [
-                    Expanded(
-                      child: _buildListSection(selectedChat),
-                    ),
-                    Divider(height: 1, color: colorScheme.outlineVariant),
-                    Expanded(
-                      child: _buildThreadSection(
+              ? (showThreadOnNarrow
+                    ? _buildThreadSection(
                         selectedChat,
                         selectedChatMessages,
-                      ),
-                    ),
-                  ],
-                )
+                        showBackAction: true,
+                      )
+                    : _buildListSection(selectedChat, isNarrow: true))
               : Row(
                   children: [
                     SizedBox(
@@ -284,7 +278,10 @@ class _SupportChatPanelState extends State<SupportChatPanel> {
     );
   }
 
-  Widget _buildListSection(SupportChatConversation? selectedChat) {
+  Widget _buildListSection(
+    SupportChatConversation? selectedChat, {
+    bool isNarrow = false,
+  }) {
     final colorScheme = Theme.of(context).colorScheme;
     final chats = _controller.chats;
     final showHeaderCreateAction =
@@ -302,6 +299,8 @@ class _SupportChatPanelState extends State<SupportChatPanel> {
                   children: [
                     Text(
                       _controller.isAdmin ? 'Chat aperte' : 'Le tue richieste',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.w700,
                       ),
@@ -322,7 +321,7 @@ class _SupportChatPanelState extends State<SupportChatPanel> {
                 FilledButton.icon(
                   onPressed: _controller.isSubmitting ? null : _createChat,
                   icon: const Icon(Icons.add_comment_outlined),
-                  label: const Text('Nuova'),
+                  label: Text(isNarrow ? 'Nuova' : 'Nuova'),
                 ),
             ],
           ),
@@ -453,10 +452,15 @@ class _SupportChatPanelState extends State<SupportChatPanel> {
 
   Widget _buildThreadSection(
     SupportChatConversation? selectedChat,
-    List<SupportChatMessage> selectedChatMessages,
-  ) {
+    List<SupportChatMessage> selectedChatMessages, {
+    bool showBackAction = false,
+  }) {
     final colorScheme = Theme.of(context).colorScheme;
     final hasChats = _controller.chats.isNotEmpty;
+    final availableWidth = MediaQuery.of(context).size.width;
+    final bubbleMaxWidth = widget.compact
+        ? 320.0
+        : (availableWidth < 900 ? availableWidth * 0.82 : 520.0);
 
     if (selectedChat == null) {
       return _buildEmptyState(
@@ -484,13 +488,24 @@ class _SupportChatPanelState extends State<SupportChatPanel> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (showBackAction) ...[
+                    IconButton(
+                      tooltip: 'Torna alle chat',
+                      onPressed: () => _controller.selectChat(null),
+                      icon: const Icon(Icons.arrow_back_rounded),
+                    ),
+                    const SizedBox(width: 4),
+                  ],
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           selectedChat.subject,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.titleLarge
                               ?.copyWith(fontWeight: FontWeight.w800),
                         ),
@@ -501,6 +516,9 @@ class _SupportChatPanelState extends State<SupportChatPanel> {
                           : (_controller.isGuestSession
                             ? 'Chat temporanea del sito pubblico. Verra eliminata quando lasci la pagina.'
                             : 'Stato: ${selectedChat.isOpen ? 'aperta' : 'chiusa'}'),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodyMedium,
                         ),
                       ],
                     ),
@@ -598,7 +616,7 @@ class _SupportChatPanelState extends State<SupportChatPanel> {
                           : Alignment.centerLeft,
                       child: Container(
                         constraints: BoxConstraints(
-                          maxWidth: widget.compact ? 320 : 520,
+                          maxWidth: bubbleMaxWidth,
                         ),
                         margin: const EdgeInsets.only(bottom: 10),
                         padding: const EdgeInsets.all(12),
@@ -613,11 +631,16 @@ class _SupportChatPanelState extends State<SupportChatPanel> {
                           children: [
                             Text(
                               message.senderDisplayName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: Theme.of(context).textTheme.labelLarge
                                   ?.copyWith(fontWeight: FontWeight.w700),
                             ),
                             const SizedBox(height: 4),
-                            Text(message.text),
+                            Text(
+                              message.text,
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
                             const SizedBox(height: 8),
                             Text(
                               _formatTimestamp(message.timestamp),
@@ -670,6 +693,7 @@ class _SupportChatPanelState extends State<SupportChatPanel> {
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Expanded(
             child: TextField(
