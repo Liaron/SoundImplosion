@@ -237,7 +237,9 @@ class _SupportChatPanelState extends State<SupportChatPanel> {
           child: narrow
               ? Column(
                   children: [
-                    _buildListSection(selectedChat),
+                    Expanded(
+                      child: _buildListSection(selectedChat),
+                    ),
                     Divider(height: 1, color: colorScheme.outlineVariant),
                     Expanded(
                       child: _buildThreadSection(
