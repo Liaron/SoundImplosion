@@ -7,7 +7,12 @@ import 'package:soundimplosion/app/features/support_chat/support_chat_repository
 class PublicSupportChatLauncher extends StatefulWidget {
   const PublicSupportChatLauncher({
     super.key,
+    this.guestSessionId,
+    this.repositoryFactory,
   });
+
+  final String? guestSessionId;
+  final SupportChatRepository Function(String sessionId)? repositoryFactory;
 
   @override
   State<PublicSupportChatLauncher> createState() =>
@@ -15,8 +20,10 @@ class PublicSupportChatLauncher extends StatefulWidget {
 }
 
 class _PublicSupportChatLauncherState extends State<PublicSupportChatLauncher> {
-  late final String _guestSessionId = _buildGuestSessionId();
-  late final FirebaseSupportChatRepository _guestRepository =
+  late final String _guestSessionId =
+      widget.guestSessionId ?? _buildGuestSessionId();
+  late final SupportChatRepository _guestRepository =
+      widget.repositoryFactory?.call(_guestSessionId) ??
       FirebaseSupportChatRepository(guestSessionId: _guestSessionId);
 
   @override
@@ -39,72 +46,75 @@ class _PublicSupportChatLauncherState extends State<PublicSupportChatLauncher> {
     final width = mediaQuery.size.width;
     final height = mediaQuery.size.height;
     final compact = width < 900;
-    final dialogWidth = compact ? (width - 24).clamp(320.0, 460.0) : 960.0;
-    final dialogHeight = compact ? (height - 24).clamp(520.0, 720.0) : 760.0;
+    final dialogWidth = compact
+        ? (width - 24).clamp(320.0, 460.0)
+        : 960.0;
+    final dialogHeight = compact
+        ? (height - 24).clamp(520.0, 720.0)
+        : 760.0;
 
     return showDialog<void>(
       context: context,
+      useRootNavigator: true,
       barrierDismissible: true,
       builder: (dialogContext) {
         final colorScheme = Theme.of(dialogContext).colorScheme;
-        return Center(
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Material(
-              color: colorScheme.surface,
-              elevation: 24,
-              borderRadius: BorderRadius.circular(24),
-              clipBehavior: Clip.antiAlias,
-              child: SizedBox(
-                width: dialogWidth,
-                height: dialogHeight,
-                child: Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 16, 12, 12),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Chat assistenza',
-                                  style: Theme.of(dialogContext)
-                                      .textTheme
-                                      .titleLarge
-                                      ?.copyWith(fontWeight: FontWeight.w800),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Scrivici dal sito e ricevi supporto in tempo reale.',
-                                  style: Theme.of(dialogContext)
-                                      .textTheme
-                                      .bodySmall,
-                                ),
-                              ],
+        return Dialog(
+          insetPadding: const EdgeInsets.all(12),
+          clipBehavior: Clip.antiAlias,
+          backgroundColor: colorScheme.surface,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: ConstrainedBox(
+            constraints: BoxConstraints.tightFor(
+              width: dialogWidth,
+              height: dialogHeight,
+            ),
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 12, 12),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Chat assistenza',
+                              style: Theme.of(dialogContext)
+                                  .textTheme
+                                  .titleLarge
+                                  ?.copyWith(fontWeight: FontWeight.w800),
                             ),
-                          ),
-                          IconButton(
-                            tooltip: 'Chiudi',
-                            onPressed: () => Navigator.of(dialogContext).pop(),
-                            icon: const Icon(Icons.close),
-                          ),
-                        ],
+                            const SizedBox(height: 4),
+                            Text(
+                              'Scrivici dal sito e ricevi supporto in tempo reale.',
+                              style: Theme.of(dialogContext).textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    Divider(height: 1, color: colorScheme.outlineVariant),
-                    Expanded(
-                      child: SupportChatPanel(
-                        embedded: true,
-                        compact: compact,
-                        origin: 'public_web',
-                        repository: _guestRepository,
+                      IconButton(
+                        tooltip: 'Chiudi',
+                        onPressed: () => Navigator.of(dialogContext).pop(),
+                        icon: const Icon(Icons.close),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
+                Divider(height: 1, color: colorScheme.outlineVariant),
+                Expanded(
+                  child: SupportChatPanel(
+                    embedded: true,
+                    compact: compact,
+                    origin: 'public_web',
+                    repository: _guestRepository,
+                  ),
+                ),
+              ],
             ),
           ),
         );

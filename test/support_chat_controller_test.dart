@@ -87,7 +87,6 @@ class _FakeSupportChatRepository implements SupportChatRepository {
     _chatController.add(_currentChats);
   }
 
-  @override
   final bool isAdmin;
 
   final StreamController<List<SupportChatConversation>> _chatController =

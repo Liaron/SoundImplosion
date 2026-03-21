@@ -326,43 +326,26 @@ class _SupportChatPanelState extends State<SupportChatPanel> {
         ),
         Expanded(
           child: chats.isEmpty
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          _controller.isAdmin
-                              ? Icons.support_agent
-                              : Icons.forum_outlined,
-                          size: 44,
-                          color: colorScheme.primary,
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          _controller.isAdmin
-                              ? 'Nessuna chat aperta in questo momento.'
-                              : (_controller.isGuestSession
-                                    ? 'Puoi iniziare subito una chat con l\'assistenza.'
-                                    : 'Non hai ancora richieste aperte.'),
-                          textAlign: TextAlign.center,
-                        ),
-                        if (!_controller.isAdmin) ...[
-                          const SizedBox(height: 12),
-                          FilledButton(
-                            onPressed:
-                                _controller.isSubmitting ? null : _createChat,
-                            child: Text(
-                              _controller.isGuestSession
-                                  ? 'Scrivi all\'assistenza'
-                                  : 'Apri una nuova richiesta',
-                            ),
+              ? _buildEmptyState(
+                  icon: _controller.isAdmin
+                      ? Icons.support_agent
+                      : Icons.forum_outlined,
+                  message: _controller.isAdmin
+                      ? 'Nessuna chat aperta in questo momento.'
+                      : (_controller.isGuestSession
+                            ? 'Puoi iniziare subito una chat con l\'assistenza.'
+                            : 'Non hai ancora richieste aperte.'),
+                  action: !_controller.isAdmin
+                      ? FilledButton(
+                          onPressed:
+                              _controller.isSubmitting ? null : _createChat,
+                          child: Text(
+                            _controller.isGuestSession
+                                ? 'Scrivi all\'assistenza'
+                                : 'Apri una nuova richiesta',
                           ),
-                        ],
-                      ],
-                    ),
-                  ),
+                        )
+                      : null,
                 )
               : ListView.separated(
                   padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
@@ -467,28 +450,13 @@ class _SupportChatPanelState extends State<SupportChatPanel> {
     final colorScheme = Theme.of(context).colorScheme;
 
     if (selectedChat == null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.chat_bubble_outline,
-                size: 52,
-                color: colorScheme.primary,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                _controller.isAdmin
-                    ? 'Seleziona una chat per gestirla.'
-                    : 'Seleziona una richiesta oppure aprine una nuova.',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-            ],
-          ),
-        ),
+      return _buildEmptyState(
+        icon: Icons.chat_bubble_outline,
+        iconSize: 52,
+        message: _controller.isAdmin
+            ? 'Seleziona una chat per gestirla.'
+            : 'Seleziona una richiesta oppure aprine una nuova.',
+        messageStyle: Theme.of(context).textTheme.titleMedium,
       );
     }
 
@@ -708,6 +676,45 @@ class _SupportChatPanelState extends State<SupportChatPanel> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildEmptyState({
+    required IconData icon,
+    required String message,
+    Widget? action,
+    TextStyle? messageStyle,
+    double iconSize = 44,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, size: iconSize, color: colorScheme.primary),
+                  const SizedBox(height: 12),
+                  Text(
+                    message,
+                    textAlign: TextAlign.center,
+                    style: messageStyle,
+                  ),
+                  if (action != null) ...[
+                    const SizedBox(height: 12),
+                    action,
+                  ],
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
