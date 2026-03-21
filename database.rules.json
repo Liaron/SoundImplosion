@@ -164,6 +164,7 @@
       }
     },
     "support_chats": {
+      ".read": "auth != null && ((root.child('users').child(auth.uid).child('role').val() == 'admin' && query.orderByChild == 'status' && query.equalTo == 'open') || (query.orderByChild == 'user_id' && query.equalTo == auth.uid))",
       ".indexOn": ["user_id", "status", "assigned_admin_id", "updated_at", "last_message_at"],
       "$chatId": {
         ".read": "(auth != null && (data.child('user_id').val() == auth.uid || root.child('users').child(auth.uid).child('role').val() == 'admin')) || (auth == null && $chatId.matches(/^guest_[a-z0-9_]+$/) && (!data.exists() || (data.child('public_session_id').val() == $chatId && data.child('origin').val() == 'public_web')))",
@@ -173,6 +174,7 @@
     "support_chat_messages": {
       "$chatId": {
         ".read": "(auth != null && (root.child('support_chats').child($chatId).child('user_id').val() == auth.uid || root.child('users').child(auth.uid).child('role').val() == 'admin')) || (auth == null && root.child('support_chats').child($chatId).child('public_session_id').val() == $chatId && root.child('support_chats').child($chatId).child('origin').val() == 'public_web')",
+        ".write": "!newData.exists() && ((auth != null && (root.child('support_chats').child($chatId).child('user_id').val() == auth.uid || root.child('users').child(auth.uid).child('role').val() == 'admin')) || (auth == null && root.child('support_chats').child($chatId).child('public_session_id').val() == $chatId && root.child('support_chats').child($chatId).child('origin').val() == 'public_web'))",
         "$messageId": {
           ".write": "(auth != null && ((root.child('support_chats').child($chatId).child('user_id').val() == auth.uid && newData.child('sender_id').val() == auth.uid && newData.child('sender_role').val() == 'user') || (root.child('users').child(auth.uid).child('role').val() == 'admin' && root.child('support_chats').child($chatId).child('assigned_admin_id').val() == auth.uid && newData.child('sender_id').val() == auth.uid && newData.child('sender_role').val() == 'admin'))) || (auth == null && root.child('support_chats').child($chatId).child('public_session_id').val() == $chatId && root.child('support_chats').child($chatId).child('origin').val() == 'public_web' && newData.child('sender_id').val() == $chatId && newData.child('sender_role').val() == 'user')"
         }
