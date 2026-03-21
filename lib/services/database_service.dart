@@ -1135,33 +1135,40 @@ class DatabaseService {
     }
 
     final timestamp = ServerValue.timestamp;
-    final updates = <String, dynamic>{
-      '/support_chats/$chatId': {
-        'user_id': user.uid,
-        'user_nickname': identity['nickname'],
-        'user_email': identity['email'],
-        'subject': trimmedSubject,
-        'status': SupportChatStatus.open.name,
-        'origin': origin,
-        'created_at': timestamp,
-        'updated_at': timestamp,
-        'last_message_at': timestamp,
-        'last_message_text': _supportChatPreview(trimmedMessage),
-        'last_sender_role': 'user',
-        'last_sender_id': user.uid,
-        'unread_for_admin': true,
-        'unread_for_user': false,
-      },
-      '/support_chat_messages/$chatId/$messageId': {
-        'sender_id': user.uid,
-        'sender_role': 'user',
-        'sender_display_name': identity['nickname'],
-        'text': trimmedMessage,
-        'timestamp': timestamp,
-      },
-    };
+    await _dbRef.child('support_chats').child(chatId).set({
+      'user_id': user.uid,
+      'user_nickname': identity['nickname'],
+      'user_email': identity['email'],
+      'subject': trimmedSubject,
+      'status': SupportChatStatus.open.name,
+      'origin': origin,
+      'created_at': timestamp,
+      'updated_at': timestamp,
+      'last_message_at': timestamp,
+      'last_message_text': _supportChatPreview(trimmedMessage),
+      'last_sender_role': 'user',
+      'last_sender_id': user.uid,
+      'unread_for_admin': true,
+      'unread_for_user': false,
+    });
 
-    await _dbRef.update(updates);
+    try {
+      await _dbRef
+          .child('support_chat_messages')
+          .child(chatId)
+          .child(messageId)
+          .set({
+            'sender_id': user.uid,
+            'sender_role': 'user',
+            'sender_display_name': identity['nickname'],
+            'text': trimmedMessage,
+            'timestamp': timestamp,
+          });
+    } catch (_) {
+      await _dbRef.child('support_chats').child(chatId).remove();
+      rethrow;
+    }
+
     return chatId;
   }
 
@@ -1197,31 +1204,40 @@ class DatabaseService {
     }
 
     final timestamp = ServerValue.timestamp;
-    await _dbRef.update({
-      '/support_chats/$trimmedSessionId': {
-        'user_id': 'guest:$trimmedSessionId',
-        'user_nickname': trimmedGuestName,
-        'subject': trimmedSubject,
-        'status': SupportChatStatus.open.name,
-        'origin': origin,
-        'public_session_id': trimmedSessionId,
-        'created_at': timestamp,
-        'updated_at': timestamp,
-        'last_message_at': timestamp,
-        'last_message_text': _supportChatPreview(trimmedMessage),
-        'last_sender_role': 'user',
-        'last_sender_id': trimmedSessionId,
-        'unread_for_admin': true,
-        'unread_for_user': false,
-      },
-      '/support_chat_messages/$trimmedSessionId/$messageId': {
-        'sender_id': trimmedSessionId,
-        'sender_role': 'user',
-        'sender_display_name': trimmedGuestName,
-        'text': trimmedMessage,
-        'timestamp': timestamp,
-      },
+    await _dbRef.child('support_chats').child(trimmedSessionId).set({
+      'user_id': 'guest:$trimmedSessionId',
+      'user_nickname': trimmedGuestName,
+      'subject': trimmedSubject,
+      'status': SupportChatStatus.open.name,
+      'origin': origin,
+      'public_session_id': trimmedSessionId,
+      'created_at': timestamp,
+      'updated_at': timestamp,
+      'last_message_at': timestamp,
+      'last_message_text': _supportChatPreview(trimmedMessage),
+      'last_sender_role': 'user',
+      'last_sender_id': trimmedSessionId,
+      'unread_for_admin': true,
+      'unread_for_user': false,
     });
+
+    try {
+      await _dbRef
+          .child('support_chat_messages')
+          .child(trimmedSessionId)
+          .child(messageId)
+          .set({
+            'sender_id': trimmedSessionId,
+            'sender_role': 'user',
+            'sender_display_name': trimmedGuestName,
+            'text': trimmedMessage,
+            'timestamp': timestamp,
+          });
+    } catch (_) {
+      await _dbRef.child('support_chats').child(trimmedSessionId).remove();
+      rethrow;
+    }
+
     await registerGuestSupportChatDisconnectCleanup(trimmedSessionId);
     return trimmedSessionId;
   }
