@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:soundimplosion/app/features/home/auth_form_card.dart';
 import 'package:soundimplosion/app/startup_loading_screen.dart';
 import 'package:soundimplosion/web/public/public_site_content.dart';
+import 'package:soundimplosion/web/public/public_support_chat_launcher.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 enum PublicSiteSection { home, about, pricing, contact }
@@ -73,6 +74,7 @@ class _PublicSiteWebState extends State<PublicSiteWeb> {
     final isCompact = MediaQuery.of(context).size.width < 960;
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7FB),
+      floatingActionButton: const PublicSupportChatLauncher(),
       endDrawer: isCompact
           ? _PublicMobileMenu(
               currentSection: _section,

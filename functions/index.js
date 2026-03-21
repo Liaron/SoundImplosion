@@ -259,6 +259,14 @@ function buildNotificationContent(payload) {
         title: "Invito gruppo rifiutato",
         body: `${username} ha rifiutato l'invito al gruppo.`,
       };
+    case "support_chat_message": {
+      const subject = payload && payload.subject ? String(payload.subject).trim() : "Richiesta assistenza";
+      const preview = payload && payload.message_preview ? String(payload.message_preview).trim() : "Nuovo messaggio ricevuto.";
+      return {
+        title: `Supporto: ${subject}`,
+        body: `${username}: ${preview}`,
+      };
+    }
     default:
       return {
         title: "Nuova notifica",
@@ -348,6 +356,7 @@ async function sendPushToUser(uid, notificationId, payload) {
       group_id: (payload && payload.group_id ? String(payload.group_id) : ""),
       booking_id: (payload && payload.booking_id ? String(payload.booking_id) : ""),
       jam_id: (payload && payload.jam_id ? String(payload.jam_id) : ""),
+      chat_id: (payload && payload.chat_id ? String(payload.chat_id) : ""),
       subject_id: (payload && payload.subject_id ? String(payload.subject_id) : ""),
     },
     android: {
@@ -738,6 +747,73 @@ exports.pushUserNotification = functions.database
           context.params.notificationId,
           payload,
       );
+      return null;
+    });
+
+exports.fanoutSupportChatAdminNotifications = functions.database
+    .ref("/support_chat_messages/{chatId}/{messageId}")
+    .onCreate(async (snapshot, context) => {
+      const payload = snapshot.val();
+      if (!payload || typeof payload !== "object") {
+        return null;
+      }
+
+      if (String(payload.sender_role || "") !== "user") {
+        return null;
+      }
+
+      const chatId = String(context.params.chatId || "").trim();
+      if (!chatId) {
+        return null;
+      }
+
+      const chat = await getValue(`/support_chats/${chatId}`);
+      if (!chat || typeof chat !== "object") {
+        return null;
+      }
+
+      if (String(chat.status || "open") !== "open") {
+        return null;
+      }
+
+      const adminsSnapshot = await db.ref("users").orderByChild("role").equalTo("admin").get();
+      if (!adminsSnapshot.exists()) {
+        return null;
+      }
+
+      const updates = {};
+      adminsSnapshot.forEach((child) => {
+        const adminId = String(child.key || "").trim();
+        if (!adminId) {
+          return false;
+        }
+
+        const notificationId = db.ref(`user_notifications/${adminId}`).push().key;
+        if (!notificationId) {
+          return false;
+        }
+
+        updates[`/user_notifications/${adminId}/${notificationId}`] = {
+          type: "support_chat_message",
+          timestamp: admin.database.ServerValue.TIMESTAMP,
+          read: false,
+          chat_id: chatId,
+          subject: String(chat.subject || "Richiesta assistenza"),
+          message_preview: String(payload.text || "").trim().slice(0, 140),
+          username: String(
+              payload.sender_display_name || chat.user_nickname || "Utente",
+          ),
+          requester_id: String(chat.user_id || ""),
+          creator_id: String(chat.user_id || ""),
+        };
+        return false;
+      });
+
+      if (!Object.keys(updates).length) {
+        return null;
+      }
+
+      await db.ref().update(updates);
       return null;
     });
 

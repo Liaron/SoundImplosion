@@ -171,6 +171,9 @@ class PushNotificationService {
   }
 
   int _pageIndexForType(String? type) {
+    if (type == 'support_chat_message') {
+      return 7;
+    }
     if (type?.startsWith('admin_') == true) {
       return 4;
     }

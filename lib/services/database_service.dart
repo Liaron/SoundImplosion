@@ -1038,6 +1038,470 @@ class DatabaseService {
         .remove();
   }
 
+  Stream<DatabaseEvent> getCurrentUserSupportChatsStream() {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception('Utente non loggato');
+    }
+
+    return _dbRef
+        .child('support_chats')
+        .orderByChild('user_id')
+        .equalTo(user.uid)
+        .onValue;
+  }
+
+  Stream<DatabaseEvent> getGuestSupportChatStream(String sessionId) {
+    final trimmedSessionId = sessionId.trim();
+    if (trimmedSessionId.isEmpty) {
+      throw Exception('Sessione guest non valida');
+    }
+
+    return _dbRef.child('support_chats').child(trimmedSessionId).onValue;
+  }
+
+  Stream<DatabaseEvent> getOpenSupportChatsStream() {
+    return _dbRef
+        .child('support_chats')
+        .orderByChild('status')
+        .equalTo(SupportChatStatus.open.name)
+        .onValue;
+  }
+
+  Stream<DatabaseEvent> getSupportChatMessagesStream(String chatId) {
+    final trimmedChatId = chatId.trim();
+    if (trimmedChatId.isEmpty) {
+      throw Exception('Chat non valida');
+    }
+
+    return _dbRef.child('support_chat_messages').child(trimmedChatId).onValue;
+  }
+
+  Future<void> registerGuestSupportChatDisconnectCleanup(String sessionId) async {
+    final trimmedSessionId = sessionId.trim();
+    if (trimmedSessionId.isEmpty) {
+      return;
+    }
+
+    try {
+      await _dbRef
+          .child('support_chats')
+          .child(trimmedSessionId)
+          .onDisconnect()
+          .remove();
+      await _dbRef
+          .child('support_chat_messages')
+          .child(trimmedSessionId)
+          .onDisconnect()
+          .remove();
+    } catch (_) {
+      // Best effort only: explicit cleanup is still performed when the public page disposes.
+    }
+  }
+
+  Future<String> createSupportChat({
+    required String subject,
+    required String message,
+    String origin = 'app',
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception('Utente non loggato');
+    }
+
+    final trimmedMessage = message.trim();
+    if (trimmedMessage.isEmpty) {
+      throw Exception('Inserisci un messaggio');
+    }
+
+    final trimmedSubject = subject.trim().isNotEmpty
+        ? subject.trim()
+        : 'Richiesta assistenza';
+    final identity = await _loadCurrentUserIdentity();
+
+    final chatRef = _dbRef.child('support_chats').push();
+    final chatId = chatRef.key;
+    if (chatId == null || chatId.isEmpty) {
+      throw Exception('Impossibile creare la chat');
+    }
+
+    final messageRef = _dbRef
+        .child('support_chat_messages')
+        .child(chatId)
+        .push();
+    final messageId = messageRef.key;
+    if (messageId == null || messageId.isEmpty) {
+      throw Exception('Impossibile creare il primo messaggio');
+    }
+
+    final timestamp = ServerValue.timestamp;
+    final updates = <String, dynamic>{
+      '/support_chats/$chatId': {
+        'user_id': user.uid,
+        'user_nickname': identity['nickname'],
+        'user_email': identity['email'],
+        'subject': trimmedSubject,
+        'status': SupportChatStatus.open.name,
+        'origin': origin,
+        'created_at': timestamp,
+        'updated_at': timestamp,
+        'last_message_at': timestamp,
+        'last_message_text': _supportChatPreview(trimmedMessage),
+        'last_sender_role': 'user',
+        'last_sender_id': user.uid,
+        'unread_for_admin': true,
+        'unread_for_user': false,
+      },
+      '/support_chat_messages/$chatId/$messageId': {
+        'sender_id': user.uid,
+        'sender_role': 'user',
+        'sender_display_name': identity['nickname'],
+        'text': trimmedMessage,
+        'timestamp': timestamp,
+      },
+    };
+
+    await _dbRef.update(updates);
+    return chatId;
+  }
+
+  Future<String> createGuestSupportChat({
+    required String sessionId,
+    String? guestDisplayName,
+    required String subject,
+    required String message,
+    String origin = 'public_web',
+  }) async {
+    final trimmedSessionId = sessionId.trim();
+    final trimmedMessage = message.trim();
+    if (trimmedSessionId.isEmpty) {
+      throw Exception('Sessione guest non valida');
+    }
+    if (trimmedMessage.isEmpty) {
+      throw Exception('Inserisci un messaggio');
+    }
+
+    final trimmedSubject = subject.trim().isNotEmpty
+        ? subject.trim()
+        : 'Richiesta assistenza pubblica';
+    final trimmedGuestName = guestDisplayName?.trim().isNotEmpty == true
+        ? guestDisplayName!.trim()
+        : 'Visitatore';
+    final messageRef = _dbRef
+        .child('support_chat_messages')
+        .child(trimmedSessionId)
+        .push();
+    final messageId = messageRef.key;
+    if (messageId == null || messageId.isEmpty) {
+      throw Exception('Impossibile creare il primo messaggio');
+    }
+
+    final timestamp = ServerValue.timestamp;
+    await _dbRef.update({
+      '/support_chats/$trimmedSessionId': {
+        'user_id': 'guest:$trimmedSessionId',
+        'user_nickname': trimmedGuestName,
+        'subject': trimmedSubject,
+        'status': SupportChatStatus.open.name,
+        'origin': origin,
+        'public_session_id': trimmedSessionId,
+        'created_at': timestamp,
+        'updated_at': timestamp,
+        'last_message_at': timestamp,
+        'last_message_text': _supportChatPreview(trimmedMessage),
+        'last_sender_role': 'user',
+        'last_sender_id': trimmedSessionId,
+        'unread_for_admin': true,
+        'unread_for_user': false,
+      },
+      '/support_chat_messages/$trimmedSessionId/$messageId': {
+        'sender_id': trimmedSessionId,
+        'sender_role': 'user',
+        'sender_display_name': trimmedGuestName,
+        'text': trimmedMessage,
+        'timestamp': timestamp,
+      },
+    });
+    await registerGuestSupportChatDisconnectCleanup(trimmedSessionId);
+    return trimmedSessionId;
+  }
+
+  Future<void> sendSupportChatMessage({
+    required String chatId,
+    required String text,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception('Utente non loggato');
+    }
+
+    final trimmedChatId = chatId.trim();
+    final trimmedText = text.trim();
+    if (trimmedChatId.isEmpty) {
+      throw Exception('Chat non valida');
+    }
+    if (trimmedText.isEmpty) {
+      throw Exception('Inserisci un messaggio');
+    }
+
+    final chatSnapshot = await _dbRef.child('support_chats').child(trimmedChatId).get();
+    if (!chatSnapshot.exists || chatSnapshot.value is! Map) {
+      throw Exception('Chat non trovata');
+    }
+
+    final chatData = Map<String, dynamic>.from(chatSnapshot.value as Map);
+    final chatOwnerId = chatData['user_id']?.toString() ?? '';
+    final chatStatus = chatData['status']?.toString() ?? SupportChatStatus.open.name;
+    final isAdmin = await _isCurrentUserAdmin();
+
+    if (!isAdmin && chatOwnerId != user.uid) {
+      throw Exception('Permessi insufficienti');
+    }
+    if (chatStatus != SupportChatStatus.open.name) {
+      throw Exception('La chat e chiusa');
+    }
+    if (isAdmin && chatData['assigned_admin_id']?.toString() != user.uid) {
+      throw Exception('Assegna la chat a te stesso prima di rispondere');
+    }
+
+    final identity = await _loadCurrentUserIdentity();
+    final messageRef = _dbRef
+        .child('support_chat_messages')
+        .child(trimmedChatId)
+        .push();
+    final messageId = messageRef.key;
+    if (messageId == null || messageId.isEmpty) {
+      throw Exception('Impossibile inviare il messaggio');
+    }
+
+    final senderRole = isAdmin ? 'admin' : 'user';
+    final timestamp = ServerValue.timestamp;
+    final updates = <String, dynamic>{
+      '/support_chat_messages/$trimmedChatId/$messageId': {
+        'sender_id': user.uid,
+        'sender_role': senderRole,
+        'sender_display_name': identity['nickname'],
+        'text': trimmedText,
+        'timestamp': timestamp,
+      },
+      '/support_chats/$trimmedChatId/updated_at': timestamp,
+      '/support_chats/$trimmedChatId/last_message_at': timestamp,
+      '/support_chats/$trimmedChatId/last_message_text': _supportChatPreview(
+        trimmedText,
+      ),
+      '/support_chats/$trimmedChatId/last_sender_role': senderRole,
+      '/support_chats/$trimmedChatId/last_sender_id': user.uid,
+      '/support_chats/$trimmedChatId/unread_for_admin': !isAdmin,
+      '/support_chats/$trimmedChatId/unread_for_user': isAdmin,
+    };
+
+    await _dbRef.update(updates);
+  }
+
+  Future<void> sendGuestSupportChatMessage({
+    required String sessionId,
+    required String text,
+  }) async {
+    final trimmedSessionId = sessionId.trim();
+    final trimmedText = text.trim();
+    if (trimmedSessionId.isEmpty) {
+      throw Exception('Sessione guest non valida');
+    }
+    if (trimmedText.isEmpty) {
+      throw Exception('Inserisci un messaggio');
+    }
+
+    final chatSnapshot = await _dbRef.child('support_chats').child(trimmedSessionId).get();
+    if (!chatSnapshot.exists || chatSnapshot.value is! Map) {
+      throw Exception('Chat non trovata');
+    }
+
+    final chatData = Map<String, dynamic>.from(chatSnapshot.value as Map);
+    if (chatData['public_session_id']?.toString() != trimmedSessionId) {
+      throw Exception('Sessione guest non valida');
+    }
+    if (chatData['status']?.toString() != SupportChatStatus.open.name) {
+      throw Exception('La chat e chiusa');
+    }
+
+    final messageRef = _dbRef
+        .child('support_chat_messages')
+        .child(trimmedSessionId)
+        .push();
+    final messageId = messageRef.key;
+    if (messageId == null || messageId.isEmpty) {
+      throw Exception('Impossibile inviare il messaggio');
+    }
+
+    final timestamp = ServerValue.timestamp;
+    await _dbRef.update({
+      '/support_chat_messages/$trimmedSessionId/$messageId': {
+        'sender_id': trimmedSessionId,
+        'sender_role': 'user',
+        'sender_display_name': chatData['user_nickname']?.toString() ?? 'Visitatore',
+        'text': trimmedText,
+        'timestamp': timestamp,
+      },
+      '/support_chats/$trimmedSessionId/updated_at': timestamp,
+      '/support_chats/$trimmedSessionId/last_message_at': timestamp,
+      '/support_chats/$trimmedSessionId/last_message_text': _supportChatPreview(
+        trimmedText,
+      ),
+      '/support_chats/$trimmedSessionId/last_sender_role': 'user',
+      '/support_chats/$trimmedSessionId/last_sender_id': trimmedSessionId,
+      '/support_chats/$trimmedSessionId/unread_for_admin': true,
+      '/support_chats/$trimmedSessionId/unread_for_user': false,
+    });
+  }
+
+  Future<void> assignSupportChatToCurrentAdmin(String chatId) async {
+    await _ensureCurrentUserIsAdminOrThrow();
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception('Utente non loggato');
+    }
+
+    final trimmedChatId = chatId.trim();
+    if (trimmedChatId.isEmpty) {
+      throw Exception('Chat non valida');
+    }
+
+    final chatSnapshot = await _dbRef.child('support_chats').child(trimmedChatId).get();
+    if (!chatSnapshot.exists || chatSnapshot.value is! Map) {
+      throw Exception('Chat non trovata');
+    }
+
+    final chatData = Map<String, dynamic>.from(chatSnapshot.value as Map);
+    if (chatData['status']?.toString() != SupportChatStatus.open.name) {
+      throw Exception('La chat e chiusa');
+    }
+
+    final identity = await _loadCurrentUserIdentity();
+    await _dbRef.child('support_chats').child(trimmedChatId).update({
+      'assigned_admin_id': user.uid,
+      'assigned_admin_nickname': identity['nickname'],
+      'updated_at': ServerValue.timestamp,
+      'unread_for_admin': false,
+    });
+  }
+
+  Future<void> releaseSupportChat(String chatId) async {
+    await _ensureCurrentUserIsAdminOrThrow();
+
+    final trimmedChatId = chatId.trim();
+    if (trimmedChatId.isEmpty) {
+      throw Exception('Chat non valida');
+    }
+
+    await _dbRef.child('support_chats').child(trimmedChatId).update({
+      'assigned_admin_id': null,
+      'assigned_admin_nickname': null,
+      'updated_at': ServerValue.timestamp,
+    });
+  }
+
+  Future<void> closeSupportChat(String chatId) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception('Utente non loggato');
+    }
+
+    final trimmedChatId = chatId.trim();
+    if (trimmedChatId.isEmpty) {
+      throw Exception('Chat non valida');
+    }
+
+    final chatSnapshot = await _dbRef.child('support_chats').child(trimmedChatId).get();
+    if (!chatSnapshot.exists || chatSnapshot.value is! Map) {
+      throw Exception('Chat non trovata');
+    }
+
+    final chatData = Map<String, dynamic>.from(chatSnapshot.value as Map);
+    final isAdmin = await _isCurrentUserAdmin();
+    final chatOwnerId = chatData['user_id']?.toString() ?? '';
+    if (!isAdmin && chatOwnerId != user.uid) {
+      throw Exception('Permessi insufficienti');
+    }
+
+    await _dbRef.child('support_chats').child(trimmedChatId).update({
+      'status': SupportChatStatus.closed.name,
+      'updated_at': ServerValue.timestamp,
+      'unread_for_admin': false,
+      'unread_for_user': false,
+    });
+  }
+
+  Future<void> markSupportChatSeen(String chatId) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      return;
+    }
+
+    final trimmedChatId = chatId.trim();
+    if (trimmedChatId.isEmpty) {
+      return;
+    }
+
+    final isAdmin = await _isCurrentUserAdmin();
+    await _dbRef.child('support_chats').child(trimmedChatId).update({
+      isAdmin ? 'unread_for_admin' : 'unread_for_user': false,
+    });
+  }
+
+  Future<void> markGuestSupportChatSeen(String sessionId) async {
+    final trimmedSessionId = sessionId.trim();
+    if (trimmedSessionId.isEmpty) {
+      return;
+    }
+
+    await _dbRef.child('support_chats').child(trimmedSessionId).update({
+      'unread_for_user': false,
+    });
+  }
+
+  Future<void> deleteGuestSupportChat(String sessionId) async {
+    final trimmedSessionId = sessionId.trim();
+    if (trimmedSessionId.isEmpty) {
+      return;
+    }
+
+    await _dbRef.update({
+      '/support_chats/$trimmedSessionId': null,
+      '/support_chat_messages/$trimmedSessionId': null,
+    });
+  }
+
+  Future<Map<String, String?>> _loadCurrentUserIdentity() async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      return const <String, String?>{'nickname': null, 'email': null};
+    }
+
+    final snapshot = await _dbRef.child('users').child(user.uid).get();
+    if (snapshot.exists && snapshot.value is Map) {
+      final userData = Map<String, dynamic>.from(snapshot.value as Map);
+      final nickname = userData['username']?.toString().trim();
+      final email = userData['email']?.toString().trim();
+      return <String, String?>{
+        'nickname': nickname?.isNotEmpty == true ? nickname : user.uid,
+        'email': email?.isNotEmpty == true ? email : user.email,
+      };
+    }
+
+    final fallbackName = user.displayName?.trim().isNotEmpty == true
+        ? user.displayName!.trim()
+        : user.uid;
+    return <String, String?>{'nickname': fallbackName, 'email': user.email};
+  }
+
+  String _supportChatPreview(String text) {
+    final trimmedText = text.trim();
+    if (trimmedText.length <= 140) {
+      return trimmedText;
+    }
+    return '${trimmedText.substring(0, 137)}...';
+  }
+
   Future<bool> isCurrentUserAdmin() {
     return _isCurrentUserAdmin();
   }
@@ -2805,6 +3269,46 @@ class DatabaseService {
           if (username != null) 'username': username,
         };
       }
+    }
+  }
+
+  Future<void> _addSupportChatAdminNotifications(
+    Map<String, dynamic> updates,
+    List<String> adminIds, {
+    required String chatId,
+    required String subject,
+    required String requesterId,
+    required String messagePreview,
+  }) async {
+    if (adminIds.isEmpty) {
+      return;
+    }
+
+    final namesMap = await getUsernamesByIds([requesterId]);
+    final username = namesMap[requesterId];
+    final timestamp = ServerValue.timestamp;
+
+    for (final adminId in adminIds) {
+      final notifId = _dbRef
+          .child('user_notifications')
+          .child(adminId)
+          .push()
+          .key;
+      if (notifId == null) {
+        continue;
+      }
+
+      updates['/user_notifications/$adminId/$notifId'] = {
+        'type': 'support_chat_message',
+        'timestamp': timestamp,
+        'read': false,
+        'chat_id': chatId,
+        'subject': subject,
+        'message_preview': _supportChatPreview(messagePreview),
+        'requester_id': requesterId,
+        'creator_id': requesterId,
+        if (username != null) 'username': username,
+      };
     }
   }
 

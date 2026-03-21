@@ -77,6 +77,7 @@ class AppNotificationItem {
     this.proposalStatus,
     this.bookingId,
     this.jamId,
+    this.chatId,
     this.expiresAt = 0,
   });
 
@@ -94,6 +95,7 @@ class AppNotificationItem {
   final String? proposalStatus;
   final String? bookingId;
   final String? jamId;
+  final String? chatId;
   final int expiresAt;
 
   NotificationCategory get category {
@@ -136,6 +138,9 @@ class AppNotificationItem {
   }
 
   NotificationRouteTarget get routeTarget {
+    if (type == 'support_chat_message') {
+      return const NotificationRouteTarget(pageIndex: 7);
+    }
     if (type.startsWith('admin_')) {
       return const NotificationRouteTarget(pageIndex: 4); // Admin panel
     }
@@ -192,6 +197,7 @@ class AppNotificationItem {
     final proposalStatus = map['proposal_status']?.toString();
     final bookingId = map['booking_id']?.toString() ?? map['subject_id']?.toString();
     final jamId = map['jam_id']?.toString() ?? map['subject_id']?.toString();
+    final chatId = map['chat_id']?.toString();
     final expiresAt = _parseTimestamp(map['expires_at']);
 
     String title;
@@ -340,6 +346,19 @@ class AppNotificationItem {
         body =
             "${username ?? 'Un utente'} ha rifiutato l'invito al gruppo ${groupName ?? 'selezionato'}.";
         break;
+      case 'support_chat_message':
+        title = 'Nuovo messaggio assistenza';
+        final subject = map['subject']?.toString().trim();
+        final preview = map['message_preview']?.toString().trim();
+        body = [
+          if (subject != null && subject.isNotEmpty) subject,
+          if (preview != null && preview.isNotEmpty)
+            '${username ?? 'Utente'}: $preview',
+        ].join(' • ');
+        if (body.isEmpty) {
+          body = 'Apri la chat di assistenza per leggere il messaggio.';
+        }
+        break;
       default:
         title = 'Nuova notifica';
         body = map['message']?.toString() ?? 'Hai una nuova notifica.';
@@ -360,6 +379,7 @@ class AppNotificationItem {
       proposalStatus: proposalStatus,
       bookingId: bookingId,
       jamId: jamId,
+      chatId: chatId,
       expiresAt: expiresAt,
     );
   }

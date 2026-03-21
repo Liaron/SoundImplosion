@@ -158,6 +158,21 @@
         }
       }
     },
+    "support_chats": {
+      ".indexOn": ["user_id", "status", "assigned_admin_id", "updated_at", "last_message_at"],
+      "$chatId": {
+        ".read": "(auth != null && (data.child('user_id').val() == auth.uid || root.child('users').child(auth.uid).child('role').val() == 'admin')) || (auth == null && data.child('public_session_id').val() == $chatId && data.child('origin').val() == 'public_web')",
+        ".write": "(auth != null && (((!data.exists() && newData.child('user_id').val() == auth.uid && newData.child('status').val() == 'open') || (data.exists() && data.child('user_id').val() == auth.uid)) || root.child('users').child(auth.uid).child('role').val() == 'admin')) || (auth == null && (((!data.exists() && newData.child('public_session_id').val() == $chatId && newData.child('origin').val() == 'public_web' && newData.child('status').val() == 'open' && newData.child('user_id').val() == 'guest:' + $chatId) || (data.exists() && data.child('public_session_id').val() == $chatId && data.child('origin').val() == 'public_web' && (!newData.exists() || (newData.child('public_session_id').val() == $chatId && newData.child('origin').val() == 'public_web' && newData.child('user_id').val() == data.child('user_id').val() && newData.child('assigned_admin_id').val() == data.child('assigned_admin_id').val() && newData.child('assigned_admin_nickname').val() == data.child('assigned_admin_nickname').val() && newData.child('status').val() == data.child('status').val()))))))"
+      }
+    },
+    "support_chat_messages": {
+      "$chatId": {
+        ".read": "(auth != null && (root.child('support_chats').child($chatId).child('user_id').val() == auth.uid || root.child('users').child(auth.uid).child('role').val() == 'admin')) || (auth == null && root.child('support_chats').child($chatId).child('public_session_id').val() == $chatId && root.child('support_chats').child($chatId).child('origin').val() == 'public_web')",
+        "$messageId": {
+          ".write": "(auth != null && ((root.child('support_chats').child($chatId).child('user_id').val() == auth.uid && newData.child('sender_id').val() == auth.uid && newData.child('sender_role').val() == 'user') || (root.child('users').child(auth.uid).child('role').val() == 'admin' && root.child('support_chats').child($chatId).child('assigned_admin_id').val() == auth.uid && newData.child('sender_id').val() == auth.uid && newData.child('sender_role').val() == 'admin'))) || (auth == null && root.child('support_chats').child($chatId).child('public_session_id').val() == $chatId && root.child('support_chats').child($chatId).child('origin').val() == 'public_web' && newData.child('sender_id').val() == $chatId && newData.child('sender_role').val() == 'user')"
+        }
+      }
+    },
     "user_devices": {
       "$uid": {
         ".read": "auth != null && (auth.uid == $uid || root.child('users').child(auth.uid).child('role').val() == 'admin')",

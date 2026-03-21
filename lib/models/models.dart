@@ -356,3 +356,142 @@ class Jam {
     );
   }
 }
+
+enum SupportChatStatus { open, closed }
+
+class SupportChatConversation {
+  const SupportChatConversation({
+    required this.id,
+    required this.userId,
+    required this.userNickname,
+    this.userEmail,
+    required this.subject,
+    required this.status,
+    required this.createdAt,
+    required this.updatedAt,
+    required this.lastMessageAt,
+    required this.lastMessageText,
+    this.lastSenderRole,
+    this.lastSenderId,
+    this.assignedAdminId,
+    this.assignedAdminNickname,
+    this.unreadForAdmin = false,
+    this.unreadForUser = false,
+    this.origin = 'app',
+    this.publicSessionId,
+  });
+
+  final String id;
+  final String userId;
+  final String userNickname;
+  final String? userEmail;
+  final String subject;
+  final SupportChatStatus status;
+  final int createdAt;
+  final int updatedAt;
+  final int lastMessageAt;
+  final String lastMessageText;
+  final String? lastSenderRole;
+  final String? lastSenderId;
+  final String? assignedAdminId;
+  final String? assignedAdminNickname;
+  final bool unreadForAdmin;
+  final bool unreadForUser;
+  final String origin;
+  final String? publicSessionId;
+
+  bool get isOpen => status == SupportChatStatus.open;
+  bool get hasAssignment => assignedAdminId?.trim().isNotEmpty == true;
+  bool get isGuestConversation => publicSessionId?.trim().isNotEmpty == true;
+
+  factory SupportChatConversation.fromMap(String id, Map<String, dynamic> map) {
+    int parseTimestamp(dynamic value) {
+      if (value is int) {
+        return value;
+      }
+      if (value is num) {
+        return value.toInt();
+      }
+      return int.tryParse(value?.toString() ?? '') ?? 0;
+    }
+
+    SupportChatStatus parseStatus(dynamic value) {
+      final raw = value?.toString() ?? SupportChatStatus.open.name;
+      return SupportChatStatus.values.firstWhere(
+        (status) => status.name == raw,
+        orElse: () => SupportChatStatus.open,
+      );
+    }
+
+    return SupportChatConversation(
+      id: id,
+      userId: map['user_id']?.toString() ?? '',
+      userNickname: map['user_nickname']?.toString() ?? 'Utente',
+      userEmail: map['user_email']?.toString(),
+      subject: map['subject']?.toString().trim().isNotEmpty == true
+          ? map['subject'].toString().trim()
+          : 'Richiesta assistenza',
+      status: parseStatus(map['status']),
+      createdAt: parseTimestamp(map['created_at']),
+      updatedAt: parseTimestamp(map['updated_at']),
+      lastMessageAt: parseTimestamp(map['last_message_at']),
+      lastMessageText: map['last_message_text']?.toString() ?? '',
+      lastSenderRole: map['last_sender_role']?.toString(),
+      lastSenderId: map['last_sender_id']?.toString(),
+      assignedAdminId: map['assigned_admin_id']?.toString(),
+      assignedAdminNickname: map['assigned_admin_nickname']?.toString(),
+      unreadForAdmin: map['unread_for_admin'] == true,
+      unreadForUser: map['unread_for_user'] == true,
+      origin: map['origin']?.toString() ?? 'app',
+      publicSessionId: map['public_session_id']?.toString(),
+    );
+  }
+}
+
+class SupportChatMessage {
+  const SupportChatMessage({
+    required this.id,
+    required this.chatId,
+    required this.senderId,
+    required this.senderRole,
+    required this.senderDisplayName,
+    required this.text,
+    required this.timestamp,
+  });
+
+  final String id;
+  final String chatId;
+  final String senderId;
+  final String senderRole;
+  final String senderDisplayName;
+  final String text;
+  final int timestamp;
+
+  bool get isAdminMessage => senderRole == 'admin';
+
+  factory SupportChatMessage.fromMap(
+    String id,
+    String chatId,
+    Map<String, dynamic> map,
+  ) {
+    int parseTimestamp(dynamic value) {
+      if (value is int) {
+        return value;
+      }
+      if (value is num) {
+        return value.toInt();
+      }
+      return int.tryParse(value?.toString() ?? '') ?? 0;
+    }
+
+    return SupportChatMessage(
+      id: id,
+      chatId: chatId,
+      senderId: map['sender_id']?.toString() ?? '',
+      senderRole: map['sender_role']?.toString() ?? 'user',
+      senderDisplayName: map['sender_display_name']?.toString() ?? 'Utente',
+      text: map['text']?.toString() ?? '',
+      timestamp: parseTimestamp(map['timestamp']),
+    );
+  }
+}
