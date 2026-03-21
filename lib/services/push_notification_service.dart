@@ -213,6 +213,7 @@ class PushNotificationService {
       bookingId: _bookingIdForType(message.data),
       jamId: _jamIdForType(message.data),
       groupId: message.data['group_id'],
+      chatId: message.data['chat_id'],
     ).toPayload();
   }
 

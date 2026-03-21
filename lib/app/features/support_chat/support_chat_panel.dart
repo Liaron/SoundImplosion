@@ -9,12 +9,14 @@ class SupportChatPanel extends StatefulWidget {
     this.embedded = false,
     this.compact = false,
     this.origin = 'app',
+    this.initialChatId,
     this.repository,
   });
 
   final bool embedded;
   final bool compact;
   final String origin;
+  final String? initialChatId;
   final SupportChatRepository? repository;
 
   @override
@@ -29,7 +31,7 @@ class _SupportChatPanelState extends State<SupportChatPanel> {
   void initState() {
     super.initState();
     _controller = SupportChatController(repository: widget.repository);
-    _controller.initialize();
+    _controller.initialize(initialChatId: widget.initialChatId);
   }
 
   @override

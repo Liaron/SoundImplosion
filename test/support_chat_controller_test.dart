@@ -28,6 +28,25 @@ void main() {
       await repository.dispose();
     });
 
+    test('initialize prefers requested chat when available', () async {
+      final repository = _FakeSupportChatRepository(
+        isAdmin: true,
+        chats: [
+          _chat(id: 'chat-1', subject: 'Prima richiesta'),
+          _chat(id: 'chat-2', subject: 'Seconda richiesta'),
+        ],
+      );
+      final controller = SupportChatController(repository: repository);
+
+      await controller.initialize(initialChatId: 'chat-2');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(controller.selectedChatId, 'chat-2');
+
+      controller.dispose();
+      await repository.dispose();
+    });
+
     test('admin must assign chat before replying', () async {
       final repository = _FakeSupportChatRepository(
         isAdmin: true,

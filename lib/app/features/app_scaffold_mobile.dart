@@ -563,6 +563,13 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
       case 5:
         _navigateToPage(5, closeDrawer: false);
         break;
+      case 7:
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => ContactUsPageMobile(initialChatId: target.chatId),
+          ),
+        );
+        break;
       default:
         break;
     }

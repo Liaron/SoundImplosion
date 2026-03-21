@@ -17,6 +17,7 @@ class SupportChatController extends ChangeNotifier {
   List<SupportChatConversation> chats = const <SupportChatConversation>[];
   List<SupportChatMessage> messages = const <SupportChatMessage>[];
   String? selectedChatId;
+  String? _preferredChatId;
 
   StreamSubscription<List<SupportChatConversation>>? _chatSubscription;
   StreamSubscription<List<SupportChatMessage>>? _messageSubscription;
@@ -51,9 +52,12 @@ class SupportChatController extends ChangeNotifier {
     return chat.assignedAdminId == currentUserId;
   }
 
-  Future<void> initialize() async {
+  Future<void> initialize({String? initialChatId}) async {
     isLoading = true;
     error = null;
+    _preferredChatId = initialChatId?.trim().isNotEmpty == true
+        ? initialChatId!.trim()
+        : null;
     notifyListeners();
 
     try {
@@ -193,11 +197,18 @@ class SupportChatController extends ChangeNotifier {
     error = null;
 
     final currentSelection = selectedChatId;
+    final preferredChatId = _preferredChatId;
     final stillExists = currentSelection != null &&
         items.any((chat) => chat.id == currentSelection);
-    final nextSelection = stillExists
-        ? currentSelection
-        : (items.isNotEmpty ? items.first.id : null);
+    final preferredExists = preferredChatId != null &&
+        items.any((chat) => chat.id == preferredChatId);
+    final nextSelection = preferredExists
+        ? preferredChatId
+        : (stillExists ? currentSelection : (items.isNotEmpty ? items.first.id : null));
+
+    if (preferredExists && nextSelection == preferredChatId) {
+      _preferredChatId = null;
+    }
 
     if (nextSelection != selectedChatId) {
       selectedChatId = nextSelection;

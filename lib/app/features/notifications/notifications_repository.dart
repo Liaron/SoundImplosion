@@ -11,17 +11,20 @@ class NotificationRouteTarget {
     this.bookingId,
     this.jamId,
     this.groupId,
+    this.chatId,
   });
 
   final int pageIndex;
   final String? bookingId;
   final String? jamId;
   final String? groupId;
+  final String? chatId;
 
   bool get hasSpecificTarget =>
       (bookingId?.isNotEmpty ?? false) ||
       (jamId?.isNotEmpty ?? false) ||
-      (groupId?.isNotEmpty ?? false);
+      (groupId?.isNotEmpty ?? false) ||
+      (chatId?.isNotEmpty ?? false);
 
   String toPayload() {
     return jsonEncode({
@@ -29,6 +32,7 @@ class NotificationRouteTarget {
       'bookingId': bookingId,
       'jamId': jamId,
       'groupId': groupId,
+      'chatId': chatId,
     });
   }
 
@@ -54,6 +58,7 @@ class NotificationRouteTarget {
         bookingId: map['bookingId']?.toString(),
         jamId: map['jamId']?.toString(),
         groupId: map['groupId']?.toString(),
+        chatId: map['chatId']?.toString(),
       );
     } catch (_) {
       return null;
@@ -139,7 +144,7 @@ class AppNotificationItem {
 
   NotificationRouteTarget get routeTarget {
     if (type == 'support_chat_message') {
-      return const NotificationRouteTarget(pageIndex: 7);
+      return NotificationRouteTarget(pageIndex: 7, chatId: chatId);
     }
     if (type.startsWith('admin_')) {
       return const NotificationRouteTarget(pageIndex: 4); // Admin panel

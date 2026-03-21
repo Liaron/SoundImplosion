@@ -3,6 +3,7 @@ import 'package:soundimplosion/app/features/book/bookings_scaffold_mobile.dart';
 import 'package:soundimplosion/app/features/groups/groups_page_mobile.dart';
 import 'package:soundimplosion/app/features/jam/jam_session_page_mobile.dart';
 import 'package:intl/intl.dart';
+import 'package:soundimplosion/app/features/contact_us/contact_us_page_mobile.dart';
 import 'package:soundimplosion/app/features/notifications/notifications_controller.dart';
 import 'package:soundimplosion/app/features/notifications/notifications_repository.dart';
 
@@ -199,6 +200,13 @@ class _NotificationsPageMobileState extends State<NotificationsPageMobile> {
           MaterialPageRoute(
             builder: (_) =>
                 GroupsPageMobile(initialGroupIdToOpen: target.groupId),
+          ),
+        );
+        break;
+      case 7:
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => ContactUsPageMobile(initialChatId: target.chatId),
           ),
         );
         break;
