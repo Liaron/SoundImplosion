@@ -2,6 +2,10 @@
   "rules": {
     ".read": false,
     ".write": false,
+    "app_config": {
+      ".read": true,
+      ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() == 'admin'"
+    },
     "users": {
       ".indexOn": ["role"],
       "$uid": {

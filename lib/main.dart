@@ -5,9 +5,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:soundimplosion/app/features/app_scaffold_mobile.dart';
+import 'package:soundimplosion/app/mobile_app_entry_gate.dart';
 import 'package:soundimplosion/app/startup_loading_screen.dart';
 import 'firebase_options.dart';
-import 'package:soundimplosion/app/features/home/auth_page_mobile.dart';
 import 'package:soundimplosion/services/app_preferences_service.dart';
 import 'package:soundimplosion/services/firebase_auth.dart';
 import 'package:soundimplosion/services/local_notification_service.dart';
@@ -311,21 +311,20 @@ class MyApp extends StatelessWidget {
               child: child!,
             );
           },
-          home: StreamBuilder(
-            stream: AuthService().authStateChanges,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.active) {
-                if (snapshot.hasData) {
-                  return const AppScaffoldMobile();
-                }
-                if (kIsWeb) {
-                  return const PublicSiteWeb();
-                }
-                return const AuthPageMobile();
-              }
-              return const StartupLoadingScreen();
-            },
-          ),
+          home: kIsWeb
+              ? StreamBuilder(
+                  stream: AuthService().authStateChanges,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.active) {
+                      if (snapshot.hasData) {
+                        return const AppScaffoldMobile();
+                      }
+                      return const PublicSiteWeb();
+                    }
+                    return const StartupLoadingScreen();
+                  },
+                )
+              : const MobileAppEntryGate(),
         );
       },
     );
