@@ -3272,46 +3272,6 @@ class DatabaseService {
     }
   }
 
-  Future<void> _addSupportChatAdminNotifications(
-    Map<String, dynamic> updates,
-    List<String> adminIds, {
-    required String chatId,
-    required String subject,
-    required String requesterId,
-    required String messagePreview,
-  }) async {
-    if (adminIds.isEmpty) {
-      return;
-    }
-
-    final namesMap = await getUsernamesByIds([requesterId]);
-    final username = namesMap[requesterId];
-    final timestamp = ServerValue.timestamp;
-
-    for (final adminId in adminIds) {
-      final notifId = _dbRef
-          .child('user_notifications')
-          .child(adminId)
-          .push()
-          .key;
-      if (notifId == null) {
-        continue;
-      }
-
-      updates['/user_notifications/$adminId/$notifId'] = {
-        'type': 'support_chat_message',
-        'timestamp': timestamp,
-        'read': false,
-        'chat_id': chatId,
-        'subject': subject,
-        'message_preview': _supportChatPreview(messagePreview),
-        'requester_id': requesterId,
-        'creator_id': requesterId,
-        if (username != null) 'username': username,
-      };
-    }
-  }
-
   Future<List<Map<String, dynamic>>> searchUsersByNickname(
     String nickname,
   ) async {
