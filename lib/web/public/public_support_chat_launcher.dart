@@ -126,8 +126,8 @@ class _PublicSupportChatLauncherState extends State<PublicSupportChatLauncher> {
     final random = Random();
     final timestamp = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
     final entropy = List<String>.generate(
-      4,
-      (_) => random.nextInt(1 << 32).toRadixString(36),
+      6,
+      (_) => random.nextInt(0x3fffffff).toRadixString(36).padLeft(6, '0'),
     ).join();
     return 'guest_$timestamp$entropy';
   }
