@@ -285,6 +285,8 @@ class _SupportChatPanelState extends State<SupportChatPanel> {
   Widget _buildListSection(SupportChatConversation? selectedChat) {
     final colorScheme = Theme.of(context).colorScheme;
     final chats = _controller.chats;
+    final showHeaderCreateAction =
+        !_controller.isAdmin && !_controller.isGuestSession && chats.isNotEmpty;
 
     return Column(
       children: [
@@ -314,13 +316,12 @@ class _SupportChatPanelState extends State<SupportChatPanel> {
                   ],
                 ),
               ),
-              if (!_controller.isAdmin)
-                if (!_controller.isGuestSession || chats.isEmpty)
-                  FilledButton.icon(
-                    onPressed: _controller.isSubmitting ? null : _createChat,
-                    icon: const Icon(Icons.add_comment_outlined),
-                    label: Text(_controller.isGuestSession ? 'Apri chat' : 'Nuova'),
-                  ),
+              if (showHeaderCreateAction)
+                FilledButton.icon(
+                  onPressed: _controller.isSubmitting ? null : _createChat,
+                  icon: const Icon(Icons.add_comment_outlined),
+                  label: const Text('Nuova'),
+                ),
             ],
           ),
         ),
@@ -330,11 +331,16 @@ class _SupportChatPanelState extends State<SupportChatPanel> {
                   icon: _controller.isAdmin
                       ? Icons.support_agent
                       : Icons.forum_outlined,
-                  message: _controller.isAdmin
-                      ? 'Nessuna chat aperta in questo momento.'
+                  title: _controller.isAdmin
+                      ? 'Nessuna chat aperta'
                       : (_controller.isGuestSession
-                            ? 'Puoi iniziare subito una chat con l\'assistenza.'
-                            : 'Non hai ancora richieste aperte.'),
+                            ? 'Contatta l\'assistenza'
+                            : 'Nessuna richiesta attiva'),
+                  message: _controller.isAdmin
+                      ? 'Quando un utente scrive, la conversazione apparira qui.'
+                      : (_controller.isGuestSession
+                            ? 'Apri una chat temporanea dal sito pubblico. La conversazione verra eliminata quando lasci la pagina.'
+                            : 'Apri una richiesta per ricevere supporto su prenotazioni, pagamenti o problemi tecnici.'),
                   action: !_controller.isAdmin
                       ? FilledButton(
                           onPressed:
@@ -448,14 +454,22 @@ class _SupportChatPanelState extends State<SupportChatPanel> {
     List<SupportChatMessage> selectedChatMessages,
   ) {
     final colorScheme = Theme.of(context).colorScheme;
+    final hasChats = _controller.chats.isNotEmpty;
 
     if (selectedChat == null) {
       return _buildEmptyState(
         icon: Icons.chat_bubble_outline,
         iconSize: 52,
+        title: _controller.isAdmin
+            ? 'Seleziona una chat'
+            : (hasChats ? 'Apri una conversazione' : 'Come funziona'),
         message: _controller.isAdmin
-            ? 'Seleziona una chat per gestirla.'
-            : 'Seleziona una richiesta oppure aprine una nuova.',
+            ? 'Scegli una richiesta dalla colonna a sinistra per leggerla o rispondere.'
+            : (hasChats
+                  ? 'Seleziona una richiesta dalla lista per continuare la conversazione con l\'assistenza.'
+                  : (_controller.isGuestSession
+                        ? 'Usa il pulsante a sinistra per iniziare una chat rapida. Ti chiediamo solo nome, oggetto e messaggio iniziale.'
+                        : 'Apri una nuova richiesta dalla colonna a sinistra e poi continua la conversazione da qui.')),
         messageStyle: Theme.of(context).textTheme.titleMedium,
       );
     }
@@ -681,6 +695,7 @@ class _SupportChatPanelState extends State<SupportChatPanel> {
 
   Widget _buildEmptyState({
     required IconData icon,
+    String? title,
     required String message,
     Widget? action,
     TextStyle? messageStyle,
@@ -699,11 +714,21 @@ class _SupportChatPanelState extends State<SupportChatPanel> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(icon, size: iconSize, color: colorScheme.primary),
+                  if (title != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      title,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   Text(
                     message,
                     textAlign: TextAlign.center,
-                    style: messageStyle,
+                    style: messageStyle ?? Theme.of(context).textTheme.bodyMedium,
                   ),
                   if (action != null) ...[
                     const SizedBox(height: 12),
