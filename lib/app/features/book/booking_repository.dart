@@ -218,8 +218,13 @@ class FirebaseBookingRepository implements BookingRepository {
     if (orderedSlots.isEmpty) {
       throw Exception('Seleziona almeno un orario');
     }
+    if (orderedSlots.length < 2) {
+      throw Exception('Seleziona almeno due slot contigui.');
+    }
     if (!areSlotsContiguous(orderedSlots)) {
-      throw Exception('Gli orari selezionati devono essere consecutivi.');
+      throw Exception(
+        'Per selezionare slot separati e necessario effettuare due richieste distinte.',
+      );
     }
 
     final availableGroups = selectedGroupId == null
@@ -234,7 +239,10 @@ class FirebaseBookingRepository implements BookingRepository {
         : availableGroups
               .where((group) => group['id'] == selectedGroupId)
               .map((group) => group['name']?.trim())
-              .firstWhere((name) => name != null && name.isNotEmpty, orElse: () => null);
+              .firstWhere(
+                (name) => name != null && name.isNotEmpty,
+                orElse: () => null,
+              );
 
     final booking = Booking(
       userId: user.uid,
@@ -295,7 +303,9 @@ class FirebaseBookingRepository implements BookingRepository {
       controller.add(merged);
     }
 
-    ownSubscription = _databaseService.getBookingsStream().listen((event) async {
+    ownSubscription = _databaseService.getBookingsStream().listen((
+      event,
+    ) async {
       try {
         ownBookings = await _parseBookingCollection(event.snapshot.value);
         emitMerged();
@@ -415,7 +425,9 @@ class FirebaseBookingRepository implements BookingRepository {
         if (bookingData == null) {
           continue;
         }
-        bookings.add(await _buildBookingListItem(index.toString(), bookingData));
+        bookings.add(
+          await _buildBookingListItem(index.toString(), bookingData),
+        );
       }
     }
 

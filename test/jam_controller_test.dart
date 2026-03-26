@@ -25,7 +25,7 @@ void main() {
 
     expect(
       controller.validateSelection(),
-      'Gli orari selezionati devono essere consecutivi.',
+      'Per selezionare slot separati e necessario effettuare due richieste distinte.',
     );
 
     controller.toggleSlot('11:30');
@@ -279,6 +279,31 @@ void main() {
 
     controller.dispose();
   });
+
+  test(
+    'OrganizeJamController requires at least two contiguous slots',
+    () async {
+      final repository = FakeJamRepository(
+        availableDates: [DateTime(2026, 3, 20)],
+        availableSlotsByDate: {
+          '2026-03-20': ['10:00', '10:30'],
+        },
+      );
+      final controller = OrganizeJamController(repository: repository);
+
+      await controller.initialize();
+      await controller.selectDate(DateTime(2026, 3, 20));
+      controller.toggleSlot('10:00');
+      controller.setSelectedPayment('Offerto');
+
+      expect(
+        controller.validateSelection(),
+        'Seleziona almeno due slot contigui.',
+      );
+
+      controller.dispose();
+    },
+  );
 }
 
 class FakeJamRepository implements JamRepository {
@@ -348,9 +373,7 @@ class FakeJamRepository implements JamRepository {
   Future<Map<String, String>> loadParticipantUsernames(
     Iterable<String> userIds,
   ) async {
-    return {
-      for (final userId in userIds) userId: 'User $userId',
-    };
+    return {for (final userId in userIds) userId: 'User $userId'};
   }
 
   @override

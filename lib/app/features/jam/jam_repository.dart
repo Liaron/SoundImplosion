@@ -74,7 +74,9 @@ class JamListItem {
       id: id,
       jam: Jam.fromMap(id, map),
       participantIds: _extractParticipantIds(map['participants']),
-      participantUsernames: _extractParticipantUsernames(map['participant_usernames']),
+      participantUsernames: _extractParticipantUsernames(
+        map['participant_usernames'],
+      ),
     );
   }
 
@@ -96,7 +98,8 @@ class JamListItem {
       return const <String, String>{};
     }
     return rawValue.map(
-      (key, value) => MapEntry(key.toString(), value?.toString() ?? key.toString()),
+      (key, value) =>
+          MapEntry(key.toString(), value?.toString() ?? key.toString()),
     );
   }
 }
@@ -106,7 +109,9 @@ abstract class JamRepository {
   Future<List<String>> loadAvailableSlots(DateTime date);
   Future<List<Map<String, String>>> loadUserGroups();
   Future<JamListItem?> loadJamById(String jamId);
-  Future<Map<String, String>> loadParticipantUsernames(Iterable<String> userIds);
+  Future<Map<String, String>> loadParticipantUsernames(
+    Iterable<String> userIds,
+  );
   Future<void> joinJam(String jamId);
   Future<void> leaveJam(String jamId);
   Future<void> updateJam({
@@ -214,7 +219,9 @@ class FirebaseJamRepository implements JamRepository {
   }
 
   @override
-  Future<Map<String, String>> loadParticipantUsernames(Iterable<String> userIds) {
+  Future<Map<String, String>> loadParticipantUsernames(
+    Iterable<String> userIds,
+  ) {
     return _databaseService.getUsernamesByIds(userIds);
   }
 
@@ -276,8 +283,13 @@ class FirebaseJamRepository implements JamRepository {
     if (orderedSlots.isEmpty) {
       throw Exception('Seleziona almeno un orario');
     }
+    if (orderedSlots.length < 2) {
+      throw Exception('Seleziona almeno due slot contigui.');
+    }
     if (!areSlotsContiguous(orderedSlots)) {
-      throw Exception('Gli orari selezionati devono essere consecutivi.');
+      throw Exception(
+        'Per selezionare slot separati e necessario effettuare due richieste distinte.',
+      );
     }
 
     final jam = Jam(

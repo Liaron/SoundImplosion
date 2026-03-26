@@ -39,7 +39,7 @@ void main() {
 
       expect(
         controller.validateSelection(),
-        'Gli orari selezionati devono essere consecutivi.',
+        'Per selezionare slot separati e necessario effettuare due richieste distinte.',
       );
 
       controller.toggleSlot('11:30');
@@ -96,6 +96,26 @@ void main() {
     expect(repository.updateCallCount, 1);
     expect(repository.lastUpdatedBookingId, 'booking-1');
     expect(repository.lastUpdatedPeopleCount, 4);
+
+    controller.dispose();
+  });
+
+  test('BookNowController requires at least two contiguous slots', () async {
+    final repository = FakeBookingRepository(
+      availableDates: [DateTime(2026, 3, 20)],
+      availableSlotsByDate: {
+        '2026-03-20': ['10:00', '10:30'],
+      },
+    );
+    final controller = BookNowController(repository: repository);
+
+    await controller.selectDate(DateTime(2026, 3, 20));
+    controller.toggleSlot('10:00');
+
+    expect(
+      controller.validateSelection(),
+      'Seleziona almeno due slot contigui.',
+    );
 
     controller.dispose();
   });
@@ -172,12 +192,7 @@ class FakeBookingRepository implements BookingRepository {
   Future<List<BookingSlotItem>> loadSlotsOverview(DateTime date) async {
     final slots = availableSlotsByDate[_dateKey(date)] ?? const [];
     return slots
-        .map(
-          (slot) => BookingSlotItem(
-            time: slot,
-            status: 'libero',
-          ),
-        )
+        .map((slot) => BookingSlotItem(time: slot, status: 'libero'))
         .toList();
   }
 

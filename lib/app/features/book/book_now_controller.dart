@@ -180,8 +180,11 @@ class BookNowController extends ChangeNotifier {
     if (_selectedSlots.isEmpty) {
       return 'Seleziona almeno un orario';
     }
+    if (_selectedSlots.length < 2) {
+      return 'Seleziona almeno due slot contigui.';
+    }
     if (!_repository.areSlotsContiguous(_selectedSlots)) {
-      return 'Gli orari selezionati devono essere consecutivi.';
+      return 'Per selezionare slot separati e necessario effettuare due richieste distinte.';
     }
     return null;
   }
