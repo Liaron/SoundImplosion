@@ -31,21 +31,12 @@ class _SettingsPageMobileState extends State<SettingsPageMobile> {
   @override
   void initState() {
     super.initState();
-    AppPreferencesService.instance.addListener(_handlePreferencesChanged);
     _loadState();
   }
 
   @override
   void dispose() {
-    AppPreferencesService.instance.removeListener(_handlePreferencesChanged);
     super.dispose();
-  }
-
-  void _handlePreferencesChanged() {
-    if (!mounted) {
-      return;
-    }
-    setState(() {});
   }
 
   Future<void> _loadState() async {
@@ -65,10 +56,15 @@ class _SettingsPageMobileState extends State<SettingsPageMobile> {
     });
   }
 
-  Future<void> _saveProfile(AppUser updatedUser) async {
-    setState(() {
-      _isSavingGeneral = true;
-    });
+  Future<void> _saveProfile(
+    AppUser updatedUser, {
+    bool showSavingIndicator = true,
+  }) async {
+    if (showSavingIndicator) {
+      setState(() {
+        _isSavingGeneral = true;
+      });
+    }
 
     try {
       await _profileRepository.saveProfile(updatedUser);
@@ -82,7 +78,7 @@ class _SettingsPageMobileState extends State<SettingsPageMobile> {
         _user = updatedUser;
       });
     } finally {
-      if (mounted) {
+      if (mounted && showSavingIndicator) {
         setState(() {
           _isSavingGeneral = false;
         });
@@ -161,7 +157,10 @@ class _SettingsPageMobileState extends State<SettingsPageMobile> {
     general['accessibility'] = accessibility;
     preferences['general'] = general;
 
-    await _saveProfile(currentUser.copyWith(preferenze: preferences));
+    await _saveProfile(
+      currentUser.copyWith(preferenze: preferences),
+      showSavingIndicator: false,
+    );
   }
 
   Future<void> _updateExtendedProfilePreferences({
@@ -751,7 +750,6 @@ class _SettingsPageMobileState extends State<SettingsPageMobile> {
 
     final user = _user;
     final general = _generalPreferences(user);
-    final accessibility = _accessibilityPreferences(user);
     final themeService = AppPreferencesService.instance;
     final city = general['city']?.toString() ?? '';
     final profile = _profilePreferences(user);
@@ -763,18 +761,11 @@ class _SettingsPageMobileState extends State<SettingsPageMobile> {
     final availability = profile['availability'] is List
         ? List<String>.from(profile['availability'] as List)
         : const <String>[];
-    final bookingRemindersEnabled =
-        general['booking_reminders_enabled'] as bool? ?? true;
-    final bookingReminderMinutes =
-        general['booking_reminder_minutes'] as int? ??
-        themeService.bookingReminderMinutes;
-    final textScale =
-        (accessibility['text_scale'] as num?)?.toDouble() ??
-        themeService.textScale;
-    final highContrast =
-        accessibility['high_contrast'] as bool? ?? themeService.highContrast;
-    final reduceMotion =
-        accessibility['reduce_motion'] as bool? ?? themeService.reduceMotion;
+    final bookingRemindersEnabled = themeService.bookingRemindersEnabled;
+    final bookingReminderMinutes = themeService.bookingReminderMinutes;
+    final textScale = themeService.textScale;
+    final highContrast = themeService.highContrast;
+    final reduceMotion = themeService.reduceMotion;
 
     return DefaultTabController(
       length: 2,

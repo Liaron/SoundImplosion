@@ -712,10 +712,7 @@ class _ContactPublicPage extends StatelessWidget {
 }
 
 class _ScrollablePage extends StatelessWidget {
-  const _ScrollablePage({
-    required this.child,
-    required this.onSelectSection,
-  });
+  const _ScrollablePage({required this.child, required this.onSelectSection});
 
   final Widget child;
   final ValueChanged<PublicSiteSection> onSelectSection;
@@ -785,25 +782,24 @@ class _HeroSection extends StatelessWidget {
         SizedBox(height: isNarrow ? 16 : 20),
         Text(
           PublicSiteContent.heroTitle,
-          style: (isNarrow
-                  ? theme.textTheme.headlineMedium
-                  : theme.textTheme.displaySmall)
-              ?.copyWith(
-            fontWeight: FontWeight.w900,
-            height: 1.1,
-            color: const Color(0xFF10233E),
-          ),
+          style:
+              (isNarrow
+                      ? theme.textTheme.headlineMedium
+                      : theme.textTheme.displaySmall)
+                  ?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    height: 1.1,
+                    color: const Color(0xFF10233E),
+                  ),
         ),
         SizedBox(height: isNarrow ? 14 : 16),
         Text(
           PublicSiteContent.heroDescription,
-          style: (isNarrow
-                  ? theme.textTheme.bodyLarge
-                  : theme.textTheme.titleMedium)
-              ?.copyWith(
-            color: const Color(0xFF4C6078),
-            height: 1.5,
-          ),
+          style:
+              (isNarrow
+                      ? theme.textTheme.bodyLarge
+                      : theme.textTheme.titleMedium)
+                  ?.copyWith(color: const Color(0xFF4C6078), height: 1.5),
         ),
         SizedBox(height: isNarrow ? 20 : 24),
         if (isNarrow)
@@ -886,11 +882,7 @@ class _HeroSection extends StatelessWidget {
       child: isCompact
           ? Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                details,
-                const SizedBox(height: 20),
-                downloadCard,
-              ],
+              children: [details, const SizedBox(height: 20), downloadCard],
             )
           : Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -903,10 +895,7 @@ class _HeroSection extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 24),
-                const Expanded(
-                  flex: 5,
-                  child: _HeroDownloadCard(),
-                ),
+                const Expanded(flex: 5, child: _HeroDownloadCard()),
               ],
             ),
     );
@@ -1313,8 +1302,9 @@ class _WorkflowSection extends StatelessWidget {
       ),
       child: Column(
         children: [
-          ...PublicSiteContent.workflowSteps
-              .map((step) => _ChecklistRow(text: step)),
+          ...PublicSiteContent.workflowSteps.map(
+            (step) => _ChecklistRow(text: step),
+          ),
           if (PublicSiteContent.workflowImagePath.isNotEmpty) ...[
             const SizedBox(height: 20),
             ClipRRect(
@@ -1332,11 +1322,7 @@ class _WorkflowSection extends StatelessWidget {
     return isCompact
         ? Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              summaryCard,
-              const SizedBox(height: 20),
-              checklistCard
-            ],
+            children: [summaryCard, const SizedBox(height: 20), checklistCard],
           )
         : Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1436,20 +1422,23 @@ class _PageIntroCard extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             title,
-            style: (isNarrow
-                    ? theme.textTheme.titleLarge
-                    : theme.textTheme.headlineMedium)
-                ?.copyWith(
-              color: const Color(0xFF10233E),
-              fontWeight: FontWeight.w900,
-              height: 1.15,
-            ),
+            style:
+                (isNarrow
+                        ? theme.textTheme.titleLarge
+                        : theme.textTheme.headlineMedium)
+                    ?.copyWith(
+                      color: const Color(0xFF10233E),
+                      fontWeight: FontWeight.w900,
+                      height: 1.15,
+                    ),
           ),
           const SizedBox(height: 14),
           if (descriptionLines != null)
             ...descriptionLines!.asMap().entries.map(
               (entry) => Padding(
-                padding: EdgeInsets.only(bottom: entry.key == descriptionLines!.length - 1 ? 0 : 10),
+                padding: EdgeInsets.only(
+                  bottom: entry.key == descriptionLines!.length - 1 ? 0 : 10,
+                ),
                 child: Text(
                   entry.value,
                   style: theme.textTheme.bodyLarge?.copyWith(
@@ -1693,7 +1682,8 @@ class _PricingGrid extends StatelessWidget {
               title: PublicSiteContent.pricingPlans[i]['title'] as String,
               price: PublicSiteContent.pricingPlans[i]['price'] as String,
               cadence: PublicSiteContent.pricingPlans[i]['period'] as String,
-              description: PublicSiteContent.pricingPlans[i]['description'] as String,
+              description:
+                  PublicSiteContent.pricingPlans[i]['description'] as String,
               accent: (PublicSiteContent.pricingPlans[i]['popular'] as bool)
                   ? const Color(0xFFB7410E)
                   : const Color(0xFF003B95),
@@ -1723,7 +1713,9 @@ class _PricingGrid extends StatelessWidget {
             price: plan['price'] as String,
             cadence: plan['period'] as String,
             description: plan['description'] as String,
-            accent: isPopular ? const Color(0xFFB7410E) : const Color(0xFF003B95),
+            accent: isPopular
+                ? const Color(0xFFB7410E)
+                : const Color(0xFF003B95),
             features: List<String>.from(plan['features'] as List),
             actionLabel: plan['cta'] as String,
             onActionPressed: onLoginPressed,
@@ -2182,16 +2174,11 @@ class _FaqRow extends StatelessWidget {
     final theme = Theme.of(context);
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.only(
-        top: isFirst ? 4 : 20,
-        bottom: 20,
-      ),
+      padding: EdgeInsets.only(top: isFirst ? 4 : 20, bottom: 20),
       decoration: BoxDecoration(
         border: isFirst
             ? null
-            : const Border(
-                top: BorderSide(color: Color(0xFFE5EDF7)),
-              ),
+            : const Border(top: BorderSide(color: Color(0xFFE5EDF7))),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2267,10 +2254,7 @@ class _Footer extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 32),
-                    const Divider(
-                      color: Color(0xFF3A5580),
-                      height: 2,
-                    ),
+                    const Divider(color: Color(0xFF3A5580), height: 2),
                     const SizedBox(height: 24),
                     const _FooterCopyright(),
                   ],
@@ -2287,8 +2271,9 @@ class _FooterBrand extends StatelessWidget {
     final isCompact = MediaQuery.of(context).size.width < 900;
     final theme = Theme.of(context);
     return Column(
-      crossAxisAlignment:
-          isCompact ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+      crossAxisAlignment: isCompact
+          ? CrossAxisAlignment.center
+          : CrossAxisAlignment.start,
       children: [
         Text(
           PublicSiteContent.brandName,
@@ -2319,8 +2304,9 @@ class _FooterContactSection extends StatelessWidget {
     final hasFooterEmail = PublicSiteContent.footerEmail.trim().isNotEmpty;
 
     return Column(
-      crossAxisAlignment:
-          isCompact ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+      crossAxisAlignment: isCompact
+          ? CrossAxisAlignment.center
+          : CrossAxisAlignment.start,
       children: [
         Text(
           'Contatti',
@@ -2384,16 +2370,14 @@ class _FooterContactItem extends StatelessWidget {
     );
 
     return Row(
-      mainAxisAlignment:
-          centered ? MainAxisAlignment.center : MainAxisAlignment.start,
+      mainAxisAlignment: centered
+          ? MainAxisAlignment.center
+          : MainAxisAlignment.start,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Icon(icon, color: const Color(0xFF6BA3E5), size: 18),
         const SizedBox(width: 8),
-        if (centered)
-          Flexible(child: content)
-        else
-          Expanded(child: content),
+        if (centered) Flexible(child: content) else Expanded(child: content),
       ],
     );
   }
@@ -2410,8 +2394,9 @@ class _FooterLinksSection extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Column(
-      crossAxisAlignment:
-          isCompact ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+      crossAxisAlignment: isCompact
+          ? CrossAxisAlignment.center
+          : CrossAxisAlignment.start,
       children: [
         Text(
           'Link Utili',
@@ -2462,10 +2447,7 @@ class _FooterCopyright extends StatelessWidget {
         Text(
           PublicSiteContent.footerText,
           textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: Color(0xFF7A8FA8),
-            fontSize: 12,
-          ),
+          style: const TextStyle(color: Color(0xFF7A8FA8), fontSize: 12),
         ),
         const SizedBox(height: 8),
         Text(

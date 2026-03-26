@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:soundimplosion/common/widgets/tutorial_dialog.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:soundimplosion/app/features/admin/admin_management_page_mobile.dart';
 import 'package:soundimplosion/app/features/app_scaffold_controller.dart';
@@ -20,6 +21,7 @@ import 'package:soundimplosion/services/booking_reminder_service.dart';
 import 'package:soundimplosion/services/firebase_auth.dart';
 import 'package:soundimplosion/services/local_notification_service.dart';
 import 'package:soundimplosion/services/push_notification_service.dart';
+import 'package:soundimplosion/services/tutorial_preferences_service.dart';
 
 // Widget segnaposto per le pagine non ancora create.
 class PlaceholderPage extends StatelessWidget {
@@ -47,6 +49,7 @@ class AppScaffoldMobile extends StatefulWidget {
 }
 
 class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final AuthService _authService = AuthService();
   final AppScaffoldController _controller = AppScaffoldController();
   final NotificationsRepository _notificationsRepository =
@@ -62,6 +65,54 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
   bool _postProfileBootstrapped = false;
   String? _appVersionLabel;
   int _unreadNotificationCount = 0;
+  bool _hasCheckedTutorial = false;
+  bool _isTutorialActive = false;
+  int _tutorialStepIndex = 0;
+
+  static const List<_AppTutorialStep> _tutorialSteps = <_AppTutorialStep>[
+    _AppTutorialStep(
+      pageIndex: 0,
+      icon: Icons.home_outlined,
+      title: 'Questa e la tua home',
+      description:
+          'Qui trovi in un colpo d’occhio prenotazioni personali, prenotazioni dei gruppi e jam pubblicate di recente.',
+    ),
+    _AppTutorialStep(
+      pageIndex: 1,
+      icon: Icons.book_online_outlined,
+      title: 'Da qui prenoti e gestisci gli slot',
+      description:
+          'Apriamo la sezione Prenotazioni: puoi consultare, creare o modificare le prove scegliendo data e fascia oraria.',
+    ),
+    _AppTutorialStep(
+      pageIndex: 2,
+      icon: Icons.music_note_outlined,
+      title: 'Qui organizzi o cerchi jam',
+      description:
+          'La sezione Jam ti permette di pubblicare nuove sessioni, partecipare a quelle esistenti e seguirne gli aggiornamenti.',
+    ),
+    _AppTutorialStep(
+      pageIndex: 3,
+      icon: Icons.groups_outlined,
+      title: 'Qui gestisci i gruppi',
+      description:
+          'In Gruppi trovi le collaborazioni attive, le informazioni condivise e le prenotazioni collegate al tuo gruppo.',
+    ),
+    _AppTutorialStep(
+      pageIndex: 5,
+      icon: Icons.notifications_active_outlined,
+      title: 'Le notifiche arrivano qui',
+      description:
+          'Questa sezione raccoglie conferme, modifiche, richieste e aggiornamenti legati a prenotazioni, jam e gruppi.',
+    ),
+    _AppTutorialStep(
+      pageIndex: 8,
+      icon: Icons.settings_outlined,
+      title: 'Qui personalizzi l’esperienza',
+      description:
+          'In Impostazioni puoi gestire tema, promemoria, accessibilita e dati personali. Da qui l’app si adatta al tuo utilizzo.',
+    ),
+  ];
 
   Future<void> _signOut() async {
     await _authService.signOut();
@@ -85,13 +136,40 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
   ];
 
   void _navigateToPage(int index, {bool closeDrawer = true}) {
-    if (closeDrawer) {
+    if (closeDrawer && (_scaffoldKey.currentState?.isDrawerOpen ?? false)) {
       Navigator.pop(context);
     }
     setState(() {
       _selectedIndex = index;
       _currentPageTitle = _pageTitles[index];
     });
+  }
+
+  Widget _buildDrawerTile({
+    required int index,
+    required IconData icon,
+    required String title,
+  }) {
+    final isSelected = _selectedIndex == index;
+    return ListTile(
+      leading: Icon(
+        icon,
+        color: isSelected ? Theme.of(context).colorScheme.primary : null,
+      ),
+      title: Text(
+        title,
+        style: TextStyle(
+          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+          color: isSelected ? Theme.of(context).colorScheme.primary : null,
+        ),
+      ),
+      selected: isSelected,
+      selectedTileColor: Theme.of(
+        context,
+      ).colorScheme.primary.withValues(alpha: 0.10),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      onTap: () => _navigateToPage(index),
+    );
   }
 
   @override
@@ -143,6 +221,14 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
       _bootstrapNotifications();
       _bootstrapBookingReminders();
     }
+    if (!_controller.isLoadingProfile &&
+        _controller.isEmailVerified &&
+        !_hasCheckedTutorial) {
+      _hasCheckedTutorial = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _maybeShowFirstAccessTutorial();
+      });
+    }
     if (mounted) {
       setState(() {});
     }
@@ -165,9 +251,12 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
   Future<void> _bootstrapNotifications() async {
     _notificationTapSubscription = LocalNotificationService.instance.tapStream
         .listen(_handleNotificationPayload);
-    _pushOpenedSubscription = PushNotificationService.instance.openedPayloadStream
+    _pushOpenedSubscription = PushNotificationService
+        .instance
+        .openedPayloadStream
         .listen(_handleNotificationPayload);
-    final initialPayload = LocalNotificationService.instance.takeInitialPayload();
+    final initialPayload = LocalNotificationService.instance
+        .takeInitialPayload();
     if (initialPayload != null && initialPayload.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _handleNotificationPayload(initialPayload);
@@ -335,7 +424,9 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
                                     TextButton(
                                       onPressed: () {
                                         messenger.hideCurrentSnackBar();
-                                        _openNotificationTarget(item.routeTarget);
+                                        _openNotificationTarget(
+                                          item.routeTarget,
+                                        );
                                       },
                                       style: TextButton.styleFrom(
                                         foregroundColor: accentColor,
@@ -576,13 +667,12 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
   }
 
   Future<void> _bootstrapBookingReminders() async {
-    _bookingReminderSubscription = _bookingRepository.watchUserBookings().listen(
-      (items) {
-        _latestBookings = items;
-        _syncBookingReminders();
-      },
-      onError: (_) {},
-    );
+    _bookingReminderSubscription = _bookingRepository
+        .watchUserBookings()
+        .listen((items) {
+          _latestBookings = items;
+          _syncBookingReminders();
+        }, onError: (_) {});
   }
 
   Future<void> _syncBookingReminders() async {
@@ -593,6 +683,59 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
         minutesBefore: AppPreferencesService.instance.bookingReminderMinutes,
       );
     } catch (_) {}
+  }
+
+  Future<void> _maybeShowFirstAccessTutorial() async {
+    if (!mounted) {
+      return;
+    }
+    final shouldShow = await TutorialPreferencesService.instance
+        .shouldShowAppTutorial();
+    if (!mounted || !shouldShow) {
+      return;
+    }
+    _openTutorialStep(0);
+    setState(() {
+      _isTutorialActive = true;
+      _tutorialStepIndex = 0;
+    });
+  }
+
+  void _openTutorialStep(int index) {
+    final step = _tutorialSteps[index];
+    setState(() {
+      _tutorialStepIndex = index;
+      _selectedIndex = step.pageIndex;
+      _currentPageTitle = _pageTitles[step.pageIndex];
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _scaffoldKey.currentState?.openDrawer();
+      }
+    });
+  }
+
+  Future<void> _advanceTutorial() async {
+    if (_tutorialStepIndex >= _tutorialSteps.length - 1) {
+      await _finishTutorial();
+      return;
+    }
+    _openTutorialStep(_tutorialStepIndex + 1);
+  }
+
+  Future<void> _finishTutorial() async {
+    if (!_isTutorialActive) {
+      return;
+    }
+    setState(() {
+      _isTutorialActive = false;
+      _selectedIndex = 0;
+      _currentPageTitle = _pageTitles[0];
+    });
+    if (_scaffoldKey.currentState?.isDrawerOpen ?? false) {
+      Navigator.of(context).pop();
+    }
+    await TutorialPreferencesService.instance.markAppTutorialSeen();
   }
 
   Future<void> _sendVerificationEmail() async {
@@ -698,7 +841,8 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
       );
     }
 
-    return Scaffold(
+    final scaffold = Scaffold(
+      key: _scaffoldKey,
       appBar: AppBar(
         title: Text(_currentPageTitle),
         actions: [
@@ -752,48 +896,72 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
                 child: Image.asset('lib/common/images/soundimplosion_logo.jpg'),
               ),
             ),
-            ListTile(
-              leading: const Icon(Icons.home),
-              title: const Text('Home'),
-              onTap: () => _navigateToPage(0),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: _buildDrawerTile(
+                index: 0,
+                icon: Icons.home,
+                title: 'Home',
+              ),
             ),
-            ListTile(
-              leading: const Icon(Icons.book_online),
-              title: const Text('Prenotazioni'),
-              onTap: () => _navigateToPage(1),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: _buildDrawerTile(
+                index: 1,
+                icon: Icons.book_online,
+                title: 'Prenotazioni',
+              ),
             ),
-            ListTile(
-              leading: const Icon(Icons.music_video),
-              title: const Text('Jam Session'),
-              onTap: () => _navigateToPage(2),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: _buildDrawerTile(
+                index: 2,
+                icon: Icons.music_video,
+                title: 'Jam Session',
+              ),
             ),
-            ListTile(
-              leading: const Icon(Icons.groups),
-              title: const Text('Gruppi'),
-              onTap: () => _navigateToPage(3),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: _buildDrawerTile(
+                index: 3,
+                icon: Icons.groups,
+                title: 'Gruppi',
+              ),
             ),
             if (_controller.isAdmin)
-              ListTile(
-                leading: const Icon(Icons.admin_panel_settings),
-                title: const Text('Admin'),
-                onTap: () => _navigateToPage(4),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: _buildDrawerTile(
+                  index: 4,
+                  icon: Icons.admin_panel_settings,
+                  title: 'Admin',
+                ),
               ),
             const Spacer(),
             const Divider(),
-            ListTile(
-              leading: const Icon(Icons.person),
-              title: const Text('Profilo'),
-              onTap: () => _navigateToPage(6),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: _buildDrawerTile(
+                index: 6,
+                icon: Icons.person,
+                title: 'Profilo',
+              ),
             ),
-            ListTile(
-              leading: const Icon(Icons.contact_mail),
-              title: const Text('Contattaci'),
-              onTap: () => _navigateToPage(7),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: _buildDrawerTile(
+                index: 7,
+                icon: Icons.contact_mail,
+                title: 'Contattaci',
+              ),
             ),
-            ListTile(
-              leading: const Icon(Icons.settings),
-              title: const Text('Impostazioni'),
-              onTap: () => _navigateToPage(8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: _buildDrawerTile(
+                index: 8,
+                icon: Icons.settings,
+                title: 'Impostazioni',
+              ),
             ),
             const Divider(),
             ListTile(
@@ -813,7 +981,45 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
         ),
       ),
     );
+
+    if (!_isTutorialActive) {
+      return scaffold;
+    }
+
+    final currentStep = _tutorialSteps[_tutorialStepIndex];
+    return Stack(
+      children: [
+        scaffold,
+        TutorialCoachOverlay(
+          title: 'Tour guidato SoundImplosion',
+          step: TutorialCoachStep(
+            icon: currentStep.icon,
+            title: currentStep.title,
+            description: currentStep.description,
+          ),
+          stepIndex: _tutorialStepIndex,
+          totalSteps: _tutorialSteps.length,
+          isLast: _tutorialStepIndex == _tutorialSteps.length - 1,
+          onNext: _advanceTutorial,
+          onSkip: _finishTutorial,
+        ),
+      ],
+    );
   }
+}
+
+class _AppTutorialStep {
+  const _AppTutorialStep({
+    required this.pageIndex,
+    required this.icon,
+    required this.title,
+    required this.description,
+  });
+
+  final int pageIndex;
+  final IconData icon;
+  final String title;
+  final String description;
 }
 
 class _InAppNotificationChip extends StatelessWidget {
