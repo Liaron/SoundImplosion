@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:soundimplosion/app/features/book/booking_repository.dart';
+import 'package:soundimplosion/app/features/book/bookings_scaffold_mobile.dart';
 import 'package:soundimplosion/app/features/home/feed_repository.dart';
 import 'package:soundimplosion/app/features/home/home_feed_controller.dart';
 import 'package:soundimplosion/app/features/jam/find_jam_page_mobile.dart';
+import 'package:soundimplosion/models/models.dart';
 
 class HomePageMobile extends StatefulWidget {
   const HomePageMobile({super.key});
@@ -70,6 +74,10 @@ class _HomePageMobileState extends State<HomePageMobile> {
     return Scaffold(
       body: Builder(
         builder: (context) {
+          final visibleJamItems = _controller.items
+              .where((item) => item.isJamPublished)
+              .toList();
+
           if (_controller.isLoading) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -80,26 +88,210 @@ class _HomePageMobileState extends State<HomePageMobile> {
             );
           }
 
-          if (_controller.items.isEmpty) {
-            return const Center(child: Text('Nessun aggiornamento nel feed.'));
+          if (visibleJamItems.isEmpty && _controller.bookings.isEmpty) {
+            return const Center(
+              child: Text('Nessun aggiornamento o prenotazione attiva.'),
+            );
           }
 
-          return ListView.builder(
-            itemCount: _controller.items.length,
-            itemBuilder: (context, index) {
-              final item = _controller.items[index];
-              if (item.isJamPublished) {
-                return _buildJamPostCard(item);
-              }
-              return const SizedBox.shrink();
-            },
+          return ListView(
+            padding: const EdgeInsets.only(top: 12, bottom: 16),
+            children: [
+              if (_controller.bookings.isNotEmpty) ...[
+                _buildSectionHeader(
+                  icon: Icons.event_available,
+                  title: 'Prenotazioni',
+                  subtitle: 'Le tue prenotazioni e quelle dei tuoi gruppi',
+                ),
+                ..._controller.bookings.map(_buildBookingCard),
+                const SizedBox(height: 12),
+              ],
+              if (visibleJamItems.isNotEmpty) ...[
+                _buildSectionHeader(
+                  icon: Icons.music_note_rounded,
+                  title: 'Jam Nel Feed',
+                  subtitle: 'Ultimi aggiornamenti pubblicati',
+                ),
+                ...visibleJamItems.map(_buildJamPostCard),
+              ],
+            ],
           );
         },
       ),
     );
   }
 
-  // Widget per mostrare una nuova JAM nel feed
+  Widget _buildSectionHeader({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            style: TextStyle(
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.7),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openBookingDetails(BookingListItem item) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => BookingsScaffoldMobile(
+          initialTabIndex: 0,
+          initialBookingIdToOpen: item.id,
+        ),
+      ),
+    );
+  }
+
+  String _formatDateLabel(String rawDate) {
+    try {
+      final parsed = DateTime.parse(rawDate);
+      final label = DateFormat('EEEE d MMMM yyyy').format(parsed);
+      return label[0].toUpperCase() + label.substring(1);
+    } catch (_) {
+      return rawDate;
+    }
+  }
+
+  Color _statusColor(BookingStatus status) {
+    switch (status) {
+      case BookingStatus.confermata:
+        return Colors.green.shade100;
+      case BookingStatus.inElaborazione:
+        return Colors.orange.shade100;
+      case BookingStatus.annullata:
+        return Colors.red.shade100;
+      case BookingStatus.sospesa:
+        return Colors.blueGrey.shade100;
+      case BookingStatus.superata:
+        return Colors.grey.shade300;
+    }
+  }
+
+  Color _statusTextColor(BookingStatus status) {
+    switch (status) {
+      case BookingStatus.confermata:
+        return Colors.green.shade900;
+      case BookingStatus.inElaborazione:
+        return Colors.orange.shade900;
+      case BookingStatus.annullata:
+        return Colors.red.shade900;
+      case BookingStatus.sospesa:
+        return Colors.blueGrey.shade900;
+      case BookingStatus.superata:
+        return Colors.grey.shade800;
+    }
+  }
+
+  Widget _buildBookingCard(BookingListItem item) {
+    final booking = item.booking;
+    final groupText = item.groupLabel;
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      elevation: 2,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => _openBookingDetails(item),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _formatDateLabel(booking.data),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  Chip(
+                    label: Text(
+                      item.statusLabel,
+                      style: TextStyle(
+                        color: _statusTextColor(booking.stato),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    backgroundColor: _statusColor(booking.stato),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _metaChip(
+                    Icons.schedule,
+                    '${booking.oraInizio} - ${booking.oraFine}',
+                  ),
+                  _metaChip(
+                    Icons.group_outlined,
+                    '${booking.numeroUtenti} persone',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                groupText,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              if (booking.attrezzatura.trim().isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text('Attrezzatura: ${booking.attrezzatura.trim()}'),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _metaChip(IconData icon, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [Icon(icon, size: 16), const SizedBox(width: 6), Text(label)],
+      ),
+    );
+  }
+
   Widget _buildJamPostCard(HomeFeedItem item) {
     final date = item.date ?? 'N/A';
     final startTime = item.startTime ?? 'N/A';

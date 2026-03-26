@@ -253,7 +253,7 @@ class BookNowController extends ChangeNotifier {
       final hour = (currentMinutes ~/ 60).toString().padLeft(2, '0');
       final minute = (currentMinutes % 60).toString().padLeft(2, '0');
       slots.add('$hour:$minute');
-      currentMinutes += 75;
+      currentMinutes += 30;
     }
 
     return slots;

@@ -28,25 +28,25 @@ void main() {
       final repository = FakeBookingRepository(
         availableDates: [DateTime(2026, 3, 20)],
         availableSlotsByDate: {
-          '2026-03-20': ['10:00', '11:15', '13:45'],
+          '2026-03-20': ['10:00', '10:30', '11:30'],
         },
       );
       final controller = BookNowController(repository: repository);
 
       await controller.selectDate(DateTime(2026, 3, 20));
       controller.toggleSlot('10:00');
-      controller.toggleSlot('13:45');
+      controller.toggleSlot('11:30');
 
       expect(
         controller.validateSelection(),
         'Gli orari selezionati devono essere consecutivi.',
       );
 
-      controller.toggleSlot('13:45');
-      controller.toggleSlot('11:15');
+      controller.toggleSlot('11:30');
+      controller.toggleSlot('10:30');
 
       expect(controller.validateSelection(), isNull);
-      expect(controller.selectedRangeLabel, '10:00 - 12:30');
+      expect(controller.selectedRangeLabel, '10:00 - 11:00');
 
       await controller.submitBooking(
         peopleCount: 3,
@@ -55,7 +55,7 @@ void main() {
 
       expect(repository.submitCallCount, 1);
       expect(repository.lastSubmittedPeopleCount, 3);
-      expect(repository.lastSubmittedSlots, ['10:00', '11:15']);
+      expect(repository.lastSubmittedSlots, ['10:00', '10:30']);
 
       controller.dispose();
     },
@@ -78,7 +78,7 @@ void main() {
           groupId: 'band-1',
           data: '2026-03-20',
           oraInizio: '10:00',
-          oraFine: '12:30',
+          oraFine: '11:00',
           numeroUtenti: 2,
           attrezzatura: 'Mixer',
           stato: BookingStatus.inElaborazione,
@@ -87,8 +87,8 @@ void main() {
     );
 
     expect(controller.isEditing, isTrue);
-    expect(controller.editingTimeRangeLabel, '10:00 - 12:30');
-    expect(controller.selectedSlots, ['10:00', '11:15']);
+    expect(controller.editingTimeRangeLabel, '10:00 - 11:00');
+    expect(controller.selectedSlots, ['10:00', '10:30']);
     expect(controller.validateSelection(), isNull);
 
     await controller.submitBooking(peopleCount: 4, equipment: 'Nuovo mixer');
@@ -127,7 +127,7 @@ class FakeBookingRepository implements BookingRepository {
 
     for (int index = 0; index < slots.length - 1; index++) {
       if (_timeToMinutes(slots[index + 1]) - _timeToMinutes(slots[index]) !=
-          75) {
+          30) {
         return false;
       }
     }
@@ -137,7 +137,7 @@ class FakeBookingRepository implements BookingRepository {
 
   @override
   String calculateEndTime(String startSlot) {
-    final totalMinutes = _timeToMinutes(startSlot) + 75;
+    final totalMinutes = _timeToMinutes(startSlot) + 30;
     final hour = (totalMinutes ~/ 60).toString().padLeft(2, '0');
     final minute = (totalMinutes % 60).toString().padLeft(2, '0');
     return '$hour:$minute';

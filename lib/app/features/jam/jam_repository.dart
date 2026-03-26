@@ -147,7 +147,7 @@ class FirebaseJamRepository implements JamRepository {
   final DatabaseService _databaseService;
   final FirebaseAuth _auth;
 
-  static const int _slotDurationMinutes = 75;
+  static const int _slotDurationMinutes = 30;
 
   Map<String, dynamic>? _mapFromRawValue(dynamic rawValue) {
     if (rawValue is! Map) {

@@ -7,7 +7,7 @@ void main() {
     final repository = FakeAdminSlotManagementRepository(
       items: const [
         AdminSlotItem(time: '10:00', status: 'libero'),
-        AdminSlotItem(time: '11:15', status: 'disabilitato'),
+        AdminSlotItem(time: '10:30', status: 'disabilitato'),
       ],
     );
     final controller = AdminSlotManagementController(repository: repository);
@@ -24,7 +24,7 @@ void main() {
     final repository = FakeAdminSlotManagementRepository(
       items: const [
         AdminSlotItem(time: '10:00', status: 'libero'),
-        AdminSlotItem(time: '11:15', status: 'libero'),
+        AdminSlotItem(time: '10:30', status: 'libero'),
         AdminSlotItem(time: '15:00', status: 'libero'),
         AdminSlotItem(
           time: '16:15',
@@ -38,7 +38,7 @@ void main() {
     await controller.initialize();
     await controller.disableMorningSlots();
 
-    expect(repository.lastUpdatedSlots, ['10:00', '11:15']);
+    expect(repository.lastUpdatedSlots, ['10:00', '10:30']);
     expect(repository.lastDisabledValue, isTrue);
 
     controller.dispose();
@@ -48,16 +48,16 @@ void main() {
     final repository = FakeAdminSlotManagementRepository(
       items: const [
         AdminSlotItem(time: '10:00', status: 'libero'),
-        AdminSlotItem(time: '11:15', status: 'disabilitato'),
+        AdminSlotItem(time: '10:30', status: 'disabilitato'),
       ],
     );
     final controller = AdminSlotManagementController(repository: repository);
 
     await controller.initialize();
-    controller.toggleSlot('11:15');
+    controller.toggleSlot('10:30');
     await controller.enableSelected();
 
-    expect(repository.lastUpdatedSlots, ['11:15']);
+    expect(repository.lastUpdatedSlots, ['10:30']);
     expect(repository.lastDisabledValue, isFalse);
 
     controller.dispose();

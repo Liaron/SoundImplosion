@@ -539,7 +539,7 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
 
               if (showBookingForm) ...[
                 const Text(
-                  "Seleziona Orari (slot da 75 min)",
+                  "Seleziona Orari (slot da 30 min)",
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                 ),
                 const SizedBox(height: 8),

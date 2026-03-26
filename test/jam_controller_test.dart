@@ -9,7 +9,7 @@ void main() {
     final repository = FakeJamRepository(
       availableDates: [DateTime(2026, 3, 20)],
       availableSlotsByDate: {
-        '2026-03-20': ['10:00', '11:15', '13:45'],
+        '2026-03-20': ['10:00', '10:30', '11:30'],
       },
       userGroups: const [
         {'id': 'group-1', 'name': 'Group 1'},
@@ -20,7 +20,7 @@ void main() {
     await controller.initialize();
     await controller.selectDate(DateTime(2026, 3, 20));
     controller.toggleSlot('10:00');
-    controller.toggleSlot('13:45');
+    controller.toggleSlot('11:30');
     controller.setSelectedPayment('Offerto');
 
     expect(
@@ -28,11 +28,11 @@ void main() {
       'Gli orari selezionati devono essere consecutivi.',
     );
 
-    controller.toggleSlot('13:45');
-    controller.toggleSlot('11:15');
+    controller.toggleSlot('11:30');
+    controller.toggleSlot('10:30');
 
     expect(controller.validateSelection(), isNull);
-    expect(controller.selectedRangeLabel, '10:00 - 12:30');
+    expect(controller.selectedRangeLabel, '10:00 - 11:00');
 
     await controller.submitJam(
       title: 'Jam blues night',
@@ -43,7 +43,7 @@ void main() {
     );
 
     expect(repository.submitJamCalls, 1);
-    expect(repository.lastSubmittedJamSlots, ['10:00', '11:15']);
+    expect(repository.lastSubmittedJamSlots, ['10:00', '10:30']);
 
     controller.dispose();
   });
@@ -58,7 +58,7 @@ void main() {
         titolo: 'Old jam title',
         data: '2026-03-20',
         oraInizio: '10:00',
-        oraFine: '12:30',
+        oraFine: '11:00',
         personePresenti: 2,
         personeRichieste: 3,
         descrizione: 'Old jam',
@@ -76,8 +76,8 @@ void main() {
     await controller.initialize(initialJam: jam);
 
     expect(controller.isEditing, isTrue);
-    expect(controller.editingTimeRangeLabel, '10:00 - 12:30');
-    expect(controller.selectedSlots, ['10:00', '11:15']);
+    expect(controller.editingTimeRangeLabel, '10:00 - 11:00');
+    expect(controller.selectedSlots, ['10:00', '10:30']);
     expect(controller.validateSelection(), isNull);
 
     await controller.submitJam(
@@ -314,7 +314,7 @@ class FakeJamRepository implements JamRepository {
 
     for (int index = 0; index < slots.length - 1; index++) {
       if (_timeToMinutes(slots[index + 1]) - _timeToMinutes(slots[index]) !=
-          75) {
+          30) {
         return false;
       }
     }
@@ -324,7 +324,7 @@ class FakeJamRepository implements JamRepository {
 
   @override
   String calculateEndTime(String startSlot) {
-    final totalMinutes = _timeToMinutes(startSlot) + 75;
+    final totalMinutes = _timeToMinutes(startSlot) + 30;
     final hour = (totalMinutes ~/ 60).toString().padLeft(2, '0');
     final minute = (totalMinutes % 60).toString().padLeft(2, '0');
     return '$hour:$minute';

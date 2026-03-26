@@ -1691,9 +1691,10 @@ class DatabaseService {
   List<String> _generateStandardTimes() {
     final slots = <String>[];
     var time = DateTime(2022, 1, 1, 10, 0);
-    for (int i = 0; i < 11; i++) {
+    final endTime = DateTime(2022, 1, 2);
+    while (time.isBefore(endTime)) {
       slots.add(DateFormat('HH:mm').format(time));
-      time = time.add(const Duration(minutes: 75));
+      time = time.add(const Duration(minutes: 30));
     }
     return slots;
   }
@@ -3812,7 +3813,7 @@ class DatabaseService {
   }
 
   String _calculateEndTime(String startSlot) {
-    final totalMinutes = _timeToMinutes(startSlot) + 75;
+    final totalMinutes = _timeToMinutes(startSlot) + 30;
     final hour = (totalMinutes ~/ 60).toString().padLeft(2, '0');
     final minute = (totalMinutes % 60).toString().padLeft(2, '0');
     return '$hour:$minute';
