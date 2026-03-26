@@ -90,7 +90,11 @@ class _HomePageMobileState extends State<HomePageMobile> {
 
           if (visibleJamItems.isEmpty && _controller.bookings.isEmpty) {
             return const Center(
-              child: Text('Nessun aggiornamento o prenotazione attiva.'),
+              child: Text(
+                'Nessun aggiornamento.\n'
+                'Le tue prenotazioni o le jam pubblicate verranno visualizzate qui.',
+                textAlign: TextAlign.center,
+              ),
             );
           }
 

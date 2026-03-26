@@ -31,7 +31,21 @@ class _SettingsPageMobileState extends State<SettingsPageMobile> {
   @override
   void initState() {
     super.initState();
+    AppPreferencesService.instance.addListener(_handlePreferencesChanged);
     _loadState();
+  }
+
+  @override
+  void dispose() {
+    AppPreferencesService.instance.removeListener(_handlePreferencesChanged);
+    super.dispose();
+  }
+
+  void _handlePreferencesChanged() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {});
   }
 
   Future<void> _loadState() async {
@@ -77,7 +91,8 @@ class _SettingsPageMobileState extends State<SettingsPageMobile> {
   }
 
   Map<String, dynamic> _generalPreferences([AppUser? user]) {
-    final currentPreferences = user?.preferenze ?? _user?.preferenze ?? const {};
+    final currentPreferences =
+        user?.preferenze ?? _user?.preferenze ?? const {};
     final general = currentPreferences['general'];
     if (general is Map) {
       return Map<String, dynamic>.from(general);
@@ -94,7 +109,8 @@ class _SettingsPageMobileState extends State<SettingsPageMobile> {
   }
 
   Map<String, dynamic> _profilePreferences([AppUser? user]) {
-    final currentPreferences = user?.preferenze ?? _user?.preferenze ?? const {};
+    final currentPreferences =
+        user?.preferenze ?? _user?.preferenze ?? const {};
     final profile = currentPreferences['profile'];
     if (profile is Map) {
       return Map<String, dynamic>.from(profile);
@@ -185,12 +201,13 @@ class _SettingsPageMobileState extends State<SettingsPageMobile> {
       return;
     }
 
-    final emailController = TextEditingController(text: currentUser.email ?? '');
+    final emailController = TextEditingController(
+      text: currentUser.email ?? '',
+    );
     final passwordController = TextEditingController();
     final requiresPassword = _authService.isPasswordProviderLinked;
     final messenger = ScaffoldMessenger.of(context);
-    final result =
-        await showDialog<({String newEmail, String currentPassword})>(
+    final result = await showDialog<({String newEmail, String currentPassword})>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Modifica email'),
@@ -288,54 +305,57 @@ class _SettingsPageMobileState extends State<SettingsPageMobile> {
     final newPasswordController = TextEditingController();
     final confirmPasswordController = TextEditingController();
     final messenger = ScaffoldMessenger.of(context);
-    final result = await showDialog<
-      ({String currentPassword, String newPassword, String confirmPassword})
-    >(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Modifica password'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: currentPasswordController,
-              obscureText: true,
-              decoration: const InputDecoration(
-                labelText: 'Password attuale',
+    final result =
+        await showDialog<
+          ({String currentPassword, String newPassword, String confirmPassword})
+        >(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Modifica password'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: currentPasswordController,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Password attuale',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: newPasswordController,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Nuova password',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: confirmPasswordController,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Conferma nuova password',
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Annulla'),
               ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: newPasswordController,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'Nuova password'),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: confirmPasswordController,
-              obscureText: true,
-              decoration: const InputDecoration(
-                labelText: 'Conferma nuova password',
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, (
+                  currentPassword: currentPasswordController.text,
+                  newPassword: newPasswordController.text,
+                  confirmPassword: confirmPasswordController.text,
+                )),
+                child: const Text('Aggiorna'),
               ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Annulla'),
+            ],
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, (
-              currentPassword: currentPasswordController.text,
-              newPassword: newPasswordController.text,
-              confirmPassword: confirmPasswordController.text,
-            )),
-            child: const Text('Aggiorna'),
-          ),
-        ],
-      ),
-    );
+        );
 
     if (result == null) {
       return;
@@ -415,7 +435,9 @@ class _SettingsPageMobileState extends State<SettingsPageMobile> {
       ),
     );
 
-    if (newUsername == null || newUsername.isEmpty || newUsername == currentUser.nickname) {
+    if (newUsername == null ||
+        newUsername.isEmpty ||
+        newUsername == currentUser.nickname) {
       return;
     }
 
@@ -547,12 +569,7 @@ class _SettingsPageMobileState extends State<SettingsPageMobile> {
   }
 
   Future<void> _updateSkillLevel() async {
-    const levels = [
-      'Principiante',
-      'Intermedio',
-      'Avanzato',
-      'Professionista',
-    ];
+    const levels = ['Principiante', 'Intermedio', 'Avanzato', 'Professionista'];
     final currentLevel =
         _profilePreferences(_user)['skill_level']?.toString() ??
         'Non specificato';
@@ -642,9 +659,9 @@ class _SettingsPageMobileState extends State<SettingsPageMobile> {
     if (!mounted) {
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Email di reset inviata a $email')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Email di reset inviata a $email')));
   }
 
   Future<void> _updateNotificationPreferences(
@@ -742,8 +759,7 @@ class _SettingsPageMobileState extends State<SettingsPageMobile> {
     final genres = profile['genres'] is List
         ? List<String>.from(profile['genres'] as List)
         : const <String>[];
-    final skillLevel =
-        profile['skill_level']?.toString() ?? 'Non specificato';
+    final skillLevel = profile['skill_level']?.toString() ?? 'Non specificato';
     final availability = profile['availability'] is List
         ? List<String>.from(profile['availability'] as List)
         : const <String>[];
@@ -753,7 +769,8 @@ class _SettingsPageMobileState extends State<SettingsPageMobile> {
         general['booking_reminder_minutes'] as int? ??
         themeService.bookingReminderMinutes;
     final textScale =
-        (accessibility['text_scale'] as num?)?.toDouble() ?? themeService.textScale;
+        (accessibility['text_scale'] as num?)?.toDouble() ??
+        themeService.textScale;
     final highContrast =
         accessibility['high_contrast'] as bool? ?? themeService.highContrast;
     final reduceMotion =
@@ -766,7 +783,9 @@ class _SettingsPageMobileState extends State<SettingsPageMobile> {
           children: [
             TabBar(
               labelColor: Theme.of(context).colorScheme.primary,
-              unselectedLabelColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+              unselectedLabelColor: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.6),
               indicatorColor: Theme.of(context).colorScheme.primary,
               tabs: const [
                 Tab(text: 'Generale'),
@@ -778,391 +797,427 @@ class _SettingsPageMobileState extends State<SettingsPageMobile> {
                 children: [
                   ListView(
                     padding: const EdgeInsets.all(16),
-              children: [
-                if (_isSavingGeneral) const LinearProgressIndicator(),
-                _buildSection(
-                  title: 'Aspetto',
-                  children: [
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Tema'),
-                      subtitle: const Text('Scegli come visualizzare l’app.'),
-                      trailing: DropdownButton<ThemeMode>(
-                        value: themeService.themeMode,
-                        onChanged: (value) async {
-                          if (value == null) {
-                            return;
-                          }
-                          themeService.updateThemeMode(value);
-                          await _updateGeneralPreferences(themeMode: value);
-                        },
-                        items: const [
-                          DropdownMenuItem(
-                            value: ThemeMode.system,
-                            child: Text('Sistema'),
-                          ),
-                          DropdownMenuItem(
-                            value: ThemeMode.light,
-                            child: Text('Chiaro'),
-                          ),
-                          DropdownMenuItem(
-                            value: ThemeMode.dark,
-                            child: Text('Scuro'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                _buildSection(
-                  title: 'Profilo',
-                  children: [
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Username'),
-                      subtitle: Text(user?.nickname ?? '-'),
-                      trailing: TextButton(
-                        onPressed: _updateUsername,
-                        child: const Text('Modifica'),
-                      ),
-                    ),
-                    const Divider(),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Citta'),
-                      subtitle: Text(city.isEmpty ? 'Non impostata' : city),
-                      trailing: TextButton(
-                        onPressed: _updateCity,
-                        child: const Text('Modifica'),
-                      ),
-                    ),
-                    const Divider(),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Bio'),
-                      subtitle: Text(
-                        bio.isEmpty ? 'Non impostata' : bio,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      trailing: TextButton(
-                        onPressed: _updateBio,
-                        child: const Text('Modifica'),
-                      ),
-                    ),
-                    const Divider(),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Generi musicali'),
-                      subtitle: Text(
-                        genres.isEmpty ? 'Non impostati' : genres.join(', '),
-                      ),
-                      trailing: TextButton(
-                        onPressed: _updateGenres,
-                        child: const Text('Modifica'),
-                      ),
-                    ),
-                    const Divider(),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Livello'),
-                      subtitle: Text(skillLevel),
-                      trailing: TextButton(
-                        onPressed: _updateSkillLevel,
-                        child: const Text('Modifica'),
-                      ),
-                    ),
-                    const Divider(),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Disponibilita'),
-                      subtitle: Text(
-                        availability.isEmpty
-                            ? 'Non impostata'
-                            : availability.join(', '),
-                      ),
-                      trailing: TextButton(
-                        onPressed: _updateAvailability,
-                        child: const Text('Modifica'),
-                      ),
-                    ),
-                  ],
-                ),
-                _buildSection(
-                  title: 'Prenotazioni',
-                  children: [
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      value: bookingRemindersEnabled,
-                      title: const Text('Promemoria prenotazioni'),
-                      subtitle: const Text(
-                        'Mantiene attivi i promemoria legati alle prenotazioni.',
-                      ),
-                      onChanged: (value) async {
-                        themeService.updateBookingReminders(enabled: value);
-                        await _updateGeneralPreferences(
-                          bookingRemindersEnabled: value,
-                        );
-                      },
-                    ),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Anticipo promemoria'),
-                      subtitle: const Text(
-                        'Quando ricevere il promemoria prima della prenotazione.',
-                      ),
-                      trailing: DropdownButton<int>(
-                        value: bookingReminderMinutes,
-                        onChanged: bookingRemindersEnabled
-                            ? (value) async {
+                    children: [
+                      if (_isSavingGeneral) const LinearProgressIndicator(),
+                      _buildSection(
+                        title: 'Aspetto',
+                        children: [
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('Tema'),
+                            subtitle: const Text(
+                              'Scegli come visualizzare l’app.',
+                            ),
+                            trailing: DropdownButton<ThemeMode>(
+                              value: themeService.themeMode,
+                              onChanged: (value) async {
                                 if (value == null) {
                                   return;
                                 }
-                                themeService.updateBookingReminders(
-                                  minutes: value,
-                                );
+                                themeService.updateThemeMode(value);
                                 await _updateGeneralPreferences(
-                                  bookingReminderMinutes: value,
+                                  themeMode: value,
                                 );
-                              }
-                            : null,
-                        items: const [
-                          DropdownMenuItem(
-                            value: 15,
-                            child: Text('15 min'),
-                          ),
-                          DropdownMenuItem(
-                            value: 30,
-                            child: Text('30 min'),
-                          ),
-                          DropdownMenuItem(
-                            value: 60,
-                            child: Text('1 ora'),
-                          ),
-                          DropdownMenuItem(
-                            value: 120,
-                            child: Text('2 ore'),
-                          ),
-                          DropdownMenuItem(
-                            value: 180,
-                            child: Text('3 ore'),
-                          ),
-                          DropdownMenuItem(
-                            value: 1440,
-                            child: Text('1 giorno'),
+                              },
+                              items: const [
+                                DropdownMenuItem(
+                                  value: ThemeMode.system,
+                                  child: Text('Sistema'),
+                                ),
+                                DropdownMenuItem(
+                                  value: ThemeMode.light,
+                                  child: Text('Chiaro'),
+                                ),
+                                DropdownMenuItem(
+                                  value: ThemeMode.dark,
+                                  child: Text('Scuro'),
+                                ),
+                              ],
+                            ),
                           ),
                         ],
                       ),
-                    ),
-                  ],
-                ),
-                _buildSection(
-                  title: 'Sicurezza',
-                  children: [
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Email account'),
-                      subtitle: Text(user?.email ?? 'Non disponibile'),
-                      trailing: TextButton(
-                        onPressed: _requestEmailChange,
-                        child: const Text('Modifica'),
-                      ),
-                    ),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Verifica email'),
-                      subtitle: Text(
-                        FirebaseAuth.instance.currentUser?.emailVerified == true
-                            ? 'Verificata'
-                            : 'Non verificata',
-                      ),
-                    ),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Password'),
-                      subtitle: Text(
-                        _authService.isPasswordProviderLinked
-                            ? 'Aggiorna la password con conferma credenziali.'
-                            : 'Nessuna password locale collegata a questo account.',
-                      ),
-                      trailing: _authService.isPasswordProviderLinked
-                          ? TextButton(
-                              onPressed: _updatePassword,
+                      _buildSection(
+                        title: 'Profilo',
+                        children: [
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('Username'),
+                            subtitle: Text(user?.nickname ?? '-'),
+                            trailing: TextButton(
+                              onPressed: _updateUsername,
                               child: const Text('Modifica'),
-                            )
-                          : null,
-                    ),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Reset password via email'),
-                      subtitle: const Text(
-                        'Invia una email per reimpostare la password.',
+                            ),
+                          ),
+                          const Divider(),
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('Citta'),
+                            subtitle: Text(
+                              city.isEmpty ? 'Non impostata' : city,
+                            ),
+                            trailing: TextButton(
+                              onPressed: _updateCity,
+                              child: const Text('Modifica'),
+                            ),
+                          ),
+                          const Divider(),
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('Bio'),
+                            subtitle: Text(
+                              bio.isEmpty ? 'Non impostata' : bio,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            trailing: TextButton(
+                              onPressed: _updateBio,
+                              child: const Text('Modifica'),
+                            ),
+                          ),
+                          const Divider(),
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('Generi musicali'),
+                            subtitle: Text(
+                              genres.isEmpty
+                                  ? 'Non impostati'
+                                  : genres.join(', '),
+                            ),
+                            trailing: TextButton(
+                              onPressed: _updateGenres,
+                              child: const Text('Modifica'),
+                            ),
+                          ),
+                          const Divider(),
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('Livello'),
+                            subtitle: Text(skillLevel),
+                            trailing: TextButton(
+                              onPressed: _updateSkillLevel,
+                              child: const Text('Modifica'),
+                            ),
+                          ),
+                          const Divider(),
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('Disponibilita'),
+                            subtitle: Text(
+                              availability.isEmpty
+                                  ? 'Non impostata'
+                                  : availability.join(', '),
+                            ),
+                            trailing: TextButton(
+                              onPressed: _updateAvailability,
+                              child: const Text('Modifica'),
+                            ),
+                          ),
+                        ],
                       ),
-                      trailing: TextButton(
-                        onPressed: _sendPasswordReset,
-                        child: const Text('Invia'),
+                      _buildSection(
+                        title: 'Prenotazioni',
+                        children: [
+                          SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            value: bookingRemindersEnabled,
+                            title: const Text('Promemoria prenotazioni'),
+                            subtitle: const Text(
+                              'Mantiene attivi i promemoria legati alle prenotazioni.',
+                            ),
+                            onChanged: (value) async {
+                              themeService.updateBookingReminders(
+                                enabled: value,
+                              );
+                              await _updateGeneralPreferences(
+                                bookingRemindersEnabled: value,
+                              );
+                            },
+                          ),
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('Anticipo promemoria'),
+                            subtitle: const Text(
+                              'Quando ricevere il promemoria prima della prenotazione.',
+                            ),
+                            trailing: DropdownButton<int>(
+                              value: bookingReminderMinutes,
+                              onChanged: bookingRemindersEnabled
+                                  ? (value) async {
+                                      if (value == null) {
+                                        return;
+                                      }
+                                      themeService.updateBookingReminders(
+                                        minutes: value,
+                                      );
+                                      await _updateGeneralPreferences(
+                                        bookingReminderMinutes: value,
+                                      );
+                                    }
+                                  : null,
+                              items: const [
+                                DropdownMenuItem(
+                                  value: 15,
+                                  child: Text('15 min'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 30,
+                                  child: Text('30 min'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 60,
+                                  child: Text('1 ora'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 120,
+                                  child: Text('2 ore'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 180,
+                                  child: Text('3 ore'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 1440,
+                                  child: Text('1 giorno'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ],
-                ),
-                _buildSection(
-                  title: 'Accessibilita',
-                  children: [
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Dimensione testo'),
-                      subtitle: Slider(
-                        value: textScale,
-                        min: 0.9,
-                        max: 1.4,
-                        divisions: 5,
-                        label: textScale.toStringAsFixed(2),
-                        onChanged: (value) {
-                          themeService.updateAccessibility(textScale: value);
-                        },
-                        onChangeEnd: (value) async {
-                          await _updateGeneralPreferences(textScale: value);
-                        },
+                      _buildSection(
+                        title: 'Sicurezza',
+                        children: [
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('Email account'),
+                            subtitle: Text(user?.email ?? 'Non disponibile'),
+                            trailing: TextButton(
+                              onPressed: _requestEmailChange,
+                              child: const Text('Modifica'),
+                            ),
+                          ),
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('Verifica email'),
+                            subtitle: Text(
+                              FirebaseAuth
+                                          .instance
+                                          .currentUser
+                                          ?.emailVerified ==
+                                      true
+                                  ? 'Verificata'
+                                  : 'Non verificata',
+                            ),
+                          ),
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('Password'),
+                            subtitle: Text(
+                              _authService.isPasswordProviderLinked
+                                  ? 'Aggiorna la password con conferma credenziali.'
+                                  : 'Nessuna password locale collegata a questo account.',
+                            ),
+                            trailing: _authService.isPasswordProviderLinked
+                                ? TextButton(
+                                    onPressed: _updatePassword,
+                                    child: const Text('Modifica'),
+                                  )
+                                : null,
+                          ),
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('Reset password via email'),
+                            subtitle: const Text(
+                              'Invia una email per reimpostare la password.',
+                            ),
+                            trailing: TextButton(
+                              onPressed: _sendPasswordReset,
+                              child: const Text('Invia'),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      value: highContrast,
-                      title: const Text('Contrasto elevato'),
-                      onChanged: (value) async {
-                        themeService.updateAccessibility(highContrast: value);
-                        await _updateGeneralPreferences(highContrast: value);
-                      },
-                    ),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      value: reduceMotion,
-                      title: const Text('Riduci animazioni'),
-                      onChanged: (value) async {
-                        themeService.updateAccessibility(reduceMotion: value);
-                        await _updateGeneralPreferences(reduceMotion: value);
-                      },
-                    ),
-                  ],
-                ),
-                _buildSection(
-                  title: 'Area pericolosa',
-                  children: [
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(
-                        Icons.delete_forever,
-                        color: Colors.red,
+                      _buildSection(
+                        title: 'Accessibilita',
+                        children: [
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('Dimensione testo'),
+                            subtitle: Slider(
+                              value: textScale,
+                              min: 0.9,
+                              max: 1.4,
+                              divisions: 5,
+                              label: textScale.toStringAsFixed(2),
+                              onChanged: (value) {
+                                themeService.updateAccessibility(
+                                  textScale: value,
+                                );
+                              },
+                              onChangeEnd: (value) async {
+                                await _updateGeneralPreferences(
+                                  textScale: value,
+                                );
+                              },
+                            ),
+                          ),
+                          SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            value: highContrast,
+                            title: const Text('Contrasto elevato'),
+                            onChanged: (value) async {
+                              themeService.updateAccessibility(
+                                highContrast: value,
+                              );
+                              await _updateGeneralPreferences(
+                                highContrast: value,
+                              );
+                            },
+                          ),
+                          SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            value: reduceMotion,
+                            title: const Text('Riduci animazioni'),
+                            onChanged: (value) async {
+                              themeService.updateAccessibility(
+                                reduceMotion: value,
+                              );
+                              await _updateGeneralPreferences(
+                                reduceMotion: value,
+                              );
+                            },
+                          ),
+                        ],
                       ),
-                      title: const Text(
-                        'Elimina account',
-                        style: TextStyle(color: Colors.red),
+                      _buildSection(
+                        title: 'Area pericolosa',
+                        children: [
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: const Icon(
+                              Icons.delete_forever,
+                              color: Colors.red,
+                            ),
+                            title: const Text(
+                              'Elimina account',
+                              style: TextStyle(color: Colors.red),
+                            ),
+                            subtitle: const Text(
+                              'Rimuove definitivamente account e dati collegati.',
+                            ),
+                            trailing: TextButton(
+                              onPressed: _deleteAccount,
+                              child: const Text(
+                                'Elimina',
+                                style: TextStyle(color: Colors.red),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      subtitle: const Text(
-                        'Rimuove definitivamente account e dati collegati.',
-                      ),
-                      trailing: TextButton(
-                        onPressed: _deleteAccount,
-                        child: const Text(
-                          'Elimina',
-                          style: TextStyle(color: Colors.red),
+                    ],
+                  ),
+                  ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: [
+                      SwitchListTile(
+                        value: _notificationPreferences.inAppEnabled,
+                        title: const Text('Popup in-app'),
+                        subtitle: const Text(
+                          'Mostra avvisi rapidi mentre usi l’app.',
                         ),
+                        onChanged: (value) {
+                          _updateNotificationPreferences(
+                            _notificationPreferences.copyWith(
+                              inAppEnabled: value,
+                            ),
+                          );
+                        },
                       ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                SwitchListTile(
-                  value: _notificationPreferences.inAppEnabled,
-                  title: const Text('Popup in-app'),
-                  subtitle: const Text(
-                    'Mostra avvisi rapidi mentre usi l’app.',
-                  ),
-                  onChanged: (value) {
-                    _updateNotificationPreferences(
-                      _notificationPreferences.copyWith(inAppEnabled: value),
-                    );
-                  },
-                ),
-                SwitchListTile(
-                  value: _notificationPreferences.systemEnabled,
-                  title: const Text('Notifiche di sistema'),
-                  subtitle: const Text(
-                    'Mostra banner e barra notifiche quando arriva un evento.',
-                  ),
-                  onChanged: (value) async {
-                    if (value) {
-                      await LocalNotificationService.instance
-                          .requestPermissions();
-                    }
-                    await _updateNotificationPreferences(
-                      _notificationPreferences.copyWith(systemEnabled: value),
-                    );
-                  },
-                ),
-                const Divider(),
-                SwitchListTile(
-                  value: _notificationPreferences.bookingEnabled,
-                  title: const Text('Categoria prenotazioni'),
-                  subtitle: const Text(
-                    'Conferme, rifiuti e aggiornamenti prenotazioni.',
-                  ),
-                  onChanged: (value) {
-                    _updateNotificationPreferences(
-                      _notificationPreferences.copyWith(bookingEnabled: value),
-                    );
-                  },
-                ),
-                SwitchListTile(
-                  value: _notificationPreferences.jamEnabled,
-                  title: const Text('Categoria jam'),
-                  subtitle: const Text(
-                    'Approvazioni, rifiuti e aggiornamenti jam.',
-                  ),
-                  onChanged: (value) {
-                    _updateNotificationPreferences(
-                      _notificationPreferences.copyWith(jamEnabled: value),
-                    );
-                  },
-                ),
-                SwitchListTile(
-                  value: _notificationPreferences.groupEnabled,
-                  title: const Text('Categoria gruppi'),
-                  subtitle: const Text(
-                    'Inviti e risposte relative ai gruppi.',
-                  ),
-                  onChanged: (value) {
-                    _updateNotificationPreferences(
-                      _notificationPreferences.copyWith(groupEnabled: value),
-                    );
-                  },
-                ),
-                SwitchListTile(
-                  value: _notificationPreferences.systemCategoryEnabled,
-                  title: const Text('Categoria sistema'),
-                  subtitle: const Text(
-                    'Messaggi generici e notifiche non classificate.',
-                  ),
-                  onChanged: (value) {
-                    _updateNotificationPreferences(
-                      _notificationPreferences.copyWith(
-                        systemCategoryEnabled: value,
+                      SwitchListTile(
+                        value: _notificationPreferences.systemEnabled,
+                        title: const Text('Notifiche di sistema'),
+                        subtitle: const Text(
+                          'Mostra banner e barra notifiche quando arriva un evento.',
+                        ),
+                        onChanged: (value) async {
+                          if (value) {
+                            await LocalNotificationService.instance
+                                .requestPermissions();
+                          }
+                          await _updateNotificationPreferences(
+                            _notificationPreferences.copyWith(
+                              systemEnabled: value,
+                            ),
+                          );
+                        },
                       ),
-                    );
-                  },
-                ),
-              ],
+                      const Divider(),
+                      SwitchListTile(
+                        value: _notificationPreferences.bookingEnabled,
+                        title: const Text('Categoria prenotazioni'),
+                        subtitle: const Text(
+                          'Conferme, rifiuti e aggiornamenti prenotazioni.',
+                        ),
+                        onChanged: (value) {
+                          _updateNotificationPreferences(
+                            _notificationPreferences.copyWith(
+                              bookingEnabled: value,
+                            ),
+                          );
+                        },
+                      ),
+                      SwitchListTile(
+                        value: _notificationPreferences.jamEnabled,
+                        title: const Text('Categoria jam'),
+                        subtitle: const Text(
+                          'Approvazioni, rifiuti e aggiornamenti jam.',
+                        ),
+                        onChanged: (value) {
+                          _updateNotificationPreferences(
+                            _notificationPreferences.copyWith(
+                              jamEnabled: value,
+                            ),
+                          );
+                        },
+                      ),
+                      SwitchListTile(
+                        value: _notificationPreferences.groupEnabled,
+                        title: const Text('Categoria gruppi'),
+                        subtitle: const Text(
+                          'Inviti e risposte relative ai gruppi.',
+                        ),
+                        onChanged: (value) {
+                          _updateNotificationPreferences(
+                            _notificationPreferences.copyWith(
+                              groupEnabled: value,
+                            ),
+                          );
+                        },
+                      ),
+                      SwitchListTile(
+                        value: _notificationPreferences.systemCategoryEnabled,
+                        title: const Text('Categoria sistema'),
+                        subtitle: const Text(
+                          'Messaggi generici e notifiche non classificate.',
+                        ),
+                        onChanged: (value) {
+                          _updateNotificationPreferences(
+                            _notificationPreferences.copyWith(
+                              systemCategoryEnabled: value,
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ],
         ),
       ),
-     ],
-    ),
-   ),
-  );
- }
+    );
+  }
 }

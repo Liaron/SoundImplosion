@@ -95,8 +95,15 @@ Future<void> _runStartupTask(String label, Future<void> Function() task) async {
   }
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
 
   ThemeData _buildTheme(Brightness brightness) {
     final prefs = AppPreferencesService.instance;
@@ -296,6 +303,7 @@ class MyApp extends StatelessWidget {
       builder: (context, _) {
         final prefs = AppPreferencesService.instance;
         return MaterialApp(
+          navigatorKey: _navigatorKey,
           title: 'SoundImplosion',
           themeMode: prefs.themeMode,
           theme: _buildTheme(Brightness.light),
