@@ -133,25 +133,25 @@ class PublicSiteContent {
   // CHI SIAMO (ABOUT)
   // ---------------------------------------------------------
   static const String aboutEyebrow = 'Chi siamo';
-  static const String aboutTitle = 'Gestito da musicisti, per i musicisti.';
+  static const String aboutTitle = 'Uno spazio nato dall\'amicizia, dalla musica e dalla voglia di creare.';
   static const String aboutDescription = 
-      'SoundImplosion nasce dall\'esigenza di avere un posto affidabile, comodo e professionale dove fare musica. Vogliamo eliminare tutta la frustrazione della prenotazione per lasciarti solo il piacere di suonare.';
+      'SoundImplosion è una sala prove nata da un sogno condiviso di Federico Millimaci, Marco Chima e Emanuele Soria, con la collaborazione di Lorenzo Pontecorvi, Andrea Marchi, Alessio Chima e Daniele Chima. Nasce dalla passione per la musica, dalla voglia di creare uno spazio autentico dedicato agli artisti e dall\'unione delle esperienze maturate da ogni socio nel mondo musicale, tecnico e live.';
   static const String aboutActionButton = 'Unisciti alla community';
 
-  static const String story1Title = 'La nostra missione';
-  static const String story1Description = 'Fornire uno spazio dove la creatività possa scorrere senza intoppi tecnici o problemi acustici.';
+  static const String story1Title = 'Un ambiente per musicisti e creativi';
+  static const String story1Description = 'Ogni competenza raccolta nel tempo ha contribuito alla realizzazione di un ambiente pensato per musicisti, band, creativi e produzioni che cercano professionalità, comfort e libertà espressiva.';
   
-  static const String story2Title = 'La community (Jam)';
-  static const String story2Description = 'Non siamo solo un affitto stanze. Tramite le Jam pubbliche puoi conoscere altri artisti della zona e far nascere nuovi progetti.';
+  static const String story2Title = 'Creatività a 360 gradi';
+  static const String story2Description = 'Oltre ad essere una sala prove musicale in continuo sviluppo, SoundImplosion è anche uno spazio dedicato alla creatività a 360 gradi: produzioni podcast, registrazioni video, contenuti multimediali e progetti artistici trovano qui un ambiente versatile e in costante evoluzione.';
 
-  static const String value1Title = 'Passione';
-  static const String value1Description = 'Viviamo la musica in prima persona, per questo sappiamo cosa ti serve per provare al meglio.';
+  static const String value1Title = 'Aggregazione';
+  static const String value1Description = 'SoundImplosion vuole essere un luogo di aggregazione e condivisione, dove l\'arte possa diventare un mezzo di incontro tra persone, idee ed esperienze diverse.';
   
-  static const String value2Title = 'Professionalità';
-  static const String value2Description = 'Strumentazione tenuta maniacalmente e staff sempre pronto a intervenire o consigliarti.';
+  static const String value2Title = 'Espressione artistica';
+  static const String value2Description = 'Musica, canto, parole, poesia, immagini e nuove forme di comunicazione convivono all\'interno di uno spazio pensato per dare voce alla creatività in tutte le sue forme.';
   
-  static const String value3Title = 'Punto di Incontro';
-  static const String value3Description = 'Oltre alla sala, troverai una comoda area relax e altre band con cui confrontarti.';
+  static const String value3Title = 'Sperimentazione';
+  static const String value3Description = 'Crediamo nel valore sociale dell\'espressione artistica e nella possibilità di creare connessioni autentiche attraverso ciò che si suona, si racconta o si immagina. Per questo SoundImplosion non è soltanto una sala prove, ma un ambiente aperto alla sperimentazione, alla collaborazione e alla nascita di nuovi progetti creativi.';
 
   // ---------------------------------------------------------
   // TARIFFE E PREZZI (PRICING)
