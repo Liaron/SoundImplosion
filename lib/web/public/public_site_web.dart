@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:soundimplosion/app/features/home/auth_form_card.dart';
 import 'package:soundimplosion/app/startup_loading_screen.dart';
+import 'package:soundimplosion/common/widgets/formatted_text.dart';
 import 'package:soundimplosion/web/public/public_site_content.dart';
 import 'package:soundimplosion/web/public/public_support_chat_launcher.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -1439,7 +1440,7 @@ class _PageIntroCard extends StatelessWidget {
                 padding: EdgeInsets.only(
                   bottom: entry.key == descriptionLines!.length - 1 ? 0 : 10,
                 ),
-                child: Text(
+                child: FormattedText(
                   entry.value,
                   style: theme.textTheme.bodyLarge?.copyWith(
                     color: const Color(0xFF52657D),
@@ -1449,7 +1450,7 @@ class _PageIntroCard extends StatelessWidget {
               ),
             )
           else
-            Text(
+            FormattedText(
               description!,
               style: theme.textTheme.bodyLarge?.copyWith(
                 color: const Color(0xFF52657D),
@@ -1556,7 +1557,7 @@ class _NarrativeCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          Text(
+          FormattedText(
             description,
             style: theme.textTheme.bodyLarge?.copyWith(
               color: const Color(0xFF52657D),
@@ -1653,7 +1654,7 @@ class _ValueTile extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 10),
-          Text(
+          FormattedText(
             body,
             style: theme.textTheme.bodyLarge?.copyWith(
               color: const Color(0xFFC9D8EA),
@@ -1908,7 +1909,7 @@ class _ContactGrid extends StatelessWidget {
     final categoryCards = <Widget>[
       if (PublicSiteContent.contactPhones.isNotEmpty)
         const _ContactCategoryCard(
-          title: 'Numeri di telefono',
+          title: 'Contatti',
           icon: Icons.phone_in_talk_rounded,
           accent: Color(0xFF003B95),
           items: PublicSiteContent.contactPhones,
