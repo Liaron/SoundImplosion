@@ -114,15 +114,14 @@ class PublicSiteContent {
   // ---------------------------------------------------------
   // HOME - STATISTICHE
   // ---------------------------------------------------------
-  static const String stat1Value = '1';
-  static const String stat1Label = 'Sale Prova Attrezzata';
+  static const String stat1Value = '40mq';
+  static const String stat1Label = 'Sale Prove Attrezzata';
 
   static const String stat2Value = 'Aperto 6/7';
   static const String stat2Label = 'Anche in orari serali';
 
-  static const String stat3Value = '1';
-  static const String stat3Label =
-      'Sala registrazione podcast e live streaming';
+  static const String stat3Value = 'E anche';
+  static const String stat3Label = 'Sala registrazione podcast e live streaming';
 
   // ---------------------------------------------------------
   // HOME - COME FUNZIONA (WORKFLOW)
