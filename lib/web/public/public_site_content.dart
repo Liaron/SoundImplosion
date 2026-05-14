@@ -115,7 +115,7 @@ class PublicSiteContent {
   // HOME - STATISTICHE
   // ---------------------------------------------------------
   static const String stat1Value = '40mq';
-  static const String stat1Label = 'Sale Prove Attrezzata';
+  static const String stat1Label = 'Sala Prove Attrezzata';
 
   static const String stat2Value = 'Aperto 6/7';
   static const String stat2Label = 'Anche in orari serali';
