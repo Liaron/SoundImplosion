@@ -609,8 +609,6 @@ class _HomePublicPage extends StatelessWidget {
           const SizedBox(height: 28),
           const _HighlightsSection(),
           const SizedBox(height: 28),
-          const _StatsBand(),
-          const SizedBox(height: 28),
           _WorkflowSection(onActionPressed: onLoginPressed),
         ],
       ),
@@ -1171,106 +1169,6 @@ class _HighlightCard extends StatelessWidget {
             description,
             style: theme.textTheme.bodyLarge?.copyWith(
               color: const Color(0xFF52657D),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatsBand extends StatelessWidget {
-  const _StatsBand();
-
-  @override
-  Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    final isCompact = width < 900;
-    final isNarrow = width < 640;
-    final statTiles = const [
-      _StatTile(
-        value: PublicSiteContent.stat1Value,
-        label: PublicSiteContent.stat1Label,
-      ),
-      _StatTile(
-        value: PublicSiteContent.stat2Value,
-        label: PublicSiteContent.stat2Label,
-      ),
-      _StatTile(
-        value: PublicSiteContent.stat3Value,
-        label: PublicSiteContent.stat3Label,
-      ),
-    ];
-
-    return Container(
-      padding: EdgeInsets.all(isNarrow ? 20 : 24),
-      decoration: BoxDecoration(
-        color: const Color(0xFF10233E),
-        borderRadius: BorderRadius.circular(isNarrow ? 24 : 32),
-      ),
-      child: isCompact
-          ? Column(
-              children: [
-                for (var i = 0; i < statTiles.length; i++) ...[
-                  statTiles[i],
-                  if (i != statTiles.length - 1) const SizedBox(height: 20),
-                ],
-              ],
-            )
-          : Row(
-              children: [
-                for (var i = 0; i < statTiles.length; i++) ...[
-                  Expanded(child: statTiles[i]),
-                  if (i != statTiles.length - 1) const SizedBox(width: 20),
-                ],
-              ],
-            ),
-    );
-  }
-}
-
-class _StatTile extends StatelessWidget {
-  const _StatTile({required this.value, required this.label});
-
-  final String value;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final isNarrow = MediaQuery.of(context).size.width < 640;
-    final theme = Theme.of(context);
-    return SizedBox(
-      height: isNarrow ? 96 : 88,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          SizedBox(
-            height: 36,
-            child: Center(
-              child: Text(
-                value,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.headlineMedium?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w900,
-                  fontSize: isNarrow ? 26 : null,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            height: isNarrow ? 52 : 44,
-            child: Center(
-              child: Text(
-                label,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodyLarge?.copyWith(
-                  color: const Color(0xFFC9D8EA),
-                  fontSize: isNarrow ? 15 : null,
-                ),
-              ),
             ),
           ),
         ],
