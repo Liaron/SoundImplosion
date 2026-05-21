@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:soundimplosion/app/features/home/auth_form_card.dart';
 import 'package:soundimplosion/app/startup_loading_screen.dart';
 import 'package:soundimplosion/common/widgets/formatted_text.dart';
+import 'package:soundimplosion/common/widgets/equipment_sheet_card.dart';
 import 'package:soundimplosion/web/public/public_site_content.dart';
 import 'package:soundimplosion/web/public/public_support_chat_launcher.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -233,7 +234,7 @@ class _DesktopHeaderRow extends StatelessWidget {
           onTap: () => onSelectSection(PublicSiteSection.about),
         ),
         _NavItem(
-          label: 'Pricing',
+          label: 'Servizi',
           selected: currentSection == PublicSiteSection.pricing,
           onTap: () => onSelectSection(PublicSiteSection.pricing),
         ),
@@ -362,7 +363,7 @@ class _PublicMobileMenu extends StatelessWidget {
                 onTap: () => onSelectSection(PublicSiteSection.about),
               ),
               _MobileDrawerItem(
-                label: 'Pricing',
+                label: 'Servizi',
                 icon: Icons.sell_rounded,
                 selected: currentSection == PublicSiteSection.pricing,
                 onTap: () => onSelectSection(PublicSiteSection.pricing),
@@ -672,6 +673,8 @@ class _PricingPublicPage extends StatelessWidget {
           ),
           const SizedBox(height: 28),
           _PricingGrid(onLoginPressed: onLoginPressed),
+          const SizedBox(height: 28),
+          const EquipmentSheetCard(),
           const SizedBox(height: 28),
           const _PricingFaqSection(),
         ],

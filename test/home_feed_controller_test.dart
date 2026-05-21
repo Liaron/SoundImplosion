@@ -121,6 +121,12 @@ class FakeBookingRepository implements BookingRepository {
   Future<List<Map<String, String>>> loadUserGroups() async => const [];
 
   @override
+  Future<List<Map<String, String>>> loadAllGroupsForAdmin() async => const [];
+
+  @override
+  Future<bool> isCurrentUserAdmin() async => false;
+
+  @override
   Future<void> submitBooking({
     required DateTime selectedDate,
     required List<String> selectedSlots,

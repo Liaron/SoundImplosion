@@ -11,9 +11,13 @@ class BookNowController extends ChangeNotifier {
   bool isLoading = false;
   bool isLoadingSlots = false;
   bool isLoadingDates = true;
+  bool isAdmin = false;
+  bool adminBookingForGroup = false;
+  String adminGroupSearchQuery = '';
 
   List<DateTime> availableDates = [];
   List<Map<String, String>> userGroups = [];
+  List<Map<String, String>> allGroups = [];
   List<String> availableSlots = [];
   List<BookingSlotItem> slotOverview = [];
   BookingListItem? editingBooking;
@@ -27,6 +31,18 @@ class BookNowController extends ChangeNotifier {
   List<String> get selectedSlots => List.unmodifiable(_selectedSlots);
 
   bool get isEditing => editingBooking != null;
+
+  List<Map<String, String>> get filteredAdminGroups {
+    final query = adminGroupSearchQuery.trim().toLowerCase();
+    if (query.isEmpty) {
+      return allGroups;
+    }
+    return allGroups.where((group) {
+      final id = group['id']?.toLowerCase() ?? '';
+      final name = group['name']?.toLowerCase() ?? '';
+      return id.contains(query) || name.contains(query);
+    }).toList();
+  }
 
   String? get editingDateLabel => editingBooking?.booking.data;
 
@@ -47,9 +63,11 @@ class BookNowController extends ChangeNotifier {
 
   Future<void> initialize({BookingListItem? initialBooking}) async {
     editingBooking = initialBooking;
+    isAdmin = await _repository.isCurrentUserAdmin();
 
     if (initialBooking != null) {
       _hydrateFromExistingBooking(initialBooking);
+      adminBookingForGroup = (selectedGroupId ?? '').isNotEmpty;
       await Future.wait([loadAvailableDates(), loadUserGroups()]);
       await refreshAvailableSlots();
       return;
@@ -84,7 +102,13 @@ class BookNowController extends ChangeNotifier {
   }
 
   Future<void> loadUserGroups() async {
-    userGroups = await _repository.loadUserGroups();
+    if (isAdmin) {
+      allGroups = await _repository.loadAllGroupsForAdmin();
+      userGroups = allGroups;
+    } else {
+      userGroups = await _repository.loadUserGroups();
+      allGroups = const [];
+    }
 
     final currentGroupId = selectedGroupId;
     if (currentGroupId != null &&
@@ -173,6 +197,20 @@ class BookNowController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setAdminBookingForGroup(bool value) {
+    adminBookingForGroup = value;
+    if (!value) {
+      selectedGroupId = null;
+      adminGroupSearchQuery = '';
+    }
+    notifyListeners();
+  }
+
+  void setAdminGroupSearchQuery(String value) {
+    adminGroupSearchQuery = value;
+    notifyListeners();
+  }
+
   String? validateSelection() {
     if (selectedDate == null) {
       return 'Seleziona una data';
@@ -185,6 +223,9 @@ class BookNowController extends ChangeNotifier {
     }
     if (!_repository.areSlotsContiguous(_selectedSlots)) {
       return 'Per selezionare slot separati e necessario effettuare due richieste distinte.';
+    }
+    if (isAdmin && adminBookingForGroup && (selectedGroupId ?? '').isEmpty) {
+      return 'Seleziona un gruppo';
     }
     return null;
   }

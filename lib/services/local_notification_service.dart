@@ -42,12 +42,15 @@ class LocalNotificationService {
     );
 
     tz.initializeTimeZones();
+
     try {
       final timezoneInfo = await FlutterTimezone.getLocalTimezone();
       tz.setLocalLocation(tz.getLocation(timezoneInfo.identifier));
     } catch (error) {
       debugPrint('Local notification timezone fallback: $error');
-      tz.setLocalLocation(tz.getLocation('UTC'));
+
+      final location = tz.getLocation('Europe/Rome');
+      tz.setLocalLocation(location);
     }
 
     await _plugin.initialize(

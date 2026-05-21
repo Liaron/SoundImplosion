@@ -3,14 +3,17 @@ import 'package:intl/intl.dart';
 import 'package:soundimplosion/app/features/app_scaffold_mobile.dart';
 import 'package:soundimplosion/app/features/book/book_now_controller.dart';
 import 'package:soundimplosion/app/features/book/booking_repository.dart';
+import 'package:soundimplosion/common/content/equipment_sheet_content.dart';
+import 'package:soundimplosion/common/widgets/equipment_sheet_card.dart';
 
-typedef BookingEditSubmitCallback = Future<void> Function({
-  required DateTime selectedDate,
-  required List<String> selectedSlots,
-  String? groupId,
-  required int peopleCount,
-  required String equipment,
-});
+typedef BookingEditSubmitCallback =
+    Future<void> Function({
+      required DateTime selectedDate,
+      required List<String> selectedSlots,
+      String? groupId,
+      required int peopleCount,
+      required String equipment,
+    });
 
 class BookNowPageMobile extends StatefulWidget {
   const BookNowPageMobile({
@@ -127,7 +130,9 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
   }
 
   bool _isSelectableDay(DateTime day) {
-    return _controller.availableDates.any((available) => _isSameDay(available, day));
+    return _controller.availableDates.any(
+      (available) => _isSameDay(available, day),
+    );
   }
 
   Future<void> _selectCalendarDay(DateTime date) async {
@@ -186,6 +191,26 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
     return _isEditing && slot.bookingId == widget.initialBooking?.id;
   }
 
+  Future<void> _showEquipmentSheetDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return Dialog(
+          insetPadding: const EdgeInsets.all(16),
+          child: _EquipmentSheetDialogContent(
+            title: EquipmentSheetContent.title,
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('Chiudi'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildLegendItem({
     required Color color,
     required String label,
@@ -231,15 +256,22 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
                 color: isSelected
                     ? Theme.of(context).colorScheme.primary
                     : isSelectable
-                    ? Theme.of(context).cardTheme.color ?? Theme.of(context).colorScheme.surface
-                    : Theme.of(context).colorScheme.surface.withValues(alpha: 0.5),
+                    ? Theme.of(context).cardTheme.color ??
+                          Theme.of(context).colorScheme.surface
+                    : Theme.of(
+                        context,
+                      ).colorScheme.surface.withValues(alpha: 0.5),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: isSelected
                       ? Theme.of(context).colorScheme.primary
                       : isSelectable
-                      ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.2)
-                      : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
+                      ? Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withValues(alpha: 0.2)
+                      : Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withValues(alpha: 0.1),
                 ),
               ),
               child: Column(
@@ -249,10 +281,16 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
                     DateFormat('EEE').format(day),
                     style: TextStyle(
                       color: isSelected
-                          ? Theme.of(context).colorScheme.onPrimary.withValues(alpha: 0.8)
+                          ? Theme.of(
+                              context,
+                            ).colorScheme.onPrimary.withValues(alpha: 0.8)
                           : isSelectable
-                          ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6)
-                          : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
+                          ? Theme.of(
+                              context,
+                            ).colorScheme.onSurface.withValues(alpha: 0.6)
+                          : Theme.of(
+                              context,
+                            ).colorScheme.onSurface.withValues(alpha: 0.3),
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -265,7 +303,9 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
                           ? Theme.of(context).colorScheme.onPrimary
                           : isSelectable
                           ? Theme.of(context).colorScheme.onSurface
-                          : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
+                          : Theme.of(
+                              context,
+                            ).colorScheme.onSurface.withValues(alpha: 0.3),
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -275,7 +315,9 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: isSelectable
-                          ? (isSelected ? Theme.of(context).colorScheme.onPrimary : const Color(0xFF4CAF50))
+                          ? (isSelected
+                                ? Theme.of(context).colorScheme.onPrimary
+                                : const Color(0xFF4CAF50))
                           : Colors.transparent,
                     ),
                   ),
@@ -338,7 +380,10 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
               onTap: canToggle ? () => _controller.toggleSlot(slot.time) : null,
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 120),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   color: _slotBackgroundColor(slot, isSelected),
                   borderRadius: BorderRadius.circular(14),
@@ -371,6 +416,123 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
             );
           }).toList(),
         ),
+      ],
+    );
+  }
+
+  String _groupNameById(String groupId) {
+    for (final group in _controller.userGroups) {
+      if (group['id'] == groupId) {
+        return group['name'] ?? groupId;
+      }
+    }
+    return groupId;
+  }
+
+  Widget _buildGroupSelector() {
+    if (!_controller.isAdmin) {
+      return DropdownButtonFormField<String>(
+        decoration: const InputDecoration(
+          labelText: 'Gruppo (Opzionale)',
+          border: OutlineInputBorder(),
+          prefixIcon: Icon(Icons.group),
+        ),
+        key: ValueKey<String?>(_controller.selectedGroupId),
+        initialValue: _controller.selectedGroupId,
+        isExpanded: true,
+        items: [
+          const DropdownMenuItem<String>(
+            value: null,
+            child: Text('Nessun gruppo'),
+          ),
+          ..._controller.userGroups.map((group) {
+            return DropdownMenuItem<String>(
+              value: group['id'],
+              child: Text(group['name'] ?? ''),
+            );
+          }),
+        ],
+        onChanged: _controller.setSelectedGroup,
+      );
+    }
+
+    final selectedGroupId = _controller.selectedGroupId;
+    final filteredGroups = _controller.filteredAdminGroups.take(8).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SegmentedButton<bool>(
+          segments: const [
+            ButtonSegment<bool>(
+              value: false,
+              icon: Icon(Icons.person),
+              label: Text('Per me'),
+            ),
+            ButtonSegment<bool>(
+              value: true,
+              icon: Icon(Icons.group),
+              label: Text('Per gruppo'),
+            ),
+          ],
+          selected: {_controller.adminBookingForGroup},
+          onSelectionChanged: (selection) {
+            _controller.setAdminBookingForGroup(selection.first);
+          },
+        ),
+        if (_controller.adminBookingForGroup) ...[
+          const SizedBox(height: 12),
+          TextField(
+            decoration: const InputDecoration(
+              labelText: 'Cerca gruppo',
+              hintText: 'Nome o ID gruppo',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.search),
+            ),
+            onChanged: _controller.setAdminGroupSearchQuery,
+          ),
+          if (selectedGroupId != null && selectedGroupId.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            InputChip(
+              avatar: const Icon(Icons.check_circle, size: 18),
+              label: Text('Selezionato: ${_groupNameById(selectedGroupId)}'),
+              onDeleted: () => _controller.setSelectedGroup(null),
+            ),
+          ],
+          const SizedBox(height: 8),
+          if (_controller.allGroups.isEmpty)
+            const Text('Nessun gruppo registrato trovato.')
+          else if (filteredGroups.isEmpty)
+            const Text('Nessun gruppo trovato.')
+          else
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 240),
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: filteredGroups.length,
+                separatorBuilder: (_, _) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final group = filteredGroups[index];
+                  final groupId = group['id'] ?? '';
+                  final selected = groupId == selectedGroupId;
+                  return ListTile(
+                    dense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                    leading: Icon(
+                      selected
+                          ? Icons.radio_button_checked
+                          : Icons.radio_button_unchecked,
+                    ),
+                    title: Text(group['name'] ?? 'Gruppo sconosciuto'),
+                    subtitle: Text(groupId),
+                    onTap: groupId.isEmpty
+                        ? null
+                        : () => _controller.setSelectedGroup(groupId),
+                  );
+                },
+              ),
+            ),
+        ],
       ],
     );
   }
@@ -484,9 +646,7 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
     return Scaffold(
       appBar: _isEditing
           ? AppBar(
-              title: Text(
-                widget.editAppBarTitle ?? 'Modifica Prenotazione',
-              ),
+              title: Text(widget.editAppBarTitle ?? 'Modifica Prenotazione'),
             )
           : null,
       body: SingleChildScrollView(
@@ -575,32 +735,16 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
                 const SizedBox(height: 16),
 
                 // 4. Gruppo
-                DropdownButtonFormField<String>(
-                  decoration: const InputDecoration(
-                    labelText: 'Gruppo (Opzionale)',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.group),
-                  ),
-                  key: ValueKey<String?>(_controller.selectedGroupId),
-                  initialValue: _controller.selectedGroupId,
-                  isExpanded: true,
-                  items: [
-                    const DropdownMenuItem<String>(
-                      value: null,
-                      child: Text('Nessun gruppo'),
-                    ),
-                    ..._controller.userGroups.map((group) {
-                      return DropdownMenuItem<String>(
-                        value: group['id'],
-                        child: Text(group['name'] ?? ''),
-                      );
-                    }),
-                  ],
-                  onChanged: _controller.setSelectedGroup,
-                ),
+                _buildGroupSelector(),
                 const SizedBox(height: 16),
 
                 // 5. Attrezzatura
+                OutlinedButton.icon(
+                  onPressed: _showEquipmentSheetDialog,
+                  icon: const Icon(Icons.graphic_eq),
+                  label: const Text('Vedi scheda tecnica'),
+                ),
+                const SizedBox(height: 12),
                 TextFormField(
                   controller: _equipmentController,
                   decoration: const InputDecoration(
@@ -624,9 +768,9 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
                   child: _controller.isLoading
                       ? const CircularProgressIndicator(color: Colors.white)
                       : Text(
-                        _isEditing
-                          ? (widget.editSubmitLabel ?? 'SALVA MODIFICHE')
-                          : 'INVIA PRENOTAZIONE',
+                          _isEditing
+                              ? (widget.editSubmitLabel ?? 'SALVA MODIFICHE')
+                              : 'INVIA PRENOTAZIONE',
                           style: const TextStyle(
                             fontSize: 16,
                             color: Colors.white,
@@ -637,6 +781,56 @@ class _BookNowPageMobileState extends State<BookNowPageMobile> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _EquipmentSheetDialogContent extends StatelessWidget {
+  const _EquipmentSheetDialogContent({
+    required this.title,
+    required this.actions,
+  });
+
+  final String title;
+  final List<Widget> actions;
+
+  @override
+  Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    final maxHeight = mediaQuery.size.height - 32;
+    final maxWidth = mediaQuery.size.width < 680
+        ? mediaQuery.size.width
+        : 640.0;
+
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: maxWidth, maxHeight: maxHeight),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(title, style: Theme.of(context).textTheme.titleLarge),
+            ),
+          ),
+          const Flexible(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.symmetric(horizontal: 20),
+              child: EquipmentSheetCard(compact: true),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+            child: Wrap(
+              alignment: WrapAlignment.end,
+              spacing: 8,
+              runSpacing: 8,
+              children: actions,
+            ),
+          ),
+        ],
       ),
     );
   }

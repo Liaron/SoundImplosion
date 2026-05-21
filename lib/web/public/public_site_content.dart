@@ -194,7 +194,7 @@ class PublicSiteContent {
   // ---------------------------------------------------------
   // TARIFFE E PREZZI (PRICING)
   // ---------------------------------------------------------
-  static const String pricingEyebrow = 'Tariffe';
+  static const String pricingEyebrow = 'Servizi';
   static const String pricingTitle =
       'Prezzi chiari e trasparenti per ogni esigenza.';
   static const String pricingDescription =

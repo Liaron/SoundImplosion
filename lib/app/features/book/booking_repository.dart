@@ -73,6 +73,8 @@ class BookingSlotItem {
 abstract class BookingRepository {
   Future<List<DateTime>> loadAvailableDates();
   Future<List<Map<String, String>>> loadUserGroups();
+  Future<List<Map<String, String>>> loadAllGroupsForAdmin();
+  Future<bool> isCurrentUserAdmin();
   Future<List<String>> loadAvailableSlots(DateTime date);
   Future<List<BookingSlotItem>> loadSlotsOverview(DateTime date);
   Future<void> updateBooking({
@@ -155,6 +157,16 @@ class FirebaseBookingRepository implements BookingRepository {
   }
 
   @override
+  Future<List<Map<String, String>>> loadAllGroupsForAdmin() {
+    return _databaseService.getAllGroupsForAdmin();
+  }
+
+  @override
+  Future<bool> isCurrentUserAdmin() {
+    return _databaseService.isCurrentUserAdmin();
+  }
+
+  @override
   Future<List<String>> loadAvailableSlots(DateTime date) async {
     final dateStr = DateFormat('yyyy-MM-dd').format(date);
     final freeSlots = await _databaseService.getFreeSlotsForDate(dateStr);
@@ -227,8 +239,11 @@ class FirebaseBookingRepository implements BookingRepository {
       );
     }
 
+    final isAdmin = await _databaseService.isCurrentUserAdmin();
     final availableGroups = selectedGroupId == null
         ? const <Map<String, String>>[]
+        : isAdmin
+        ? await loadAllGroupsForAdmin()
         : await loadUserGroups();
 
     final startSlot = orderedSlots.first;
@@ -253,7 +268,7 @@ class FirebaseBookingRepository implements BookingRepository {
       oraFine: endTime,
       numeroUtenti: peopleCount,
       attrezzatura: equipment.trim(),
-      stato: BookingStatus.inElaborazione,
+      stato: isAdmin ? BookingStatus.confermata : BookingStatus.inElaborazione,
     );
 
     await _databaseService.createBooking(booking, orderedSlots);

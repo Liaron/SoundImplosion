@@ -16,6 +16,7 @@ import 'package:soundimplosion/app/features/notifications/notifications_reposito
 import 'package:soundimplosion/app/features/profile/profile_details_page_mobile.dart';
 import 'package:soundimplosion/app/features/settings/settings_page_mobile.dart';
 import 'package:soundimplosion/app/features/contact_us/contact_us_page_mobile.dart';
+import 'package:soundimplosion/app/features/equipment/equipment_page_mobile.dart';
 import 'package:soundimplosion/services/app_preferences_service.dart';
 import 'package:soundimplosion/services/booking_reminder_service.dart';
 import 'package:soundimplosion/services/firebase_auth.dart';
@@ -133,6 +134,7 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
     'Profilo',
     'Contattaci',
     'Impostazioni',
+    'Attrezzatura',
   ];
 
   void _navigateToPage(int index, {bool closeDrawer = true}) {
@@ -190,6 +192,7 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
       const ProfileDetailsPageMobile(), // 6
       const ContactUsPageMobile(), // 7
       const SettingsPageMobile(), // 8
+      const EquipmentPageMobile(), // 9
     ];
 
     final maxIndex = _widgetOptions.length - 1;
@@ -953,6 +956,14 @@ class _AppScaffoldMobileState extends State<AppScaffoldMobile> {
                 index: 7,
                 icon: Icons.contact_mail,
                 title: 'Contattaci',
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: _buildDrawerTile(
+                index: 9,
+                icon: Icons.graphic_eq,
+                title: 'Attrezzatura',
               ),
             ),
             Padding(

@@ -538,6 +538,36 @@ class DatabaseService {
     return [];
   }
 
+  Future<List<Map<String, String>>> getAllGroupsForAdmin() async {
+    await _ensureCurrentUserIsAdminOrThrow();
+
+    final snapshot = await _dbRef.child('groups_info').get();
+    if (!snapshot.exists || snapshot.value == null || snapshot.value is! Map) {
+      return [];
+    }
+
+    final rawGroups = _asStringKeyedMap(snapshot.value);
+    final groups = <Map<String, String>>[];
+    for (final entry in rawGroups.entries) {
+      final groupId = entry.key.trim();
+      if (groupId.isEmpty || entry.value is! Map) {
+        continue;
+      }
+
+      final groupData = _asStringKeyedMap(entry.value);
+      final groupName = groupData['name']?.toString().trim();
+      groups.add({
+        'id': groupId,
+        'name': groupName?.isNotEmpty == true
+            ? groupName!
+            : 'Gruppo sconosciuto',
+      });
+    }
+
+    groups.sort((a, b) => (a['name'] ?? '').compareTo(b['name'] ?? ''));
+    return groups;
+  }
+
   // --- Gestione Disponibilità (Operatore) ---
   Future<void> setDefaultAvailability() async {
     // ... codice esistente ...
