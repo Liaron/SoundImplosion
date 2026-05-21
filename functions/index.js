@@ -4,6 +4,7 @@ const functions = require("firebase-functions/v1");
 admin.initializeApp();
 
 const db = admin.database();
+const REALTIME_DATABASE_REGION = "europe-west1";
 
 function normalizeNickname(value) {
   return (value || "").toString().trim().toLowerCase();
@@ -734,7 +735,9 @@ exports.cleanupDeletedUserData = functions.auth.user().onDelete(async (user) => 
   await cleanupUserData(user.uid);
 });
 
-exports.pushUserNotification = functions.database
+exports.pushUserNotification = functions
+    .region(REALTIME_DATABASE_REGION)
+    .database
     .ref("/user_notifications/{uid}/{notificationId}")
     .onCreate(async (snapshot, context) => {
       const payload = snapshot.val();
@@ -750,7 +753,9 @@ exports.pushUserNotification = functions.database
       return null;
     });
 
-exports.fanoutSupportChatAdminNotifications = functions.database
+exports.fanoutSupportChatAdminNotifications = functions
+    .region(REALTIME_DATABASE_REGION)
+    .database
     .ref("/support_chat_messages/{chatId}/{messageId}")
     .onCreate(async (snapshot, context) => {
       const payload = snapshot.val();
