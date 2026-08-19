@@ -5,7 +5,8 @@ import 'package:soundimplosion/app/startup_loading_screen.dart';
 import 'package:soundimplosion/common/widgets/formatted_text.dart';
 import 'package:soundimplosion/common/widgets/equipment_sheet_card.dart';
 import 'package:soundimplosion/web/public/public_site_content.dart';
-import 'package:soundimplosion/web/public/public_support_chat_launcher.dart';
+// Chat assistenza nascosta temporaneamente.
+// import 'package:soundimplosion/web/public/public_support_chat_launcher.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 enum PublicSiteSection { home, about, pricing, contact }
@@ -76,7 +77,8 @@ class _PublicSiteWebState extends State<PublicSiteWeb> {
     final isCompact = MediaQuery.of(context).size.width < 960;
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7FB),
-      floatingActionButton: const PublicSupportChatLauncher(),
+      // Chat assistenza nascosta temporaneamente.
+      // floatingActionButton: const PublicSupportChatLauncher(),
       endDrawer: isCompact
           ? _PublicMobileMenu(
               currentSection: _section,
@@ -243,8 +245,9 @@ class _DesktopHeaderRow extends StatelessWidget {
           selected: currentSection == PublicSiteSection.contact,
           onTap: () => onSelectSection(PublicSiteSection.contact),
         ),
-        const SizedBox(width: 8),
-        TextButton(onPressed: onLoginPressed, child: const Text('Accedi')),
+        // Accesso nascosto temporaneamente.
+        // const SizedBox(width: 8),
+        // TextButton(onPressed: onLoginPressed, child: const Text('Accedi')),
       ],
     );
   }
@@ -263,19 +266,21 @@ class _CompactHeaderRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isNarrow = MediaQuery.of(context).size.width < 430;
+    // Usato dal blocco accesso nascosto temporaneamente.
+    // final isNarrow = MediaQuery.of(context).size.width < 430;
     return Row(
       children: [
         const Expanded(child: _BrandLockup()),
-        if (isNarrow)
-          IconButton(
-            onPressed: onLoginPressed,
-            icon: const Icon(Icons.login_rounded),
-            tooltip: 'Accedi',
-          )
-        else
-          TextButton(onPressed: onLoginPressed, child: const Text('Accedi')),
-        const SizedBox(width: 6),
+        // Accesso nascosto temporaneamente.
+        // if (isNarrow)
+        //   IconButton(
+        //     onPressed: onLoginPressed,
+        //     icon: const Icon(Icons.login_rounded),
+        //     tooltip: 'Accedi',
+        //   )
+        // else
+        //   TextButton(onPressed: onLoginPressed, child: const Text('Accedi')),
+        // const SizedBox(width: 6),
         Container(
           decoration: BoxDecoration(
             color: const Color(0xFF003B95),
@@ -375,19 +380,20 @@ class _PublicMobileMenu extends StatelessWidget {
                 onTap: () => onSelectSection(PublicSiteSection.contact),
               ),
               const Spacer(),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: onLoginPressed,
-                  icon: const Icon(Icons.login_rounded),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF003B95),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                  label: const Text('Accedi'),
-                ),
-              ),
+              // Accesso nascosto temporaneamente.
+              // SizedBox(
+              //   width: double.infinity,
+              //   child: ElevatedButton.icon(
+              //     onPressed: onLoginPressed,
+              //     icon: const Icon(Icons.login_rounded),
+              //     style: ElevatedButton.styleFrom(
+              //       backgroundColor: const Color(0xFF003B95),
+              //       foregroundColor: Colors.white,
+              //       padding: const EdgeInsets.symmetric(vertical: 16),
+              //     ),
+              //     label: const Text('Accedi'),
+              //   ),
+              // ),
             ],
           ),
         ),
@@ -761,7 +767,8 @@ class _HeroSection extends StatelessWidget {
     final isCompact = width < 980;
     final isNarrow = width < 640;
     final theme = Theme.of(context);
-    final downloadCard = const _HeroDownloadCard();
+    // Sezione download app nascosta temporaneamente.
+    // final downloadCard = const _HeroDownloadCard();
     final details = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -808,16 +815,17 @@ class _HeroSection extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              ElevatedButton(
-                onPressed: onPrimaryPressed,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF003B95),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-                child: const Text(PublicSiteContent.heroPrimaryButton),
-              ),
-              const SizedBox(height: 12),
+              // Accesso nascosto temporaneamente.
+              // ElevatedButton(
+              //   onPressed: onPrimaryPressed,
+              //   style: ElevatedButton.styleFrom(
+              //     backgroundColor: const Color(0xFF003B95),
+              //     foregroundColor: Colors.white,
+              //     padding: const EdgeInsets.symmetric(vertical: 16),
+              //   ),
+              //   child: const Text(PublicSiteContent.heroPrimaryButton),
+              // ),
+              // const SizedBox(height: 12),
               OutlinedButton(
                 onPressed: onSecondaryPressed,
                 style: OutlinedButton.styleFrom(
@@ -834,18 +842,19 @@ class _HeroSection extends StatelessWidget {
             spacing: 12,
             runSpacing: 12,
             children: [
-              ElevatedButton(
-                onPressed: onPrimaryPressed,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF003B95),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 22,
-                    vertical: 16,
-                  ),
-                ),
-                child: const Text(PublicSiteContent.heroPrimaryButton),
-              ),
+              // Accesso nascosto temporaneamente.
+              // ElevatedButton(
+              //   onPressed: onPrimaryPressed,
+              //   style: ElevatedButton.styleFrom(
+              //     backgroundColor: const Color(0xFF003B95),
+              //     foregroundColor: Colors.white,
+              //     padding: const EdgeInsets.symmetric(
+              //       horizontal: 22,
+              //       vertical: 16,
+              //     ),
+              //   ),
+              //   child: const Text(PublicSiteContent.heroPrimaryButton),
+              // ),
               OutlinedButton(
                 onPressed: onSecondaryPressed,
                 style: OutlinedButton.styleFrom(
@@ -884,26 +893,34 @@ class _HeroSection extends StatelessWidget {
       child: isCompact
           ? Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [details, const SizedBox(height: 20), downloadCard],
+              children: [
+                details,
+                // Sezione download app nascosta temporaneamente.
+                // const SizedBox(height: 20),
+                // downloadCard,
+              ],
             )
           : Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  flex: 6,
+                  flex: 1,
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 760),
                     child: details,
                   ),
                 ),
-                const SizedBox(width: 24),
-                const Expanded(flex: 5, child: _HeroDownloadCard()),
+                // Sezione download app nascosta temporaneamente.
+                // const SizedBox(width: 24),
+                // const Expanded(flex: 5, child: _HeroDownloadCard()),
               ],
             ),
     );
   }
 }
 
+// Sezione download app nascosta temporaneamente.
+// ignore: unused_element
 class _HeroDownloadCard extends StatelessWidget {
   const _HeroDownloadCard();
 
@@ -1358,22 +1375,23 @@ class _PageIntroCard extends StatelessWidget {
                 height: 1.6,
               ),
             ),
-          const SizedBox(height: 20),
-          SizedBox(
-            width: isNarrow ? double.infinity : null,
-            child: ElevatedButton(
-              onPressed: onActionPressed,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF003B95),
-                foregroundColor: Colors.white,
-                padding: EdgeInsets.symmetric(
-                  horizontal: isNarrow ? 16 : 20,
-                  vertical: 14,
-                ),
-              ),
-              child: Text(actionLabel),
-            ),
-          ),
+          // CTA accesso/prenotazione nascosta temporaneamente.
+          // const SizedBox(height: 20),
+          // SizedBox(
+          //   width: isNarrow ? double.infinity : null,
+          //   child: ElevatedButton(
+          //     onPressed: onActionPressed,
+          //     style: ElevatedButton.styleFrom(
+          //       backgroundColor: const Color(0xFF003B95),
+          //       foregroundColor: Colors.white,
+          //       padding: EdgeInsets.symmetric(
+          //         horizontal: isNarrow ? 16 : 20,
+          //         vertical: 14,
+          //       ),
+          //     ),
+          //     child: Text(actionLabel),
+          //   ),
+          // ),
         ],
       ),
     );
@@ -1754,18 +1772,19 @@ class _PricingCard extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 14),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: onActionPressed,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: highlighted ? Colors.white : accent,
-                foregroundColor: highlighted ? accent : Colors.white,
-              ),
-              child: Text(actionLabel),
-            ),
-          ),
+          // CTA accesso/prenotazione nascosta temporaneamente.
+          // const SizedBox(height: 14),
+          // SizedBox(
+          //   width: double.infinity,
+          //   child: ElevatedButton(
+          //     onPressed: onActionPressed,
+          //     style: ElevatedButton.styleFrom(
+          //       backgroundColor: highlighted ? Colors.white : accent,
+          //       foregroundColor: highlighted ? accent : Colors.white,
+          //     ),
+          //     child: Text(actionLabel),
+          //   ),
+          // ),
         ],
       ),
     );
